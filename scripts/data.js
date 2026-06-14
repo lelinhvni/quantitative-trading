@@ -77,33 +77,67 @@
     } finally { clearTimeout(t); }
   }
 
+  /* ---------- Yahoo Finance v8 ---------- */
+  async function fetchYahoo(symbol, days, proxy) {
+    const range = days <= 30 ? "1mo" : days <= 60 ? "3mo" : "6mo";
+    const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
+    const url = proxy ? proxy + encodeURIComponent(base) : base;
+    const json = JSON.parse(await fetchText(url, 9000));
+    const result = json && json.chart && json.chart.result && json.chart.result[0];
+    if (!result) return null;
+    const timestamps = result.timestamp || [];
+    const q = (result.indicators && result.indicators.quote && result.indicators.quote[0]) || {};
+    const rows = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      if (q.close == null || q.close[i] == null) continue;
+      const d = new Date(timestamps[i] * 1000);
+      rows.push({
+        date: d.toISOString().slice(0, 10),
+        open:   q.open   && q.open[i]   != null ? +q.open[i].toFixed(2)   : null,
+        high:   q.high   && q.high[i]   != null ? +q.high[i].toFixed(2)   : null,
+        low:    q.low    && q.low[i]    != null ? +q.low[i].toFixed(2)    : null,
+        close:  +q.close[i].toFixed(2),
+        volume: q.volume && q.volume[i] != null ? q.volume[i] : 0,
+      });
+    }
+    return rows.length ? rows.slice(-days) : null;
+  }
+
   /* ---------- public: get daily history for a ticker ---------- */
   async function getHistory(ticker, days = 90) {
     const meta = (CFG.tickers || []).find((t) => t.symbol === ticker.symbol || t === ticker) || ticker;
     const symbol = meta.symbol || ticker;
-    const provider = (CFG.data && CFG.data.provider) || "demo";
+    const providers = (CFG.data && Array.isArray(CFG.data.providers))
+      ? CFG.data.providers
+      : [(CFG.data && CFG.data.provider) || "demo"];
+    const proxy = (CFG.data && CFG.data.corsProxy) || "";
 
-    try {
-      if (provider === "stooq" && meta.stooq) {
-        const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
-        const proxy = (CFG.data && CFG.data.corsProxy) || "";
-        const url = proxy ? proxy + encodeURIComponent(base) : base;
-        const csv = await fetchText(url);
-        const rows = parseStooqCsv(csv);
-        if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
-      }
-      if (provider === "twelvedata" && CFG.data.twelveDataKey) {
-        const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&apikey=${CFG.data.twelveDataKey}`;
-        const json = JSON.parse(await fetchText(url));
-        if (json && json.values) {
-          const rows = json.values.map((v) => ({
-            date: v.datetime, open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +v.volume,
-          })).reverse();
-          return { symbol, source: "Twelve Data (live)", rows: rows.slice(-days) };
+    for (const provider of providers) {
+      try {
+        if (provider === "yahoo") {
+          const rows = await fetchYahoo(symbol, days, proxy);
+          if (rows) return { symbol, source: "Yahoo Finance (live)", rows };
         }
+        if (provider === "stooq" && meta.stooq) {
+          const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
+          const url = proxy ? proxy + encodeURIComponent(base) : base;
+          const csv = await fetchText(url);
+          const rows = parseStooqCsv(csv);
+          if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
+        }
+        if (provider === "twelvedata" && CFG.data && CFG.data.twelveDataKey) {
+          const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&apikey=${CFG.data.twelveDataKey}`;
+          const json = JSON.parse(await fetchText(url));
+          if (json && json.values) {
+            const rows = json.values.map((v) => ({
+              date: v.datetime, open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +v.volume,
+            })).reverse();
+            return { symbol, source: "Twelve Data (live)", rows: rows.slice(-days) };
+          }
+        }
+      } catch (e) {
+        console.warn(`[JSS] ${provider} data for ${symbol} failed:`, e.message);
       }
-    } catch (e) {
-      console.warn(`[JSS] live data for ${symbol} failed, using demo:`, e.message);
     }
     return { symbol, source: "Demo data", rows: demoSeries(symbol, days, DEMO_BASE[symbol] || 450) };
   }

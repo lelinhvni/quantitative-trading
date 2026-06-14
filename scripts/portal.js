@@ -231,6 +231,34 @@
         </form>
       </div>
 
+      <!-- CSV bulk upload -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Upload trades via CSV</h2><span class="panel__sub">Paste or upload a pre-formatted file</span></div>
+        <p class="portal__note" style="margin-bottom:14px">
+          Required columns (header row must match exactly):<br>
+          <code class="csv-header-hint">Date,Time,Symbol,Side,Qty,Price,Strategy,Note</code><br>
+          Example: <code class="csv-header-hint">2025-11-01,09:32:00,SPY,BUY,200,545.20,Trend,Morning breakout</code>
+        </p>
+        <div class="csv-upload">
+          <div class="field field--full">
+            <label>Upload CSV file</label>
+            <input type="file" id="csvFile" accept=".csv,text/csv" class="csv-file-input" />
+          </div>
+          <div class="field field--full">
+            <label>Or paste CSV text</label>
+            <textarea id="csvText" class="csv-textarea" rows="6" placeholder="Date,Time,Symbol,Side,Qty,Price,Strategy,Note&#10;2025-11-01,09:32:00,SPY,BUY,200,545.20,Trend,&#10;2025-11-01,14:15:00,QQQ,SELL,100,470.80,Mean-Rev,Partial exit"></textarea>
+          </div>
+          <div>
+            <button id="csvParseBtn" class="btn btn--ghost">Preview trades</button>
+          </div>
+          <div id="csvPreview" class="csv-preview" hidden></div>
+          <div id="csvActions" hidden>
+            <button id="csvConfirmBtn" class="btn btn--primary">Confirm &amp; upload</button>
+            <p class="cta__note" id="csvNote" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>
+
       <!-- Positions -->
       <div class="panel reveal">
         <div class="panel__head"><h2>Open positions</h2></div>
@@ -350,6 +378,88 @@
         await DB.upsertPosition({ symbol: t.symbol.value, qty: parseFloat(t.qty.value), avgCost: parseFloat(t.avgCost.value) });
         note.textContent = "✓ Position updated."; note.classList.remove("is-error");
       } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+
+    /* CSV bulk upload */
+    let parsedCsvTrades = [];
+
+    const csvFile = document.getElementById("csvFile");
+    if (csvFile) csvFile.addEventListener("change", () => {
+      const file = csvFile.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById("csvText").value = ev.target.result;
+      };
+      reader.readAsText(file);
+    });
+
+    const csvParseBtn = document.getElementById("csvParseBtn");
+    if (csvParseBtn) csvParseBtn.addEventListener("click", () => {
+      const text = document.getElementById("csvText").value.trim();
+      const note = document.getElementById("csvNote");
+      const preview = document.getElementById("csvPreview");
+      const actions = document.getElementById("csvActions");
+      parsedCsvTrades = [];
+      preview.hidden = true;
+      actions.hidden = true;
+
+      if (!text) { return; }
+
+      const result = parseCsvTrades(text);
+      if (result.errors.length) {
+        preview.innerHTML = `<p style="color:var(--red,#f87171);margin:0">${esc(result.errors.join("; "))}</p>`;
+        preview.hidden = false;
+        return;
+      }
+      if (!result.trades.length) {
+        preview.innerHTML = `<p style="color:var(--muted);margin:0">No valid rows found.</p>`;
+        preview.hidden = false;
+        return;
+      }
+
+      parsedCsvTrades = result.trades;
+      preview.innerHTML = `
+        <p style="margin-bottom:10px;color:var(--muted)">${parsedCsvTrades.length} trade${parsedCsvTrades.length !== 1 ? "s" : ""} parsed — review before uploading:</p>
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date / Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th><th>Note</th></tr></thead>
+          <tbody>${parsedCsvTrades.map((t) => `
+            <tr>
+              <td class="mono">${esc(t.executedAt.slice(0, 16).replace("T", " "))}</td>
+              <td><b>${esc(t.symbol)}</b></td>
+              <td><span class="pill ${t.side === "BUY" ? "pill--buy" : "pill--sell"}">${esc(t.side)}</span></td>
+              <td class="mono">${t.qty}</td>
+              <td class="mono">${F.fmtMoney(t.price)}</td>
+              <td>${esc(t.strategy || "—")}</td>
+              <td>${esc(t.note || "")}</td>
+            </tr>`).join("")}
+          </tbody>
+        </table></div>`;
+      preview.hidden = false;
+      if (note) note.textContent = "";
+      actions.hidden = false;
+    });
+
+    const csvConfirmBtn = document.getElementById("csvConfirmBtn");
+    if (csvConfirmBtn) csvConfirmBtn.addEventListener("click", async () => {
+      const note = document.getElementById("csvNote");
+      if (!parsedCsvTrades.length) return;
+      csvConfirmBtn.disabled = true;
+      note.textContent = "Uploading…"; note.classList.remove("is-error");
+      try {
+        await DB.bulkAddTrades(parsedCsvTrades);
+        note.textContent = `✓ ${parsedCsvTrades.length} trade${parsedCsvTrades.length !== 1 ? "s" : ""} uploaded.`;
+        parsedCsvTrades = [];
+        document.getElementById("csvText").value = "";
+        if (csvFile) csvFile.value = "";
+        document.getElementById("csvPreview").hidden = true;
+        document.getElementById("csvActions").hidden = true;
+      } catch (err) {
+        note.textContent = "Error: " + err.message;
+        note.classList.add("is-error");
+      } finally {
+        csvConfirmBtn.disabled = false;
+      }
     });
 
     /* Investor units form */
@@ -481,4 +591,59 @@
   }
 
   function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  /* ---------- CSV parser for bulk trade upload ---------- */
+  function parseCsvTrades(text) {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const errors = [];
+    const trades = [];
+
+    if (!lines.length) { errors.push("Empty input"); return { trades, errors }; }
+
+    // Normalize header
+    const rawHeader = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const EXPECTED = ["date", "time", "symbol", "side", "qty", "price", "strategy", "note"];
+    const missing = EXPECTED.slice(0, 6).filter((h) => !rawHeader.includes(h));
+    if (missing.length) {
+      errors.push("Missing required columns: " + missing.join(", ") + ". First row must be: Date,Time,Symbol,Side,Qty,Price,Strategy,Note");
+      return { trades, errors };
+    }
+
+    const idx = (name) => rawHeader.indexOf(name);
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",").map((c) => c.trim());
+      const date     = cols[idx("date")]     || "";
+      const time     = cols[idx("time")]     || "00:00:00";
+      const symbol   = (cols[idx("symbol")] || "").toUpperCase();
+      const side     = (cols[idx("side")]   || "").toUpperCase();
+      const qtyRaw   = cols[idx("qty")]      || "";
+      const priceRaw = cols[idx("price")]    || "";
+      const strategy = idx("strategy") >= 0 ? (cols[idx("strategy")] || "") : "";
+      const note     = idx("note")     >= 0 ? (cols[idx("note")]     || "") : "";
+
+      if (!date || !symbol || !side || !qtyRaw || !priceRaw) {
+        errors.push(`Row ${i + 1}: missing required field(s)`);
+        continue;
+      }
+      if (!["BUY", "SELL"].includes(side)) {
+        errors.push(`Row ${i + 1}: Side must be BUY or SELL (got "${side}")`);
+        continue;
+      }
+      const qty   = parseFloat(qtyRaw);
+      const price = parseFloat(priceRaw);
+      if (isNaN(qty)   || qty   <= 0) { errors.push(`Row ${i + 1}: invalid Qty "${qtyRaw}"`);   continue; }
+      if (isNaN(price) || price <= 0) { errors.push(`Row ${i + 1}: invalid Price "${priceRaw}"`); continue; }
+
+      const executedAt = new Date(`${date}T${time}`).toISOString();
+      if (executedAt === "Invalid Date") {
+        errors.push(`Row ${i + 1}: invalid date/time "${date} ${time}"`);
+        continue;
+      }
+
+      trades.push({ symbol, side, qty, price, strategy: strategy || null, note: note || null, executedAt, status: "filled" });
+    }
+
+    return { trades, errors };
+  }
 })();

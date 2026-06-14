@@ -132,6 +132,17 @@
       return data;
     },
 
+    async bulkAddTrades(trades) {
+      const rows = trades.map((t) => ({
+        symbol: t.symbol, side: t.side, qty: t.qty, price: t.price,
+        strategy: t.strategy || null, status: t.status || "filled",
+        note: t.note || null, executed_at: t.executedAt || new Date().toISOString(),
+      }));
+      const { data, error } = await this._client.from("trades").insert(rows).select();
+      if (error) throw error;
+      return data || [];
+    },
+
     /* ============================================================
        POSITIONS
        ============================================================ */

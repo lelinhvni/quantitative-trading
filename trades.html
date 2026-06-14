@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#070a14" />
   <title>Trades — JSS Capital</title>
-  <meta name="description" content="Follow JSS Capital's trades — a live feed of systematic signals and executions across SPY, QQQ and DIA." />
+  <meta name="description" content="JSS Capital trade history — systematic signals and executions across SPY, QQQ and DIA. Available to registered investors." />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,9 +19,9 @@
   <main id="main">
     <section class="page-hero">
       <div class="container">
-        <span class="kicker reveal">Follow the trades</span>
-        <h1 class="page-hero__title reveal">Live trade feed</h1>
-        <p class="page-hero__lede reveal">Every systematic signal JSS acts on, as it happens. Filter by ticker or side and follow along in real time. <span class="data-source">Demo feed shown until live execution data is connected.</span></p>
+        <span class="kicker reveal">Trade history</span>
+        <h1 class="page-hero__title reveal">JSS trade log</h1>
+        <p class="page-hero__lede reveal">Every systematic signal JSS has acted on across SPY, QQQ and DIA. Registered investors can filter by ticker or side.</p>
         <div class="trades__bar reveal" id="tradeFilters">
           <button class="chip is-active" data-f="all">All</button>
           <button class="chip" data-f="SPY">SPY</button>
@@ -29,7 +29,6 @@
           <button class="chip" data-f="DIA">DIA</button>
           <button class="chip" data-f="BUY">Buys</button>
           <button class="chip" data-f="SELL">Sells</button>
-          <span class="live-dot" id="liveDot">● Live</span>
         </div>
       </div>
     </section>

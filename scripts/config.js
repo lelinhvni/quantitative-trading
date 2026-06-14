@@ -28,35 +28,43 @@ window.JSS_CONFIG = {
   },
 
   /* ----- Market data providers -----------------------------------------
-     The app works with zero configuration using a demo fallback.
-     For LIVE data, choose a provider:
-       - "stooq":      free, no key. Routed through a CORS proxy (see corsProxy).
-       - "twelvedata": free key from https://twelvedata.com (CORS-friendly).
-       - "demo":       force simulated data (no network).
+     Sources are tried in order until one succeeds; demo is the final
+     fallback so the site always renders.
+
+     "yahoo"     — Yahoo Finance v8 API (free, no key). Requires a CORS
+                   proxy since Yahoo blocks direct browser requests.
+     "stooq"     — Stooq daily CSV (free, no key). Also needs corsProxy.
+     "twelvedata"— Set twelveDataKey for guaranteed live quotes (free tier).
+     "demo"      — Force simulated data (useful for offline testing).
+
+     Set corsProxy to your own proxy for production. The public corsproxy.io
+     works fine for demos and small traffic.
   --------------------------------------------------------------------- */
   data: {
-    provider: "stooq",
-    // Public CORS proxy used for browser fetches that lack CORS headers.
-    // For production, host your own proxy and put its URL here.
+    providers: ["yahoo", "stooq"],          // tried left-to-right until one works
     corsProxy: "https://corsproxy.io/?url=",
-    twelveDataKey: "", // paste your Twelve Data API key here for live quotes
-    refreshMs: 60000,  // auto-refresh interval for live pages
+    twelveDataKey: "",                       // optional: twelvedata.com free key
+    refreshMs: 60000,
   },
 
   /* ----- Tickers tracked on the markets page --------------------------- */
   tickers: [
-    { symbol: "SPY", name: "S&P 500 ETF",         stooq: "spy.us" },
-    { symbol: "QQQ", name: "Nasdaq-100 ETF",      stooq: "qqq.us" },
-    { symbol: "DIA", name: "Dow Jones ETF",       stooq: "dia.us" },
+    { symbol: "SPY", name: "S&P 500 ETF",    stooq: "spy.us" },
+    { symbol: "QQQ", name: "Nasdaq-100 ETF", stooq: "qqq.us" },
+    { symbol: "DIA", name: "Dow Jones ETF",  stooq: "dia.us" },
   ],
 
-  /* ----- News sources -------------------------------------------------- */
+  /* ----- News sources --------------------------------------------------
+     All are free RSS feeds, routed through rss2json (free, no key).
+     CNBC and Yahoo Finance cover market/ETF news without paid subscriptions.
+  --------------------------------------------------------------------- */
   news: {
     rss2json: "https://api.rss2json.com/v1/api.json?count=12&rss_url=",
     feeds: [
-      { label: "CNBC — Top News",   url: "https://www.cnbc.com/id/100003114/device/rss/rss.html" },
-      { label: "CNBC — Markets",    url: "https://www.cnbc.com/id/20910258/device/rss/rss.html" },
-      { label: "CNBC — Investing",  url: "https://www.cnbc.com/id/15839069/device/rss/rss.html" },
+      { label: "CNBC — Top News",     url: "https://www.cnbc.com/id/100003114/device/rss/rss.html" },
+      { label: "CNBC — Markets",      url: "https://www.cnbc.com/id/20910258/device/rss/rss.html" },
+      { label: "Yahoo Finance",       url: "https://finance.yahoo.com/rss/topstories" },
+      { label: "Yahoo — ETFs",        url: "https://finance.yahoo.com/rss/headline?s=SPY,QQQ,DIA" },
     ],
   },
 

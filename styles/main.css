@@ -520,3 +520,31 @@ button { font: inherit; cursor: pointer; }
 /* Position empty state */
 .pos__empty { color: var(--faint); padding: 12px; }
 .pos__note { color: var(--faint); font-size: 0.8rem; }
+
+/* ============================================================
+   Auth gate (trades page — logged-out state)
+   ============================================================ */
+.auth-gate { text-align: center; padding: 80px 24px 60px; max-width: 480px; margin: 0 auto; }
+.auth-gate__icon { font-size: 2.8rem; margin-bottom: 20px; line-height: 1; }
+.auth-gate__title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }
+.auth-gate__desc { color: var(--muted); font-size: 0.98rem; line-height: 1.65; margin-bottom: 28px; }
+
+/* ============================================================
+   CSV trade upload (manager portal panel)
+   ============================================================ */
+.csv-upload { display: flex; flex-direction: column; gap: 14px; }
+.csv-file-input { color: var(--muted); font-size: 0.9rem; }
+.csv-textarea {
+  width: 100%; resize: vertical; min-height: 110px;
+  background: rgba(7,10,20,0.55); border: 1px solid var(--border-2);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  color: var(--text); font-family: "JetBrains Mono", monospace; font-size: 0.8rem;
+  line-height: 1.55;
+}
+.csv-textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(94,234,212,0.15); }
+.csv-preview { margin-top: 4px; border-top: 1px solid var(--border); padding-top: 14px; }
+.csv-header-hint {
+  display: inline-block; background: rgba(255,255,255,0.04); border-radius: 4px;
+  padding: 2px 7px; font-family: "JetBrains Mono", monospace; font-size: 0.78rem;
+  color: var(--teal); margin-top: 4px;
+}
