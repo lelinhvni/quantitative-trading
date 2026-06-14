@@ -104,18 +104,30 @@
 
   /* ---------- reveal on scroll ---------- */
   function reveal() {
-    const els = document.querySelectorAll(".reveal");
-    if (!("IntersectionObserver" in window) || !els.length) {
-      els.forEach((e) => e.classList.add("is-visible"));
+    if (!("IntersectionObserver" in window)) {
+      document.querySelectorAll(".reveal").forEach((e) => e.classList.add("is-visible"));
       return;
     }
     const io = new IntersectionObserver(
       (entries) => entries.forEach((en) => {
         if (en.isIntersecting) { en.target.classList.add("is-visible"); io.unobserve(en.target); }
       }),
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
+      { threshold: 0.08, rootMargin: "0px 0px -20px 0px" }
     );
-    els.forEach((e) => io.observe(e));
+    document.querySelectorAll(".reveal").forEach((e) => io.observe(e));
+
+    // Auto-observe .reveal elements injected dynamically (async data, portals etc.)
+    new MutationObserver((mutations) => {
+      mutations.forEach((m) => {
+        m.addedNodes.forEach((node) => {
+          if (node.nodeType !== 1) return;
+          const newEls = node.classList && node.classList.contains("reveal")
+            ? [node]
+            : Array.from(node.querySelectorAll(".reveal"));
+          newEls.forEach((e) => { if (!e.classList.contains("is-visible")) io.observe(e); });
+        });
+      });
+    }).observe(document.body, { childList: true, subtree: true });
   }
 
   /* ---------- animated counters ---------- */
