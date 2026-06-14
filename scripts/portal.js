@@ -1,45 +1,45 @@
 /* ============================================================
-   JSS — Investor portal (DEMO front-end auth)
-   ⚠️  v1 only. Real investor data requires a secure backend with
-       proper authentication. Do NOT store real credentials here.
+   JSS Capital — Investor portal
+   Supports two modes:
+     LIVE: Supabase configured in config.js → real auth + DB
+     DEMO: Supabase not configured          → demo login + local data
    ============================================================ */
 (function () {
   "use strict";
-  const CFG = window.JSS_CONFIG;
   const F = window.JSS;
-  const SESSION_KEY = "jss_session";
+  const DB = window.JSSDB;
+  const CFG = window.JSS_CONFIG;
 
-  document.addEventListener("DOMContentLoaded", () => {
-    bindLogin();
-    const s = currentUser();
-    if (s) showApp(s); else showLogin();
+  let liveMode = false;
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    liveMode = DB && DB.init();
+    if (liveMode) await initLive();
+    else initDemo();
   });
 
-  function currentUser() {
-    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null"); } catch (_) { return null; }
-  }
+  /* ============================================================
+     LIVE MODE (Supabase)
+     ============================================================ */
+  async function initLive() {
+    document.getElementById("loginView").hidden = false;
+    document.getElementById("appView").hidden = true;
 
-  function bindLogin() {
-    const form = document.getElementById("loginForm");
-    const note = document.getElementById("loginNote");
-    document.querySelectorAll(".demo-cred").forEach((b) =>
-      b.addEventListener("click", () => {
-        document.getElementById("lemail").value = b.dataset.email;
-        document.getElementById("lpass").value = b.dataset.pass;
-      })
-    );
-    if (form) form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const email = document.getElementById("lemail").value.trim().toLowerCase();
-      const pass = document.getElementById("lpass").value;
-      const user = (CFG.demoUsers || []).find((u) => u.email.toLowerCase() === email && u.password === pass);
-      if (!user) { note.textContent = "Incorrect email or password."; note.classList.add("is-error"); return; }
-      const session = { email: user.email, role: user.role, name: user.name, invested: user.invested, since: user.since };
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      showApp(session);
+    // Listen for auth state changes
+    DB.onAuthChange(async (event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        await showLiveApp();
+      } else if (event === "SIGNED_OUT") {
+        showLogin();
+      }
     });
-    const out = document.getElementById("logoutBtn");
-    if (out) out.addEventListener("click", () => { sessionStorage.removeItem(SESSION_KEY); showLogin(); });
+
+    // Check existing session
+    const session = await DB.getSession();
+    if (session) await showLiveApp(); else showLogin();
+
+    bindLiveLogin();
+    bindLogout();
   }
 
   function showLogin() {
@@ -47,154 +47,438 @@
     document.getElementById("appView").hidden = true;
   }
 
-  function showApp(user) {
+  function bindLiveLogin() {
+    const form = document.getElementById("loginForm");
+    const note = document.getElementById("loginNote");
+    if (!form) return;
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      note.classList.remove("is-error"); note.textContent = "Signing in…";
+      try {
+        await DB.signIn(
+          document.getElementById("lemail").value.trim().toLowerCase(),
+          document.getElementById("lpass").value
+        );
+        // Auth state change handler takes over
+      } catch (err) {
+        note.textContent = err.message || "Sign-in failed.";
+        note.classList.add("is-error");
+      }
+    });
+  }
+
+  async function showLiveApp() {
+    try {
+      const profile = await DB.getProfile(true);
+      document.getElementById("loginView").hidden = true;
+      document.getElementById("appView").hidden = false;
+      document.getElementById("greeting").textContent = "Welcome, " + profile.name;
+      document.getElementById("roleLine").textContent =
+        profile.role === "manager" ? "Fund manager" : "Investor account";
+      if (profile.role === "manager") await renderManager();
+      else await renderInvestor(profile);
+    } catch (err) {
+      showError("Could not load your account: " + err.message);
+    }
+  }
+
+  function bindLogout() {
+    const btn = document.getElementById("logoutBtn");
+    if (btn) btn.addEventListener("click", async () => {
+      if (liveMode) await DB.signOut(); else showLogin();
+    });
+  }
+
+  /* ============================================================
+     INVESTOR VIEW
+     ============================================================ */
+  async function renderInvestor(profile) {
+    const body = document.getElementById("portalBody");
+    body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
+
+    const [account, latestNav, events, allNav] = await Promise.all([
+      DB.getMyAccount(),
+      DB.getLatestNav(),
+      DB.getMyCapitalEvents(),
+      DB.getAllNavHistory(),
+    ]);
+
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const units = account ? +account.units : 0;
+    const curVal = navPU ? units * navPU : null;
+    const totalDep = events.filter((e) => e.type === "deposit").reduce((a, e) => a + +e.amount, 0);
+    const totalWith = events.filter((e) => e.type === "withdrawal").reduce((a, e) => a + +e.amount, 0);
+    const netInvested = totalDep - totalWith;
+    const gain = curVal != null ? curVal - netInvested : null;
+    const retPct = curVal != null && netInvested > 0 ? (gain / netInvested) * 100 : null;
+
+    // Build account value series from NAV history × units
+    const navSeries = allNav.length ? allNav : null;
+
+    body.innerHTML = `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${curVal != null ? F.fmtMoney(curVal, 0) : "—"}</div><div class="metric__l">Current value</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(netInvested, 0)}</div><div class="metric__l">Net invested</div></div>
+        <div class="metric"><div class="metric__v ${gain != null && gain >= 0 ? "pos" : "neg"}">${gain != null ? F.fmtMoney(gain, 0) : "—"}</div><div class="metric__l">Total gain/loss</div></div>
+        <div class="metric"><div class="metric__v ${retPct != null && retPct >= 0 ? "pos" : "neg"}">${retPct != null ? F.fmtPct(retPct) : "—"}</div><div class="metric__l">Total return</div></div>
+        <div class="metric"><div class="metric__v mono">${units.toFixed(4)}</div><div class="metric__l">Fund units held</div></div>
+      </div>
+      ${navSeries ? `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Account value over time</h2><span class="panel__sub">NAV × your units</span></div>
+        <canvas id="acctChart" height="300" role="img" aria-label="Account value chart"></canvas>
+      </div>` : ""}
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Capital events</h2></div>
+        ${events.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Units</th><th>NAV at txn</th><th>Note</th></tr></thead>
+          <tbody>${events.map((ev) => `
+            <tr>
+              <td class="mono">${ev.date}</td>
+              <td><span class="pill ${ev.type === "deposit" ? "pill--buy" : "pill--sell"}">${ev.type}</span></td>
+              <td class="mono">${F.fmtMoney(ev.amount, 0)}</td>
+              <td class="mono">${ev.units != null ? F.fmtNum(ev.units, 4) : "—"}</td>
+              <td class="mono">${ev.nav_at_txn != null ? F.fmtNum(ev.nav_at_txn, 2) : "—"}</td>
+              <td>${ev.note || ""}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No capital events recorded yet.</p>`}
+      </div>
+      ${latestNav ? `<p class="portal__note">NAV as of ${latestNav.date}: ${F.fmtNum(latestNav.nav_per_unit, 2)} per unit.</p>` : `<p class="portal__note">No NAV entries yet — fund manager will add these.</p>`}`;
+
+    revealAll();
+    if (navSeries && units > 0) {
+      const c = document.getElementById("acctChart");
+      if (c) F.chart.lineChart(c, {
+        labels: navSeries.map((n) => n.date.slice(5)),
+        series: [{ values: navSeries.map((n) => units * +n.nav_per_unit), color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.4 }],
+        yFmt: (v) => "$" + (v / 1000).toFixed(0) + "k",
+      });
+    }
+  }
+
+  /* ============================================================
+     MANAGER VIEW
+     ============================================================ */
+  async function renderManager() {
+    const body = document.getElementById("portalBody");
+    body.innerHTML = `<div class="snap__loading">Loading manager dashboard…</div>`;
+
+    const [investors, latestNav, positions, leads, navHistory] = await Promise.all([
+      DB.getAllInvestors().catch(() => []),
+      DB.getLatestNav().catch(() => null),
+      DB.getPositions().catch(() => []),
+      DB.getLeads().catch(() => []),
+      DB.getAllNavHistory().catch(() => []),
+    ]);
+
+    const navPU = latestNav ? +latestNav.nav_per_unit : 1000;
+    const aum = investors.reduce((a, inv) => a + +inv.units * navPU, 0);
+    const totalInvested = investors.reduce((a, inv) => a + +(inv.net_invested || 0), 0);
+
+    body.innerHTML = `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(aum, 0)}</div><div class="metric__l">AUM (est.)</div></div>
+        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
+        <div class="metric"><div class="metric__v">${navPU ? F.fmtNum(navPU, 2) : "—"}</div><div class="metric__l">Latest NAV / unit</div></div>
+        <div class="metric"><div class="metric__v">${latestNav ? latestNav.date : "None"}</div><div class="metric__l">Last NAV date</div></div>
+        <div class="metric"><div class="metric__v">${leads.length}</div><div class="metric__l">Leads</div></div>
+      </div>
+
+      <!-- NAV entry -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Update NAV</h2><span class="panel__sub">Set today's NAV per unit</span></div>
+        <form class="mgr-form" id="navForm">
+          <div class="field"><label>Date</label><input type="date" name="date" value="${new Date().toISOString().slice(0,10)}" required /></div>
+          <div class="field"><label>NAV per unit</label><input type="number" name="nav" step="0.0001" min="0" required placeholder="1212.40" value="${navPU ? navPU : ""}" /></div>
+          <div class="field"><label>AUM ($, optional)</label><input type="number" name="aum" step="0.01" min="0" placeholder="124091.00" /></div>
+          <div class="field field--full"><label>Note</label><input type="text" name="note" placeholder="End of day valuation" /></div>
+          <button type="submit" class="btn btn--primary">Save NAV</button>
+          <p class="cta__note" id="navNote" role="status" aria-live="polite"></p>
+        </form>
+        ${navHistory.length ? `
+        <div class="table-wrap" style="margin-top:18px">
+          <table class="ttable"><thead><tr><th>Date</th><th>NAV / unit</th><th>AUM</th><th>Note</th></tr></thead>
+          <tbody>${navHistory.slice().reverse().slice(0, 12).map((n) => `
+            <tr><td class="mono">${n.date}</td><td class="mono">${F.fmtNum(n.nav_per_unit, 2)}</td><td class="mono">${n.aum ? F.fmtMoney(n.aum, 0) : "—"}</td><td>${n.note || ""}</td></tr>
+          `).join("")}</tbody></table>
+        </div>` : ""}
+      </div>
+
+      <!-- Add trade -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Log a trade</h2><span class="panel__sub">Manual entry or paste from broker</span></div>
+        <form class="mgr-form" id="tradeForm">
+          <div class="field"><label>Symbol</label>
+            <select name="symbol">
+              ${(CFG.tickers || []).map((t) => `<option>${t.symbol}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Side</label>
+            <select name="side"><option>BUY</option><option>SELL</option></select>
+          </div>
+          <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" min="0.0001" required placeholder="200" /></div>
+          <div class="field"><label>Price ($)</label><input type="number" name="price" step="0.0001" min="0" required placeholder="545.20" /></div>
+          <div class="field"><label>Strategy</label>
+            <select name="strategy">
+              ${["Trend","Momentum","Mean-Rev","Risk overlay","Breakout","Manual"].map((s) => `<option>${s}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Executed at (optional)</label><input type="datetime-local" name="executedAt" /></div>
+          <div class="field field--full"><label>Note</label><input type="text" name="note" placeholder="Optional notes" /></div>
+          <button type="submit" class="btn btn--primary">Add trade</button>
+          <p class="cta__note" id="tradeNote" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+
+      <!-- Positions -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Open positions</h2></div>
+        ${positions.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Updated</th></tr></thead>
+          <tbody>${positions.map((p) => `
+            <tr><td><b>${p.symbol}</b></td><td class="mono">${F.fmtNum(p.qty, 2)}</td><td class="mono">${F.fmtNum(p.avg_cost, 2)}</td><td class="mono">${new Date(p.updated_at).toLocaleDateString()}</td></tr>
+          `).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No open positions logged yet.</p>`}
+        <!-- Position upsert form -->
+        <details class="mgr-details">
+          <summary>Update / add position</summary>
+          <form class="mgr-form mgr-form--sm" id="posForm">
+            <div class="field"><label>Symbol</label>
+              <select name="symbol">${(CFG.tickers || []).map((t) => `<option>${t.symbol}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" required placeholder="400" /></div>
+            <div class="field"><label>Avg cost</label><input type="number" name="avgCost" step="0.0001" required placeholder="545.80" /></div>
+            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
+            <p class="cta__note" id="posNote" role="status" aria-live="polite"></p>
+          </form>
+        </details>
+      </div>
+
+      <!-- Investors -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor accounts</h2></div>
+        ${investors.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th><th>Since</th></tr></thead>
+          <tbody>${investors.map((inv) => {
+            const val = +inv.units * navPU;
+            return `<tr>
+              <td><b>${inv.profiles ? inv.profiles.name : "—"}</b></td>
+              <td class="mono">${F.fmtNum(inv.units, 4)}</td>
+              <td class="mono">${F.fmtMoney(val, 0)}</td>
+              <td class="mono">${inv.since || "—"}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No investor accounts yet. See README for how to add investors.</p>`}
+        <!-- Update investor units form -->
+        <details class="mgr-details">
+          <summary>Update investor units</summary>
+          <form class="mgr-form mgr-form--sm" id="unitsForm">
+            <div class="field"><label>Investor ID (UUID)</label><input type="text" name="investorId" placeholder="From Supabase Auth dashboard" /></div>
+            <div class="field"><label>Units</label><input type="number" name="units" step="0.000001" min="0" required placeholder="25.000000" /></div>
+            <div class="field"><label>Since</label><input type="date" name="since" /></div>
+            <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
+            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
+            <p class="cta__note" id="unitsNote" role="status" aria-live="polite"></p>
+          </form>
+        </details>
+      </div>
+
+      <!-- Leads -->
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Contact leads</h2><span class="panel__sub">from homepage form</span></div>
+        ${leads.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Name</th><th>Email</th><th>Message</th><th>When</th></tr></thead>
+          <tbody>${leads.map((l) => `
+            <tr>
+              <td>${esc(l.name)}</td>
+              <td>${esc(l.email)}</td>
+              <td>${esc(l.message || "")}</td>
+              <td class="mono">${new Date(l.created_at).toLocaleDateString()}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No leads yet.</p>`}
+      </div>
+
+      <p class="portal__note">Live data from Supabase. <a href="trades.html" class="inline-link">View full trade feed →</a></p>`;
+
+    revealAll();
+    bindManagerForms(navPU);
+  }
+
+  function bindManagerForms(navPU) {
+    /* NAV form */
+    const navForm = document.getElementById("navForm");
+    if (navForm) navForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const note = document.getElementById("navNote");
+      try {
+        await DB.upsertNav({
+          date: navForm.elements.date.value,
+          navPerUnit: parseFloat(navForm.elements.nav.value),
+          aum: navForm.elements.aum.value ? parseFloat(navForm.elements.aum.value) : null,
+          note: navForm.elements.note.value.trim() || null,
+        });
+        note.textContent = "✓ NAV saved."; note.classList.remove("is-error");
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+
+    /* Trade form */
+    const tradeForm = document.getElementById("tradeForm");
+    if (tradeForm) tradeForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const note = document.getElementById("tradeNote");
+      try {
+        const t = tradeForm.elements;
+        const ex = t.executedAt.value ? new Date(t.executedAt.value).toISOString() : null;
+        await DB.addTrade({ symbol: t.symbol.value, side: t.side.value, qty: parseFloat(t.qty.value),
+          price: parseFloat(t.price.value), strategy: t.strategy.value, note: t.note.value.trim() || null,
+          executedAt: ex });
+        note.textContent = "✓ Trade added."; note.classList.remove("is-error"); tradeForm.reset();
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+
+    /* Position form */
+    const posForm = document.getElementById("posForm");
+    if (posForm) posForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const note = document.getElementById("posNote");
+      try {
+        const t = posForm.elements;
+        await DB.upsertPosition({ symbol: t.symbol.value, qty: parseFloat(t.qty.value), avgCost: parseFloat(t.avgCost.value) });
+        note.textContent = "✓ Position updated."; note.classList.remove("is-error");
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+
+    /* Investor units form */
+    const unitsForm = document.getElementById("unitsForm");
+    if (unitsForm) unitsForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const note = document.getElementById("unitsNote");
+      try {
+        const t = unitsForm.elements;
+        await DB.upsertInvestorAccount({
+          investorId: t.investorId.value.trim(), units: parseFloat(t.units.value),
+          since: t.since.value || new Date().toISOString().slice(0, 10), note: t.note.value.trim() || null });
+        note.textContent = "✓ Investor account updated."; note.classList.remove("is-error");
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+  }
+
+  /* ============================================================
+     DEMO MODE (Supabase not configured)
+     ============================================================ */
+  function initDemo() {
+    document.getElementById("loginView").hidden = false;
+    document.getElementById("appView").hidden = true;
+
+    const banner = document.createElement("div");
+    banner.className = "demo-banner";
+    banner.innerHTML = `<b>Demo mode</b> — Supabase is not yet configured. <a href="README.md" class="inline-link">See setup guide.</a>`;
+    document.getElementById("loginView").prepend(banner);
+
+    document.querySelectorAll(".demo-cred").forEach((b) =>
+      b.addEventListener("click", () => {
+        document.getElementById("lemail").value = b.dataset.email;
+        document.getElementById("lpass").value = b.dataset.pass;
+      })
+    );
+
+    const form = document.getElementById("loginForm");
+    const note = document.getElementById("loginNote");
+    if (form) form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const email = document.getElementById("lemail").value.trim().toLowerCase();
+      const pass = document.getElementById("lpass").value;
+      const user = (CFG.demoUsers || []).find((u) => u.email.toLowerCase() === email && u.password === pass);
+      if (!user) { note.textContent = "Incorrect demo credentials."; note.classList.add("is-error"); return; }
+      sessionStorage.setItem("jss_demo_session", JSON.stringify(user));
+      showDemoApp(user);
+    });
+
+    const existingSession = (() => { try { return JSON.parse(sessionStorage.getItem("jss_demo_session")); } catch { return null; } })();
+    if (existingSession) showDemoApp(existingSession);
+
+    document.getElementById("logoutBtn")?.addEventListener("click", () => {
+      sessionStorage.removeItem("jss_demo_session"); showLogin();
+    });
+  }
+
+  function showDemoApp(user) {
     document.getElementById("loginView").hidden = true;
     document.getElementById("appView").hidden = false;
-    document.getElementById("greeting").textContent = "Welcome, " + (user.name || user.email);
-    document.getElementById("roleLine").textContent =
-      user.role === "manager" ? "Fund manager view" : "Investor account";
+    document.getElementById("greeting").textContent = "Welcome, " + user.name;
+    document.getElementById("roleLine").textContent = user.role === "manager" ? "Fund manager (demo)" : "Investor account (demo)";
     const body = document.getElementById("portalBody");
-    body.innerHTML = user.role === "manager" ? managerView() : investorView(user);
-    requestAnimationFrame(() => {
-      document.querySelectorAll(".reveal").forEach((e) => e.classList.add("is-visible"));
-      if (user.role === "manager") drawManagerCharts(); else drawInvestorChart(user);
-    });
+    body.innerHTML = demoBody(user);
+    revealAll();
+    drawDemoCharts(user);
   }
 
-  /* deterministic account growth series */
-  function accountSeries(invested, sinceStr) {
-    const since = new Date(sinceStr || "2025-09-01");
-    const months = Math.max(3, monthsBetween(since, new Date()) + 1);
-    let seed = invested + since.getMonth() * 31;
-    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-    const labels = [], values = [];
-    let v = invested;
-    for (let i = 0; i < months; i++) {
-      const d = new Date(since); d.setMonth(since.getMonth() + i);
-      labels.push(d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }));
-      if (i > 0) v *= 1 + (0.012 + (rnd() - 0.45) * 0.03);
-      values.push(v);
-    }
-    return { labels, values };
-  }
-  function monthsBetween(a, b) { return (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth()); }
-
-  function investorView(user) {
-    const invested = user.invested || 25000;
-    const series = accountSeries(invested, user.since);
-    const current = series.values[series.values.length - 1];
-    const gain = current - invested;
-    const pct = (gain / invested) * 100;
-    window.__jssSeries = series;
+  function demoBody(user) {
+    if (user.role === "manager") return demoManagerBody();
+    const inv = user.invested || 25000;
+    const curVal = inv * 1.114;
+    const gain = curVal - inv; const retPct = (gain / inv) * 100;
     return `
-    <div class="metricrow reveal">
-      <div class="metric"><div class="metric__v">${F.fmtMoney(current, 0)}</div><div class="metric__l">Current value</div></div>
-      <div class="metric"><div class="metric__v">${F.fmtMoney(invested, 0)}</div><div class="metric__l">Invested</div></div>
-      <div class="metric"><div class="metric__v ${gain >= 0 ? "pos" : "neg"}">${F.fmtMoney(gain, 0)}</div><div class="metric__l">Total gain</div></div>
-      <div class="metric"><div class="metric__v ${pct >= 0 ? "pos" : "neg"}">${F.fmtPct(pct)}</div><div class="metric__l">Return</div></div>
-    </div>
-    <div class="panel reveal">
-      <div class="panel__head"><h2>Your capital over time</h2></div>
-      <canvas id="acctChart" height="300" aria-label="Account value over time" role="img"></canvas>
-    </div>
-    <div class="panel reveal">
-      <div class="panel__head"><h2>Statements</h2></div>
-      <div class="table-wrap"><table class="ttable">
-        <thead><tr><th>Period</th><th>Opening</th><th>Closing</th><th>Change</th></tr></thead>
-        <tbody>${statementRows(series)}</tbody>
-      </table></div>
-    </div>
-    <p class="portal__note">This is illustrative demo data. Figures are not a real account statement.</p>`;
+      <div class="demo-banner">Demo data. Configure Supabase to show real investor balances.</div>
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(curVal, 0)}</div><div class="metric__l">Current value (demo)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(inv, 0)}</div><div class="metric__l">Invested</div></div>
+        <div class="metric"><div class="metric__v pos">${F.fmtMoney(gain, 0)}</div><div class="metric__l">Total gain</div></div>
+        <div class="metric"><div class="metric__v pos">${F.fmtPct(retPct)}</div><div class="metric__l">Return</div></div>
+      </div>
+      <div class="panel reveal"><div class="panel__head"><h2>Account value (demo)</h2></div>
+        <canvas id="acctChart" height="280" role="img"></canvas></div>`;
   }
 
-  function statementRows(series) {
-    const rows = [];
-    for (let i = series.values.length - 1; i > 0 && rows.length < 6; i--) {
-      const open = series.values[i - 1], close = series.values[i];
-      const ch = ((close - open) / open) * 100;
-      rows.push(`<tr><td>${series.labels[i]}</td><td class="mono">${F.fmtMoney(open, 0)}</td><td class="mono">${F.fmtMoney(close, 0)}</td><td class="mono ${ch >= 0 ? "pos" : "neg"}">${F.fmtPct(ch)}</td></tr>`);
-    }
-    return rows.join("");
-  }
-
-  function drawInvestorChart() {
-    const c = document.getElementById("acctChart");
-    const s = window.__jssSeries;
-    if (c && s) F.chart.lineChart(c, { labels: s.labels, series: [{ values: s.values, color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.4 }], yFmt: (v) => "$" + (v / 1000).toFixed(0) + "k" });
-  }
-
-  /* ----- manager view ----- */
-  function managerView() {
+  function demoManagerBody() {
     const investors = [
-      { name: "Sample Investor", invested: 25000, value: 27850 },
-      { name: "A. Nguyen", invested: 50000, value: 55120 },
-      { name: "M. Patel", invested: 15000, value: 15940 },
-      { name: "R. Okafor", invested: 8000, value: 8410 },
+      { name: "Sample Investor A", units: 25, val: 25000 * 1.114 },
+      { name: "Sample Investor B", units: 50, val: 50000 * 1.114 },
+      { name: "Sample Investor C", units: 12, val: 12500 * 1.114 },
     ];
-    const aum = investors.reduce((a, i) => a + i.value, 0);
-    const principal = investors.reduce((a, i) => a + i.invested, 0);
-    const ret = ((aum - principal) / principal) * 100;
-    let leads = [];
-    try { leads = JSON.parse(localStorage.getItem("jss_leads") || "[]"); } catch (_) {}
-    window.__jssMgr = investors;
+    const aum = investors.reduce((a, i) => a + i.val, 0);
     return `
-    <div class="metricrow reveal">
-      <div class="metric"><div class="metric__v">${F.fmtMoney(aum, 0)}</div><div class="metric__l">Assets under management</div></div>
-      <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
-      <div class="metric"><div class="metric__v ${ret >= 0 ? "pos" : "neg"}">${F.fmtPct(ret)}</div><div class="metric__l">Blended return</div></div>
-      <div class="metric"><div class="metric__v">${leads.length}</div><div class="metric__l">New leads</div></div>
-    </div>
-    <div class="panel reveal">
-      <div class="panel__head"><h2>AUM by investor</h2></div>
-      <canvas id="aumChart" height="240" aria-label="AUM by investor" role="img"></canvas>
-    </div>
-    <div class="panel reveal">
-      <div class="panel__head"><h2>Investors</h2></div>
-      <div class="table-wrap"><table class="ttable">
-        <thead><tr><th>Investor</th><th>Invested</th><th>Value</th><th>Return</th></tr></thead>
-        <tbody>${investors.map((i) => {
-          const p = ((i.value - i.invested) / i.invested) * 100;
-          return `<tr><td><b>${i.name}</b></td><td class="mono">${F.fmtMoney(i.invested, 0)}</td><td class="mono">${F.fmtMoney(i.value, 0)}</td><td class="mono ${p >= 0 ? "pos" : "neg"}">${F.fmtPct(p)}</td></tr>`;
-        }).join("")}</tbody>
-      </table></div>
-    </div>
-    <div class="panel reveal">
-      <div class="panel__head"><h2>Inbound leads</h2><span class="panel__sub">from the homepage form</span></div>
-      ${leads.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Name</th><th>Email</th><th>Message</th><th>When</th></tr></thead><tbody>${leads.slice().reverse().map((l) => `<tr><td>${esc(l.name)}</td><td>${esc(l.email)}</td><td>${esc(l.message || "")}</td><td class="mono">${new Date(l.at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No leads captured yet. Submissions from the homepage contact form will appear here.</p>`}
-    </div>
-    <p class="portal__note">Demo data. Connect a backend to manage real investors and capital securely.</p>`;
+      <div class="demo-banner">Demo data. Configure Supabase for real investor management.</div>
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(aum, 0)}</div><div class="metric__l">AUM (demo)</div></div>
+        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
+        <div class="metric"><div class="metric__v">1,212.40</div><div class="metric__l">Latest NAV / unit</div></div>
+      </div>
+      <div class="panel reveal"><div class="panel__head"><h2>Investors (demo)</h2></div>
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th></tr></thead>
+          <tbody>${investors.map((i) => `<tr><td><b>${i.name}</b></td><td class="mono">${i.units}.0000</td><td class="mono">${F.fmtMoney(i.val, 0)}</td></tr>`).join("")}</tbody>
+        </table></div>
+      </div>`;
   }
 
-  function drawManagerCharts() {
-    const c = document.getElementById("aumChart");
-    const investors = window.__jssMgr || [];
-    if (!c || !investors.length) return;
-    const ratio = devicePixelRatio || 1;
-    const rect = c.getBoundingClientRect();
-    const w = rect.width, h = 240;
-    c.width = w * ratio; c.height = h * ratio; c.style.height = h + "px";
-    const ctx = c.getContext("2d"); ctx.scale(ratio, ratio);
-    const pad = { t: 16, b: 40, l: 56, r: 10 };
-    const max = Math.max(...investors.map((i) => i.value)) * 1.1;
-    const bw = (w - pad.l - pad.r) / investors.length;
-    ctx.clearRect(0, 0, w, h);
-    ctx.font = "11px JetBrains Mono, monospace"; ctx.textBaseline = "middle";
-    for (let g = 0; g <= 4; g++) {
-      const gy = pad.t + (g / 4) * (h - pad.t - pad.b);
-      ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
-      ctx.fillStyle = "rgba(147,160,189,0.7)"; ctx.textAlign = "right";
-      ctx.fillText("$" + ((max - (g / 4) * max) / 1000).toFixed(0) + "k", pad.l - 8, gy);
-    }
-    investors.forEach((inv, i) => {
-      const bh = (inv.value / max) * (h - pad.t - pad.b);
-      const x = pad.l + i * bw + bw * 0.2;
-      const grad = ctx.createLinearGradient(0, h - pad.b - bh, 0, h - pad.b);
-      grad.addColorStop(0, "#5eead4"); grad.addColorStop(1, "#6366f1");
-      ctx.fillStyle = grad; ctx.fillRect(x, h - pad.b - bh, bw * 0.6, bh);
-      ctx.fillStyle = "rgba(147,160,189,0.85)"; ctx.textAlign = "center";
-      ctx.fillText(inv.name.split(" ")[0], x + bw * 0.3, h - pad.b + 16);
-    });
+  function drawDemoCharts(user) {
+    const c = document.getElementById("acctChart");
+    if (!c) return;
+    const invested = (user.invested || 25000);
+    const n = 10;
+    const vals = Array.from({ length: n }, (_, i) => invested * (1 + i * 0.013));
+    const labels = Array.from({ length: n }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - (n - 1) + i); return d.toLocaleDateString("en-US", { month: "short" }); });
+    F.chart.lineChart(c, { labels, series: [{ values: vals, color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.4 }], yFmt: (v) => "$" + (v / 1000).toFixed(0) + "k" });
   }
 
-  function esc(s) { return (s || "").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  /* ============================================================
+     Shared helpers
+     ============================================================ */
+  function showError(msg) {
+    const body = document.getElementById("portalBody");
+    if (body) body.innerHTML = `<div class="snap__loading">${esc(msg)}</div>`;
+    document.getElementById("loginView").hidden = true;
+    document.getElementById("appView").hidden = false;
+  }
+
+  function revealAll() {
+    requestAnimationFrame(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("is-visible")));
+  }
+
+  function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 })();

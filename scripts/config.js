@@ -3,6 +3,23 @@
    Edit this file to change content without touching markup.
    ============================================================ */
 window.JSS_CONFIG = {
+  /* ----- Supabase connection -------------------------------------------
+     Paste your project's URL and anon key here.
+     These are safe to commit — Row Level Security on every table is the
+     real security boundary. Never put the service_role key here.
+
+     Where to find them:
+       Supabase dashboard → Settings → API
+         "Project URL"          → supabase.url
+         "anon (public)" key    → supabase.anonKey
+
+     Leave as-is to use demo mode (no real auth, no DB required).
+  --------------------------------------------------------------------- */
+  supabase: {
+    url:     "YOUR_SUPABASE_PROJECT_URL",   // e.g. "https://xxxx.supabase.co"
+    anonKey: "YOUR_SUPABASE_ANON_KEY",      // eyJhbGci...
+  },
+
   brand: {
     name: "JSS",
     full: "JSS Capital",

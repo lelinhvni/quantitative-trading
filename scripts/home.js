@@ -122,7 +122,11 @@
     const form = document.getElementById("contactForm");
     if (!form) return;
     const note = document.getElementById("formNote");
-    form.addEventListener("submit", (e) => {
+    // Try to init DB for lead submission (anon INSERT is allowed by RLS)
+    const DB = window.JSSDB;
+    const dbReady = DB && DB.init();
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const email = form.email.value.trim();
       const name = form.name.value.trim();
@@ -132,14 +136,27 @@
         note.classList.add("is-error");
         return;
       }
-      // v1: no backend — store locally so the manager can review demo leads.
-      try {
-        const leads = JSON.parse(localStorage.getItem("jss_leads") || "[]");
-        leads.push({ name, email, message: form.message.value.trim(), at: new Date().toISOString() });
-        localStorage.setItem("jss_leads", JSON.stringify(leads));
-      } catch (_) {}
+      const message = form.message.value.trim();
+      if (dbReady) {
+        try {
+          await DB.submitLead({ name, email, message });
+        } catch (err) {
+          console.warn("[JSS] Lead save to DB failed, falling back to localStorage:", err.message);
+          saveLeadLocally(name, email, message);
+        }
+      } else {
+        saveLeadLocally(name, email, message);
+      }
       form.reset();
-      note.textContent = "Thanks — your request was recorded. We'll be in touch shortly.";
+      note.textContent = "Thanks — we received your message and will be in touch shortly.";
     });
+  }
+
+  function saveLeadLocally(name, email, message) {
+    try {
+      const leads = JSON.parse(localStorage.getItem("jss_leads") || "[]");
+      leads.push({ name, email, message, at: new Date().toISOString() });
+      localStorage.setItem("jss_leads", JSON.stringify(leads));
+    } catch (_) {}
   }
 })();

@@ -5,11 +5,13 @@ The web app for **JSS**, a systematic quantitative fund trading liquid ETFs
 performance, streams a live trade feed, shows live market data, surfaces market
 news, and gives investors a portal to track their capital.
 
-> **Status:** v1 — a fast, fully working **front-end**. It runs as a static
-> site (great for GitHub Pages) with a clean, pluggable data layer. Live market
-> data and news are fetched in the browser; the investor portal uses demo auth.
-> See **[Roadmap to production](#roadmap-to-production)** for what to add before
-> handling real investor accounts and money.
+> **Status:** v2 — fully working with a **real backend powered by Supabase**
+> (PostgreSQL + Auth + Realtime). The app runs as a static site (GitHub Pages)
+> but stores investor accounts, NAV history, trades, and positions in a real
+> database, with proper authentication and Row Level Security.
+>
+> The app also works **without Supabase** configured — every page falls back to
+> demo data automatically so you can show it to investors before setup is done.
 
 ## Pages
 
@@ -70,40 +72,57 @@ to JSON via a public RSS→JSON service (`news.rss2json` in `config.js`). Swap i
 your own proxy or add/remove feeds there. If fetching fails, sample headlines
 are shown so the page is never empty.
 
+## Quick start — adding the real backend
+
+See **[`supabase/README.md`](supabase/README.md)** for the full step-by-step guide.
+The short version:
+
+1. Create a free [Supabase](https://supabase.com) project.
+2. Run `supabase/schema.sql` in the SQL editor.
+3. Enable Realtime on the `trades` table.
+4. Create your manager account → set `role = 'manager'` in the `profiles` table.
+5. Paste your Supabase URL + anon key into `scripts/config.js`.
+6. Push — done.
+
+Once configured, investors log in with their email/password (created via Supabase Auth),
+and you as fund manager use the portal to enter NAV values, log trades, and manage accounts.
+
 ## Architecture
 
 ```
 index.html, markets.html, news.html,        ← pages (semantic HTML)
 performance.html, trades.html, portal.html
-styles/main.css                             ← design system + components
+styles/main.css                             ← design system + all components
 scripts/
-  config.js        ← all editable content & data settings
-  data.js          ← data layer (quotes, history, news) + canvas charts
+  config.js        ← brand, tickers, metrics, Supabase credentials
+  data.js          ← market data layer (Stooq/Twelve Data/demo) + canvas charts
+  db.js            ← Supabase data layer (auth, trades, NAV, investors, leads)
   site.js          ← shared header/footer, nav, scroll reveal, counters
-  home.js / markets.js / news.js / performance.js / trades.js / portal.js
+  home.js          ← homepage logic (market snapshot, contact form → Supabase)
+  markets.js       ← markets page (SPY/QQQ/DIA: open/close/60d range/chart)
+  news.js          ← news page (CNBC RSS feed via rss2json)
+  performance.js   ← performance page (real NAV from DB or demo curve)
+  trades.js        ← trade feed (real Supabase Realtime or demo generator)
+  portal.js        ← investor portal (real Supabase auth or demo login)
 assets/            ← favicon + social share image
+supabase/
+  schema.sql       ← PostgreSQL schema + RLS policies (run this first)
+  seed.sql         ← test data (optional)
+  README.md        ← step-by-step setup guide
 ```
 
 Charts are drawn with the Canvas API — **no external chart libraries**, so the
 site stays fast and dependency-free.
 
-## Roadmap to production
+## Roadmap to v3+
 
-The current portal and trade/performance data are demo-grade. Before onboarding
-real investors and real money you'll want a backend:
+The Supabase backend covers the core needs. Future enhancements:
 
-1. **Authentication & accounts** — replace the front-end demo login with a real
-   identity provider (e.g. Auth0/Clerk/Supabase Auth). Never store credentials
-   or real balances in client-side code.
-2. **Database** — persist investors, contributions/withdrawals, NAV history, and
-   trades (e.g. Postgres/Supabase).
-3. **Real trade & performance feed** — connect your broker/execution system or a
-   trades API so `trades.html` and `performance.html` show your true record.
-4. **Server-side market data & news proxy** — host your own proxy to avoid
-   third-party CORS proxies and to add caching/keys securely.
-5. **Compliance** — investor reporting, disclosures, and KYC/AML as required for
-   a fund in your jurisdiction. The disclaimers in the footer are a starting
-   point, not legal advice.
+1. **Automated NAV update** — connect to your broker API and push the NAV automatically at end of day (Supabase Edge Functions).
+2. **Trade import** — parse broker execution reports and insert them via a serverless function.
+3. **Email statements** — monthly PDF statements to investors via Edge Functions + Resend.
+4. **Two-factor auth** — enable in Supabase Auth settings (one checkbox).
+5. **Compliance** — investor reporting, disclosures, and KYC/AML as required for your jurisdiction. The disclaimers in the footer are a starting point, not legal advice.
 
 ## Deploy
 
