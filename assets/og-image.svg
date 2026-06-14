@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#070a14"/>
+  <rect width="1200" height="630" fill="url(#bg)" opacity="0.5"/>
+  <g transform="translate(80,90)">
+    <path d="M40 0 0 22v44l40 22 40-22V22L40 0Z" stroke="url(#g)" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M16 56l16-18 14 10 20-26" stroke="url(#g)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="80" y="320" fill="#e8ecf6" font-family="Inter, sans-serif" font-size="92" font-weight="800" letter-spacing="-2">JSS Capital</text>
+  <text x="84" y="392" fill="#93a0bd" font-family="Inter, sans-serif" font-size="38" font-weight="500">Systematic quantitative ETF trading</text>
+  <text x="84" y="470" fill="#5eead4" font-family="JetBrains Mono, monospace" font-size="30">SPY · QQQ · DIA — follow trades, track capital</text>
+  <polyline points="80,560 240,520 400,540 560,470 720,500 880,420 1040,450 1120,380" fill="none" stroke="#5eead4" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+  <defs>
+    <radialGradient id="bg" cx="0.7" cy="0.2" r="0.9">
+      <stop stop-color="#6366f1" stop-opacity="0.35"/><stop offset="1" stop-color="#070a14" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="80" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5eead4"/><stop offset="1" stop-color="#6366f1"/>
+    </linearGradient>
+  </defs>
+</svg>

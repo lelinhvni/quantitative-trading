@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>Market News — JSS Capital</title>
+  <meta name="description" content="Market news for JSS investors — headlines from CNBC and finance feeds, updated throughout the day." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-page="news">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div data-slot="header"></div>
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="container">
+        <span class="kicker reveal">Market news</span>
+        <h1 class="page-hero__title reveal">What's moving the market</h1>
+        <p class="page-hero__lede reveal">Headlines from CNBC and finance feeds, refreshed throughout the trading day, so you have the same context we do.</p>
+        <div class="news__bar reveal" id="newsTabs"></div>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="container">
+        <div id="newsList" class="news__grid">
+          <div class="snap__loading">Loading headlines…</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div data-slot="footer"></div>
+
+  <script src="scripts/config.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/site.js"></script>
+  <script src="scripts/news.js" defer></script>
+</body>
+</html>

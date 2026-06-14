@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>Performance — JSS Capital</title>
+  <meta name="description" content="JSS Capital performance dashboard — equity curve vs benchmark, monthly returns, allocation and key risk metrics." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-page="performance">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div data-slot="header"></div>
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="container">
+        <span class="kicker reveal">Performance</span>
+        <h1 class="page-hero__title reveal">Compounding, measured honestly</h1>
+        <p class="page-hero__lede reveal">How the JSS composite has tracked over time versus a simple benchmark. <span class="data-source">Figures shown are simulated for illustration until live track-record data is connected.</span></p>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="container">
+        <div class="metricrow" id="metricRow"></div>
+
+        <div class="panel reveal">
+          <div class="panel__head">
+            <h2>Equity curve</h2>
+            <div class="perf__legend">
+              <span class="legend legend--strategy">JSS composite</span>
+              <span class="legend legend--bench">Benchmark (SPY)</span>
+            </div>
+          </div>
+          <canvas id="equityChart" height="360" aria-label="Equity curve" role="img"></canvas>
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel reveal">
+            <div class="panel__head"><h2>Monthly returns</h2></div>
+            <canvas id="monthlyChart" height="240" aria-label="Monthly returns" role="img"></canvas>
+          </div>
+          <div class="panel reveal">
+            <div class="panel__head"><h2>Allocation</h2></div>
+            <div class="alloc">
+              <canvas id="allocChart" height="200" aria-label="Allocation" role="img"></canvas>
+              <ul class="alloc__legend" id="allocLegend"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div data-slot="footer"></div>
+
+  <script src="scripts/config.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/site.js"></script>
+  <script src="scripts/performance.js" defer></script>
+</body>
+</html>

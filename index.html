@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>JSS Capital — Systematic ETF Trading</title>
+  <meta name="description" content="JSS Capital runs systematic, quantitative strategies on liquid ETFs (SPY, QQQ, DIA). Follow our trades, track performance, and grow with a disciplined, data-driven fund." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="JSS Capital — Systematic ETF Trading" />
+  <meta property="og:description" content="Quantitative ETF strategies. Follow trades, track capital, invest with discipline." />
+  <meta property="og:image" content="assets/og-image.svg" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-page="home">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div data-slot="header"></div>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero" id="hero">
+      <canvas class="hero__canvas" id="heroCanvas" aria-hidden="true"></canvas>
+      <div class="hero__glow" aria-hidden="true"></div>
+      <div class="container hero__inner">
+        <p class="hero__eyebrow reveal">Systematic · Quantitative · Disciplined</p>
+        <h1 class="hero__title reveal">
+          Quantitative ETF trading,<br />
+          built for the <span class="grad">long compound</span>.
+        </h1>
+        <p class="hero__lede reveal">
+          JSS Capital turns market data into systematic edge on the most liquid ETFs —
+          SPY, QQQ, and DIA. Follow every trade, track your capital, and grow with a
+          fund run on evidence, not emotion.
+        </p>
+        <div class="hero__actions reveal">
+          <a href="portal.html" class="btn btn--primary">Investor portal</a>
+          <a href="performance.html" class="btn btn--ghost">View performance</a>
+        </div>
+        <div class="ticker reveal" aria-hidden="true">
+          <div class="ticker__track" id="tickerTrack"><span class="tick">Loading live markets…</span></div>
+        </div>
+      </div>
+      <div class="hero__scroll" aria-hidden="true"><span></span></div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats" aria-label="Key fund metrics">
+      <div class="container stats__grid" id="statsGrid"></div>
+    </section>
+
+    <!-- Market snapshot -->
+    <section class="section" id="snapshot">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Markets we trade</span>
+          <h2>Live snapshot</h2>
+          <p>We focus on three deep, liquid ETFs. Below is a live look — full detail, including daily open/close and 60-day ranges, lives on the <a href="markets.html" class="inline-link">Markets</a> page.</p>
+        </div>
+        <div class="snap__grid" id="snapGrid">
+          <div class="snap__loading">Loading market data…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Strategies -->
+    <section class="section section--alt" id="strategies">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Approach</span>
+          <h2>How JSS makes decisions</h2>
+          <p>A portfolio of complementary, rules-based signals — diversified so no single market regime defines our returns.</p>
+        </div>
+        <div class="cards" id="stratCards"></div>
+      </div>
+    </section>
+
+    <!-- Why JSS -->
+    <section class="section" id="why">
+      <div class="container why">
+        <div class="section__head reveal">
+          <span class="kicker">Why JSS</span>
+          <h2>A fund you can actually see inside</h2>
+        </div>
+        <div class="why__grid">
+          <div class="why__item reveal"><h3>Full transparency</h3><p>Every trade and signal is published to your portal. No black boxes — you see what we do, when we do it.</p></div>
+          <div class="why__item reveal"><h3>Rules over feelings</h3><p>Entries and exits follow validated, cost-aware rules. Discipline is the strategy.</p></div>
+          <div class="why__item reveal"><h3>Risk first</h3><p>Position sizing is volatility-targeted and drawdown-capped. We optimize for surviving, then compounding.</p></div>
+          <div class="why__item reveal"><h3>Aligned interests</h3><p>The manager invests alongside you. We grow when you grow.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta" id="contact">
+      <div class="container cta__inner reveal">
+        <h2>Interested in investing with JSS?</h2>
+        <p>Tell us a little about yourself and we'll get in touch. Existing investors can head straight to the portal.</p>
+        <form class="cta__form" id="contactForm" novalidate>
+          <div class="field"><label for="name">Name</label><input id="name" name="name" type="text" autocomplete="name" required placeholder="Your name" /></div>
+          <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" /></div>
+          <div class="field field--full"><label for="message">Message</label><textarea id="message" name="message" rows="3" placeholder="How much are you considering, and what would you like to know?"></textarea></div>
+          <button type="submit" class="btn btn--primary">Request information</button>
+          <p class="cta__note" id="formNote" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <div data-slot="footer"></div>
+
+  <script src="scripts/config.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/site.js"></script>
+  <script src="scripts/home.js" defer></script>
+</body>
+</html>

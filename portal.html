@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>Investor Portal — JSS Capital</title>
+  <meta name="description" content="JSS Capital investor portal — track your capital, returns and statements. Fund manager view for oversight." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-page="portal">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div data-slot="header"></div>
+
+  <main id="main">
+    <!-- Login view -->
+    <section class="page-hero" id="loginView">
+      <div class="container portal__login">
+        <div class="login-card reveal">
+          <span class="kicker">Investor portal</span>
+          <h1 class="login-card__title">Sign in</h1>
+          <p class="login-card__lede">Track your capital, returns and statements. Fund managers get an oversight view.</p>
+          <form id="loginForm" novalidate>
+            <div class="field"><label for="lemail">Email</label><input id="lemail" type="email" autocomplete="username" placeholder="you@example.com" required /></div>
+            <div class="field"><label for="lpass">Password</label><input id="lpass" type="password" autocomplete="current-password" placeholder="••••••••" required /></div>
+            <button type="submit" class="btn btn--primary" style="width:100%">Sign in</button>
+            <p class="cta__note" id="loginNote" role="status" aria-live="polite"></p>
+          </form>
+          <div class="login-card__demo">
+            <p>Demo accounts (v1 — front-end only):</p>
+            <button class="demo-cred" data-email="investor@jss.example" data-pass="investor">Investor → investor@jss.example / investor</button>
+            <button class="demo-cred" data-email="manager@jss.example" data-pass="jss">Manager → manager@jss.example / jss</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- App view -->
+    <section class="section section--tight" id="appView" hidden>
+      <div class="container">
+        <div class="portal__topbar reveal">
+          <div><h1 class="portal__hi" id="greeting"></h1><p class="portal__role" id="roleLine"></p></div>
+          <button class="btn btn--ghost btn--sm" id="logoutBtn">Sign out</button>
+        </div>
+        <div id="portalBody"></div>
+      </div>
+    </section>
+  </main>
+
+  <div data-slot="footer"></div>
+
+  <script src="scripts/config.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/site.js"></script>
+  <script src="scripts/portal.js" defer></script>
+</body>
+</html>
