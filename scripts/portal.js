@@ -96,11 +96,13 @@
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
 
-    const [account, latestNav, events, allNav] = await Promise.all([
+    const [account, latestNav, events, allNav, trades, positions] = await Promise.all([
       DB.getMyAccount(),
       DB.getLatestNav(),
       DB.getMyCapitalEvents(),
       DB.getAllNavHistory(),
+      DB.getTrades(60).catch(() => []),
+      DB.getPositions().catch(() => []),
     ]);
 
     const navPU = latestNav ? +latestNav.nav_per_unit : null;
@@ -144,6 +146,8 @@
             </tr>`).join("")}</tbody>
         </table></div>` : `<p class="portal__note">No capital events recorded yet.</p>`}
       </div>
+      ${positionsPanel(positions)}
+      ${tradesPanel(trades, { title: "Trade activity", sub: "Every signal we've acted on" })}
       ${latestNav ? `<p class="portal__note">NAV as of ${latestNav.date}: ${F.fmtNum(latestNav.nav_per_unit, 2)} per unit.</p>` : `<p class="portal__note">No NAV entries yet — fund manager will add these.</p>`}`;
 
     revealAll();
@@ -164,12 +168,13 @@
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading manager dashboard…</div>`;
 
-    const [investors, latestNav, positions, leads, navHistory] = await Promise.all([
+    const [investors, latestNav, positions, leads, navHistory, recentTrades] = await Promise.all([
       DB.getAllInvestors().catch(() => []),
       DB.getLatestNav().catch(() => null),
       DB.getPositions().catch(() => []),
       DB.getLeads().catch(() => []),
       DB.getAllNavHistory().catch(() => []),
+      DB.getTrades(80).catch(() => []),
     ]);
 
     const navPU = latestNav ? +latestNav.nav_per_unit : 1000;
@@ -259,6 +264,8 @@
         </div>
       </div>
 
+      ${tradesPanel(recentTrades, { title: "Recent trades", sub: "Most recent executions logged" })}
+
       <!-- Positions -->
       <div class="panel reveal">
         <div class="panel__head"><h2>Open positions</h2></div>
@@ -330,7 +337,7 @@
         </table></div>` : `<p class="portal__note">No leads yet.</p>`}
       </div>
 
-      <p class="portal__note">Live data from Supabase. <a href="trades.html" class="inline-link">View full trade feed →</a></p>`;
+      <p class="portal__note">Live data from Supabase.</p>`;
 
     revealAll();
     bindManagerForms(navPU);
@@ -541,7 +548,9 @@
         <div class="metric"><div class="metric__v pos">${F.fmtPct(retPct)}</div><div class="metric__l">Return</div></div>
       </div>
       <div class="panel reveal"><div class="panel__head"><h2>Account value (demo)</h2></div>
-        <canvas id="acctChart" height="280" role="img"></canvas></div>`;
+        <canvas id="acctChart" height="280" role="img"></canvas></div>
+      ${positionsPanel(demoPositions())}
+      ${tradesPanel(demoTradesRaw(), { title: "Trade activity (demo)", sub: "Sample executions" })}`;
   }
 
   function demoManagerBody() {
@@ -563,7 +572,9 @@
           <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th></tr></thead>
           <tbody>${investors.map((i) => `<tr><td><b>${i.name}</b></td><td class="mono">${i.units}.0000</td><td class="mono">${F.fmtMoney(i.val, 0)}</td></tr>`).join("")}</tbody>
         </table></div>
-      </div>`;
+      </div>
+      ${positionsPanel(demoPositions())}
+      ${tradesPanel(demoTradesRaw(), { title: "Recent trades (demo)", sub: "Sample executions" })}`;
   }
 
   function drawDemoCharts(user) {
@@ -591,6 +602,80 @@
   }
 
   function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+  /* ============================================================
+     Shared trade + position panels (registered users only)
+     ============================================================ */
+  function normaliseTrade(raw) {
+    return {
+      t: new Date(raw.executed_at || raw.created_at),
+      sym: raw.symbol, side: (raw.side || "").toUpperCase(),
+      qty: +raw.qty, px: +raw.price, strat: raw.strategy || "—",
+    };
+  }
+
+  function tradesPanel(trades, opts) {
+    opts = opts || {};
+    const title = opts.title || "Trade activity";
+    const sub = opts.sub || "";
+    const rows = (trades || []).map(normaliseTrade);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>${esc(title)}</h2>${sub ? `<span class="panel__sub">${esc(sub)}</span>` : ""}</div>
+        ${rows.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th></tr></thead>
+          <tbody>${rows.map((t) => `
+            <tr>
+              <td class="mono">${t.t.toLocaleDateString()} ${t.t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+              <td><b>${esc(t.sym)}</b></td>
+              <td><span class="pill ${t.side === "BUY" ? "pill--buy" : "pill--sell"}">${esc(t.side)}</span></td>
+              <td class="mono">${F.fmtNum(t.qty, 0)}</td>
+              <td class="mono">${F.fmtMoney(t.px)}</td>
+              <td>${esc(t.strat)}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No trades recorded yet.</p>`}
+      </div>`;
+  }
+
+  function positionsPanel(positions) {
+    const list = positions || [];
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Open positions</h2></div>
+        ${list.length ? `
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th></tr></thead>
+          <tbody>${list.map((p) => `<tr><td><b>${esc(p.symbol)}</b></td><td class="mono">${F.fmtNum(p.qty, 0)}</td><td class="mono">${F.fmtNum(p.avg_cost, 2)}</td></tr>`).join("")}</tbody>
+        </table></div>` : `<p class="portal__note">No open positions.</p>`}
+      </div>`;
+  }
+
+  function demoTradesRaw() {
+    const syms = ["SPY", "QQQ", "DIA"];
+    const strat = ["Theta harvest", "Iron condor", "Bull put spread", "Risk overlay"];
+    const px = { SPY: 545, QQQ: 470, DIA: 400 };
+    const out = [];
+    for (let i = 0; i < 8; i++) {
+      const s = syms[i % 3];
+      out.push({
+        executed_at: new Date(Date.now() - i * 86400000 * 1.4).toISOString(),
+        symbol: s, side: i % 2 ? "SELL" : "BUY",
+        qty: Math.round(50 + Math.random() * 200),
+        price: px[s] * (1 + (Math.random() - 0.5) * 0.01),
+        strategy: strat[i % strat.length],
+      });
+    }
+    return out;
+  }
+
+  function demoPositions() {
+    return [
+      { symbol: "SPY", qty: 400, avg_cost: 545.8 },
+      { symbol: "QQQ", qty: 275, avg_cost: 470.9 },
+      { symbol: "DIA", qty: 200, avg_cost: 402.6 },
+    ];
+  }
 
   /* ---------- CSV parser for bulk trade upload ---------- */
   function parseCsvTrades(text) {

@@ -19,10 +19,13 @@ news, and gives investors a portal to track their capital.
 |------|------|--------------|
 | Home / fund intro | `index.html` | Marketing page: pitch, metrics, strategy, live market snapshot, contact form |
 | Performance | `performance.html` | Equity curve vs benchmark, monthly returns, allocation, risk metrics |
-| Trades | `trades.html` | Live trade feed, open positions, daily activity — filterable |
 | Markets | `markets.html` | SPY / QQQ / DIA: daily **open & close**, **last 60-day high/low**, price chart |
-| News | `news.html` | Market headlines from CNBC feeds (and other finance sources) |
-| Investor portal | `portal.html` | Login → investor sees capital/returns/statements; manager sees AUM, investors, leads |
+| News | `news.html` | Free CNBC + Yahoo Finance headlines; tap any story to open the full article on the source site |
+| Investor portal | `portal.html` | Login → investor sees capital/returns, **trade log & open positions**; manager sees AUM, investors, NAV, CSV trade upload, leads |
+
+> **Trades are private.** The trade log and open positions live **inside the investor
+> portal**, visible only to registered (logged-in) investors and the manager.
+> `trades.html` now simply redirects to the portal.
 
 ## Run it locally
 

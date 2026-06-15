@@ -59,7 +59,7 @@ window.JSS_CONFIG = {
      CNBC and Yahoo Finance cover market/ETF news without paid subscriptions.
   --------------------------------------------------------------------- */
   news: {
-    rss2json: "https://api.rss2json.com/v1/api.json?count=12&rss_url=",
+    rss2json: "https://api.rss2json.com/v1/api.json?count=21&rss_url=",
     feeds: [
       { label: "CNBC — Top News",     url: "https://www.cnbc.com/id/100003114/device/rss/rss.html" },
       { label: "CNBC — Markets",      url: "https://www.cnbc.com/id/20910258/device/rss/rss.html" },

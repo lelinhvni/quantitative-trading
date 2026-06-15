@@ -175,7 +175,8 @@
         if (json && json.items && json.items.length) {
           return json.items.map((it) => ({
             title: it.title, link: it.link, date: it.pubDate,
-            desc: (it.description || "").replace(/<[^>]+>/g, "").slice(0, 180),
+            desc: (it.description || it.content || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 280),
+            image: it.thumbnail || (it.enclosure && it.enclosure.link) || "",
             source: feed.label,
           }));
         }
@@ -198,7 +199,7 @@
     ];
     return samples.map((s, i) => ({
       title: s[0], link: "#", date: new Date(now - i * 5400000).toISOString(),
-      desc: s[1], source: source + " · sample",
+      desc: s[1], image: "", source: source + " · sample",
     }));
   }
 

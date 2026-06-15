@@ -10,7 +10,6 @@
   const NAV = [
     { id: "home",        label: "Home",        href: "index.html" },
     { id: "performance", label: "Performance", href: "performance.html" },
-    { id: "trades",      label: "Trades",      href: "trades.html" },
     { id: "markets",     label: "Markets",     href: "markets.html" },
     { id: "news",        label: "News",        href: "news.html" },
   ];

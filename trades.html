@@ -5,66 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#070a14" />
   <title>Trades — JSS Capital</title>
-  <meta name="description" content="JSS Capital trade history — systematic signals and executions across SPY, QQQ and DIA. Available to registered investors." />
+  <meta name="description" content="JSS Capital trade history is now inside the investor portal — available to registered investors." />
+  <meta name="robots" content="noindex" />
+  <!-- Trades moved into the investor portal (registered investors only). -->
+  <meta http-equiv="refresh" content="0; url=portal.html" />
+  <link rel="canonical" href="portal.html" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
-<body data-page="trades">
-  <a class="skip-link" href="#main">Skip to content</a>
-  <div data-slot="header"></div>
-
-  <main id="main">
-    <section class="page-hero">
-      <div class="container">
-        <span class="kicker reveal">Trade history</span>
-        <h1 class="page-hero__title reveal">JSS trade log</h1>
-        <p class="page-hero__lede reveal">Every systematic signal JSS has acted on across SPY, QQQ and DIA. Registered investors can filter by ticker or side.</p>
-        <div class="trades__bar reveal" id="tradeFilters">
-          <button class="chip is-active" data-f="all">All</button>
-          <button class="chip" data-f="SPY">SPY</button>
-          <button class="chip" data-f="QQQ">QQQ</button>
-          <button class="chip" data-f="DIA">DIA</button>
-          <button class="chip" data-f="BUY">Buys</button>
-          <button class="chip" data-f="SELL">Sells</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section--tight">
-      <div class="container trades__layout">
-        <div class="panel reveal">
-          <div class="panel__head"><h2>Recent activity</h2><span class="panel__sub" id="tradeCount"></span></div>
-          <div class="table-wrap">
-            <table class="ttable">
-              <thead><tr><th>Time</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th><th>Status</th></tr></thead>
-              <tbody id="tradeBody"></tbody>
-            </table>
-          </div>
-        </div>
-        <aside class="trades__side">
-          <div class="panel reveal">
-            <div class="panel__head"><h2>Open positions</h2></div>
-            <ul class="positions" id="positions"></ul>
-          </div>
-          <div class="panel reveal">
-            <div class="panel__head"><h2>Today</h2></div>
-            <div class="daystats" id="dayStats"></div>
-          </div>
-        </aside>
-      </div>
-    </section>
+<body>
+  <main style="min-height:60vh;display:grid;place-items:center;text-align:center;padding:48px 24px">
+    <div>
+      <p style="color:var(--muted)">The trade log now lives inside the investor portal.</p>
+      <p style="margin-top:12px"><a class="btn btn--primary" href="portal.html">Go to the investor portal</a></p>
+    </div>
   </main>
-
-  <div data-slot="footer"></div>
-
-  <script src="scripts/config.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="scripts/data.js"></script>
-  <script src="scripts/db.js"></script>
-  <script src="scripts/site.js"></script>
-  <script src="scripts/trades.js" defer></script>
+  <script>location.replace("portal.html");</script>
 </body>
 </html>
