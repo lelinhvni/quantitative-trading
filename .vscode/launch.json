@@ -1,0 +1,29 @@
+{
+  // Debug the site in-editor: set breakpoints in scripts/*.js and run one of these.
+  // First start the server (Live Server "Go Live", or `python3 -m http.server`),
+  // then press F5 and pick the matching config.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Chrome → Live Server (5500)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:5500/index.html",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Chrome → Python server (8000)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8000/index.html",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "Edge → Live Server (5500)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://127.0.0.1:5500/index.html",
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}

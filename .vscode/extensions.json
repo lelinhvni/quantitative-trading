@@ -1,0 +1,6 @@
+{
+  // VS Code will prompt to install these when the folder is opened.
+  "recommendations": [
+    "ritwickdey.liveserver"
+  ]
+}
