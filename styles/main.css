@@ -496,6 +496,46 @@ button { font: inherit; cursor: pointer; }
 .why__item p { color: var(--muted); font-size: 0.95rem; }
 
 /* ============================================================
+   Home — "Start here" lead points
+   ============================================================ */
+.lead-points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 8px; }
+@media (max-width: 760px) { .lead-points { grid-template-columns: 1fr; } }
+.lead-point { padding: 22px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--grad-soft); }
+.lead-point__k { display: block; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.lead-point p { color: var(--muted); font-size: 0.95rem; }
+
+/* ============================================================
+   Home — "How it works" numbered steps
+   ============================================================ */
+.steps { list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+@media (max-width: 820px) { .steps { grid-template-columns: 1fr; } }
+.step { position: relative; padding: 30px 26px 26px; border-radius: var(--radius); border: 1px solid var(--border); background: linear-gradient(160deg, var(--surface), var(--bg-2)); }
+.step__num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 12px; margin-bottom: 16px;
+  font-weight: 800; font-size: 1.15rem; color: #06121a; background: var(--grad);
+  box-shadow: 0 10px 24px -10px rgba(99,102,241,0.6);
+}
+.step h3 { font-size: 1.15rem; margin-bottom: 8px; letter-spacing: -0.01em; }
+.step p { color: var(--muted); font-size: 0.97rem; }
+.step:not(:last-child)::after {
+  content: "→"; position: absolute; top: 44px; right: -16px; color: var(--faint); font-size: 1.3rem;
+}
+@media (max-width: 820px) { .step:not(:last-child)::after { content: none; } }
+
+/* ============================================================
+   Home — chart panels (educational)
+   ============================================================ */
+.chart-panel { background: linear-gradient(160deg, var(--surface), var(--bg-2)); }
+.chart-panel canvas { width: 100%; margin-top: 6px; }
+.chart-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 820px) { .chart-duo { grid-template-columns: 1fr; } }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 14px; }
+.legend-key { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.86rem; }
+.legend-key i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; flex: none; }
+.chart-caption { color: var(--muted); font-size: 0.9rem; margin-top: 14px; line-height: 1.6; }
+
+/* ============================================================
    Manager forms (in portal)
    ============================================================ */
 .mgr-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }

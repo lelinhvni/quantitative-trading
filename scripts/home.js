@@ -4,13 +4,114 @@
 (function () {
   "use strict";
   const CFG = window.JSS_CONFIG;
+  const F = window.JSS;
   document.addEventListener("DOMContentLoaded", () => {
     renderStats();
     renderStrategies();
     heroCanvas();
     contactForm();
     loadMarkets();
+    renderEduCharts();
+    let t;
+    window.addEventListener("resize", () => { clearTimeout(t); t = setTimeout(renderEduCharts, 200); }, { passive: true });
   });
+
+  /* ============================================================
+     Educational charts (all illustrative — see on-page disclaimers)
+     ============================================================ */
+  function renderEduCharts() {
+    if (!F || !F.chart) return;
+    growthChart();
+    regimeChart();
+    thetaChart();
+    vrpChart();
+    cashChart();
+  }
+
+  function growthChart() {
+    const c = document.getElementById("growthChart");
+    if (!c) return;
+    const years = 15, start = 10000, savings = 0.04, jss = 0.10;
+    const sav = [], fnd = [], labels = [];
+    for (let y = 0; y <= years; y++) {
+      sav.push(start * Math.pow(1 + savings, y));
+      fnd.push(start * Math.pow(1 + jss, y));
+      labels.push(y === 0 ? "Now" : "Yr " + y);
+    }
+    F.chart.lineChart(c, {
+      labels,
+      series: [
+        { values: sav, color: "#5d6b8a", width: 2 },
+        { values: fnd, color: "#5eead4", fill: "rgba(94,234,212,0.16)", width: 2.6 },
+      ],
+      yFmt: (v) => "$" + Math.round(v / 1000) + "k",
+    });
+    const cap = document.getElementById("growthCaption");
+    if (cap) {
+      const savEnd = sav[years], fndEnd = fnd[years];
+      cap.textContent = `In this illustration, the savings balance grows to about ${F.fmtMoney(savEnd, 0)}, while the JSS-style path reaches about ${F.fmtMoney(fndEnd, 0)} — roughly ${F.fmtMoney(fndEnd - savEnd, 0)} more, purely from compounding a higher rate. Actual returns will differ and are not guaranteed.`;
+    }
+  }
+
+  function regimeChart() {
+    const c = document.getElementById("regimeChart");
+    if (!c) return;
+    const trad = "#5d6b8a", jss = "#818cf8";
+    F.chart.barChart(c, {
+      yFmt: (v) => (v > 0 ? "+" : "") + Math.round(v) + "%",
+      groups: [
+        { label: "Rising market",   bars: [{ value: 15, color: trad }, { value: 12, color: jss }] },
+        { label: "Flat / choppy",   bars: [{ value: 1,  color: trad }, { value: 15, color: jss }] },
+        { label: "Falling market",  bars: [{ value: -20, color: trad }, { value: 10, color: jss }] },
+      ],
+    });
+  }
+
+  function thetaChart() {
+    const c = document.getElementById("thetaChart");
+    if (!c) return;
+    const vals = [], labels = [];
+    for (let d = 90; d >= 0; d -= 3) {
+      vals.push(+(100 * Math.sqrt(d / 90)).toFixed(2));
+      labels.push(d === 90 ? "90 days" : d === 0 ? "Expiry" : "");
+    }
+    F.chart.lineChart(c, {
+      labels,
+      series: [{ values: vals, color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.6 }],
+      yFmt: (v) => Math.round(v) + "¢",
+    });
+  }
+
+  function vrpChart() {
+    const c = document.getElementById("vrpChart");
+    if (!c) return;
+    const n = 26, iv = [], rv = [], labels = [];
+    for (let i = 0; i < n; i++) {
+      const wig = Math.sin(i * 0.7) * 2.4 + Math.sin(i * 1.9) * 1.1;
+      iv.push(+(20 + wig).toFixed(2));
+      rv.push(+(13.5 + wig * 0.7).toFixed(2));
+      labels.push(i === 0 ? "" : i === n - 1 ? "" : "");
+    }
+    F.chart.lineChart(c, {
+      labels,
+      series: [
+        { values: iv, color: "#818cf8", fill: "rgba(129,140,248,0.14)", width: 2.4 },
+        { values: rv, color: "#5eead4", width: 2.4 },
+      ],
+      yFmt: (v) => Math.round(v) + "%",
+    });
+  }
+
+  function cashChart() {
+    const c = document.getElementById("cashChart");
+    if (!c) return;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const seed = [0.9, 1.1, 0.8, 1.3, 1.0, 0.7, 1.2, 0.95, 1.15, 0.85, 1.25, 1.05];
+    F.chart.barChart(c, {
+      yFmt: (v) => v.toFixed(1) + "%",
+      groups: months.map((m, i) => ({ label: m, bars: [{ value: seed[i], color: "#5eead4" }] })),
+    });
+  }
 
   function renderStats() {
     const el = document.getElementById("statsGrid");

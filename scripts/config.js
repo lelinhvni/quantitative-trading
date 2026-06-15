@@ -68,20 +68,23 @@ window.JSS_CONFIG = {
     ],
   },
 
-  /* ----- Headline fund metrics (illustrative until wired to live data) -- */
+  /* ----- Headline fund metrics ----------------------------------------
+     Kept deliberately honest and beginner-friendly. The savings vs. fund
+     numbers are illustrative comparisons, not promises — see disclaimers.
+  --------------------------------------------------------------------- */
   metrics: [
-    { value: 2.1,  decimals: 1, suffix: "",  label: "Net Sharpe (since inception)" },
-    { value: 64.0, decimals: 1, suffix: "%", label: "Win rate" },
-    { value: 4.8,  decimals: 1, suffix: "%", prefix: "-", label: "Max drawdown" },
-    { value: 18.6, decimals: 1, suffix: "%", prefix: "+", label: "Annualized return (sim.)" },
+    { value: 4.0,  decimals: 1, suffix: "%",  label: "Typical high-yield savings rate (for comparison)" },
+    { value: 10.0, decimals: 0, suffix: "%",  prefix: "~", label: "Illustrative long-run target — not guaranteed" },
+    { value: 90,   decimals: 0, suffix: "%+", label: "Trades designed to expire in our favor" },
+    { value: 100,  decimals: 0, suffix: "%",  label: "Trades published to your investor portal" },
   ],
 
-  /* ----- Strategy pillars --------------------------------------------- */
+  /* ----- Strategy pillars (plain-language, beginner-friendly) ---------- */
   strategies: [
-    { icon: "📊", title: "Trend & Momentum", desc: "Volatility-targeted exposure to SPY/QQQ/DIA when momentum signals align across horizons." },
-    { icon: "🔁", title: "Mean Reversion",  desc: "Short-horizon reversal entries on stretched ETF moves, gated by liquidity and event risk." },
-    { icon: "🛡️", title: "Risk Overlay",    desc: "Systematic de-risking and hedging that caps drawdowns when regimes turn hostile." },
-    { icon: "🧠", title: "Quant Research",  desc: "Every signal is walk-forward validated and cost-aware before a dollar is risked." },
+    { icon: "🏦", title: "We get paid like an insurer", desc: "We sell other investors the 'insurance' they want against market swings, and collect a cash premium up front — money in hand on day one." },
+    { icon: "⚖️", title: "We don't bet on direction",   desc: "Our positions are balanced to profit whether the market drifts up, down, or sideways. We don't need to guess where prices go next." },
+    { icon: "⏳", title: "Time becomes our income",      desc: "The insurance we sell loses value a little more each day it isn't needed. That steady decay is designed to flow back to you as return." },
+    { icon: "🛡️", title: "Safety is built in first",     desc: "Every trade carries a pre-set maximum loss, and we automatically trade smaller when markets get stormy. Protecting capital comes before growing it." },
   ],
 
   /* ----- Demo investor accounts (front-end only) ----------------------

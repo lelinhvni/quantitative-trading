@@ -295,8 +295,68 @@
     ctx.globalCompositeOperation = "source-over";
   }
 
+  /* ---------- grouped/simple bar chart (supports negative values) ---------- */
+  function barChart(canvas, opts) {
+    const { ctx, w, h } = hidpi(canvas);
+    const pad = { t: 16, r: 14, b: 34, l: 46 };
+    const groups = opts.groups || [];           // [{ label, bars:[{value,color,name}] }]
+    const allVals = groups.flatMap((g) => g.bars.map((b) => b.value));
+    let max = Math.max(0, ...allVals);
+    let min = Math.min(0, ...allVals);
+    const span = (max - min) || 1; max += span * 0.12; min -= (min < 0 ? span * 0.12 : 0);
+    const plotH = h - pad.t - pad.b, plotW = w - pad.l - pad.r;
+    const y = (v) => pad.t + (1 - (v - min) / (max - min)) * plotH;
+    const zeroY = y(0);
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = "11px JetBrains Mono, monospace"; ctx.textBaseline = "middle";
+    // gridlines + y labels
+    for (let g = 0; g <= 4; g++) {
+      const val = min + (g / 4) * (max - min);
+      const gy = y(val);
+      ctx.strokeStyle = "rgba(255,255,255,0.06)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
+      ctx.fillStyle = "rgba(147,160,189,0.7)"; ctx.textAlign = "right";
+      ctx.fillText(opts.yFmt ? opts.yFmt(val) : val.toFixed(0), pad.l - 8, gy);
+    }
+    // zero baseline emphasis
+    ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w - pad.r, zeroY); ctx.stroke();
+
+    const gW = plotW / groups.length;
+    groups.forEach((grp, gi) => {
+      const n = grp.bars.length;
+      const inner = gW * 0.62;
+      const bw = inner / n;
+      const gx = pad.l + gi * gW + (gW - inner) / 2;
+      grp.bars.forEach((b, bi) => {
+        const bx = gx + bi * bw;
+        const top = y(Math.max(b.value, 0));
+        const bot = y(Math.min(b.value, 0));
+        const r = Math.min(5, bw * 0.4);
+        ctx.fillStyle = b.color;
+        roundRect(ctx, bx + bw * 0.1, top, bw * 0.8, Math.max(2, bot - top), r);
+        ctx.fill();
+      });
+      // group label
+      ctx.fillStyle = "rgba(147,160,189,0.85)"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(grp.label, pad.l + gi * gW + gW / 2, h - pad.b + 12);
+      ctx.textBaseline = "middle";
+    });
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
   global.JSS = {
     fmtMoney, fmtPct, fmtNum, demoSeries, getHistory, getQuote, summarize, getNews,
-    chart: { lineChart, sparkline, donut },
+    chart: { lineChart, sparkline, donut, barChart },
   };
 })(window);
