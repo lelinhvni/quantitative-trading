@@ -24,7 +24,7 @@ window.JSS_CONFIG = {
     name: "JSS",
     full: "JSS Capital",
     tagline: "Systematic ETF trading, driven by quantitative theory.",
-    email: "invest@jsscapital.example",
+    email: "invest@jsscapital.com",
   },
 
   /* ----- Market data providers -----------------------------------------
@@ -74,7 +74,7 @@ window.JSS_CONFIG = {
   --------------------------------------------------------------------- */
   metrics: [
     { value: 4.0,  decimals: 1, suffix: "%",  label: "Typical high-yield savings rate (for comparison)" },
-    { value: 10.0, decimals: 0, suffix: "%",  prefix: "~", label: "Illustrative long-run target — not guaranteed" },
+    { value: 12,   decimals: 0, suffix: "%",  prefix: "~", label: "Illustrative long-run target — not guaranteed" },
     { value: 90,   decimals: 0, suffix: "%+", label: "Trades designed to expire in our favor" },
     { value: 100,  decimals: 0, suffix: "%",  label: "Trades published to your investor portal" },
   ],

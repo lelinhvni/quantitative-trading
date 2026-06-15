@@ -31,7 +31,7 @@
   function growthChart() {
     const c = document.getElementById("growthChart");
     if (!c) return;
-    const years = 15, start = 10000, savings = 0.04, jss = 0.10;
+    const years = 15, start = 10000, savings = 0.04, jss = 0.12;
     const sav = [], fnd = [], labels = [];
     for (let y = 0; y <= years; y++) {
       sav.push(start * Math.pow(1 + savings, y));
