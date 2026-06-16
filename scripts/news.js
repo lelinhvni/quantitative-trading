@@ -8,11 +8,21 @@
   const CFG = window.JSS_CONFIG;
   const feeds = (CFG.news && CFG.news.feeds) || [];
   let active = 0;
+  let timer = null;
 
   document.addEventListener("DOMContentLoaded", () => {
     renderTabs();
+    bindRefresh();
     load(0);
+    // Auto-refresh the active feed periodically (page promises live-through-the-day).
+    const ms = Math.max(120000, (CFG.data && CFG.data.refreshMs ? CFG.data.refreshMs * 3 : 180000));
+    timer = setInterval(() => load(active, true), ms);
   });
+
+  function bindRefresh() {
+    const btn = document.getElementById("newsRefresh");
+    if (btn) btn.addEventListener("click", () => load(active));
+  }
 
   function renderTabs() {
     const el = document.getElementById("newsTabs");
@@ -30,20 +40,24 @@
     );
   }
 
-  async function load(i) {
+  async function load(i, quiet) {
     const feat = document.getElementById("newsFeatured");
     const list = document.getElementById("newsList");
     if (!list) return;
-    if (feat) feat.innerHTML = "";
-    list.innerHTML = `<div class="snap__loading">Loading headlines…</div>`;
+    if (!quiet) {
+      if (feat) feat.innerHTML = "";
+      list.innerHTML = `<div class="snap__loading">Loading headlines…</div>`;
+    }
 
     const items = await window.JSS.getNews(feeds[i]);
     if (!items.length) {
-      list.innerHTML = `<div class="snap__loading">No headlines available.</div>`;
+      if (!quiet) list.innerHTML = `<div class="snap__loading">No headlines available.</div>`;
       return;
     }
     if (feat && items.length) feat.innerHTML = featured(items[0]);
     list.innerHTML = items.slice(1).map(card).join("");
+    const upd = document.getElementById("newsUpdated");
+    if (upd) upd.textContent = "Updated " + new Date().toLocaleTimeString();
   }
 
   function timeAgo(dateStr) {
@@ -68,9 +82,10 @@
     const url = safeUrl(a.link);
     const open = url ? `href="${url}" target="_blank" rel="noopener noreferrer"` : "";
     const Tag = url ? "a" : "article";
+    const hasImg = !!a.image;
     return `
-    <${Tag} class="news-featured reveal" ${open}>
-      ${a.image ? `<div class="news-featured__img" style="background-image:url('${safeUrl(a.image)}')"></div>` : ""}
+    <${Tag} class="news-featured reveal ${hasImg ? "" : "news-featured--noimg"}" ${open}>
+      ${hasImg ? `<div class="news-featured__img" style="background-image:url('${safeUrl(a.image)}')"></div>` : ""}
       <div class="news-featured__body">
         <span class="news-featured__badge">Top story</span>
         ${meta(a)}

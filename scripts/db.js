@@ -39,6 +39,12 @@
       this._profile = null;
     },
 
+    async resetPassword(email) {
+      const redirectTo = global.location.origin + global.location.pathname;
+      const { error } = await this._client.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+    },
+
     async getSession() {
       const { data: { session } } = await this._client.auth.getSession();
       return session;

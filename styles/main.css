@@ -421,6 +421,12 @@ button { font: inherit; cursor: pointer; }
 .newscard__desc { color: var(--muted); font-size: 0.92rem; }
 .newscard__link { display: inline-flex; align-items: center; margin-top: auto; padding-top: 14px; color: var(--teal); font-size: 0.85rem; font-weight: 600; }
 
+/* News status / refresh row */
+.news__status { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.news__updated { color: var(--faint); font-size: 0.82rem; font-family: "JetBrains Mono", monospace; }
+.link-btn { background: none; border: 0; color: var(--teal); font-size: 0.85rem; font-weight: 600; padding: 0; }
+.link-btn:hover { text-decoration: underline; }
+
 /* Featured top story */
 .news__featured-slot:not(:empty) { margin-bottom: 26px; }
 .news-featured {
@@ -437,6 +443,8 @@ button { font: inherit; cursor: pointer; }
   font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   color: #06121a; background: var(--grad); padding: 5px 12px; border-radius: 999px;
 }
+.news-featured--noimg { grid-template-columns: 1fr; }
+.news-featured--noimg .news-featured__body { padding: 32px 36px; }
 .news-featured__title { font-size: clamp(1.4rem, 2.6vw, 2rem); line-height: 1.18; letter-spacing: -0.02em; margin-bottom: 14px; }
 .news-featured:hover .news-featured__title { color: var(--teal); }
 .news-featured__desc { color: var(--muted); font-size: 1rem; line-height: 1.6; }
@@ -511,6 +519,7 @@ button { font: inherit; cursor: pointer; }
 .login-card__title { font-size: 1.8rem; font-weight: 800; margin: 10px 0 8px; }
 .login-card__lede { color: var(--muted); margin-bottom: 22px; font-size: 0.95rem; }
 .login-card form { display: flex; flex-direction: column; gap: 14px; }
+.login-card__forgot { text-align: right; margin-top: 10px; }
 .login-card__demo { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); }
 .login-card__demo p { color: var(--faint); font-size: 0.82rem; margin-bottom: 10px; }
 .demo-cred { display: block; width: 100%; text-align: left; background: rgba(7,10,20,0.5); border: 1px solid var(--border-2); color: var(--muted); padding: 10px 12px; border-radius: var(--radius-sm); font-size: 0.82rem; font-family: "JetBrains Mono", monospace; margin-bottom: 8px; transition: border-color .2s, color .2s; }

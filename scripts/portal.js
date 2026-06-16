@@ -40,6 +40,33 @@
 
     bindLiveLogin();
     bindLogout();
+    bindForgot();
+  }
+
+  function bindForgot() {
+    const btn = document.getElementById("forgotBtn");
+    if (!btn) return;
+    const note = document.getElementById("loginNote");
+    btn.addEventListener("click", async () => {
+      const email = (document.getElementById("lemail").value || "").trim().toLowerCase();
+      note.classList.remove("is-error");
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        note.textContent = "Enter your email above first, then tap “Forgot password?”.";
+        note.classList.add("is-error");
+        return;
+      }
+      if (!liveMode) {
+        note.textContent = "Password reset works once the fund's live login is configured. For the demo, use the sample accounts below.";
+        return;
+      }
+      try {
+        await DB.resetPassword(email);
+        note.textContent = "If an account exists for that email, a reset link is on its way.";
+      } catch (err) {
+        note.textContent = err.message || "Could not send a reset link right now.";
+        note.classList.add("is-error");
+      }
+    });
   }
 
   function showLogin() {
@@ -521,6 +548,8 @@
     document.getElementById("logoutBtn")?.addEventListener("click", () => {
       sessionStorage.removeItem("jss_demo_session"); showLogin();
     });
+
+    bindForgot();
   }
 
   function showDemoApp(user) {
