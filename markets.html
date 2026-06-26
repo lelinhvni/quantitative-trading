@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#070a14" />
   <title>Markets — JSS Capital</title>
-  <meta name="description" content="Live ETF market data for SPY, QQQ and DIA — daily open and close, last 60-day high and low, and price history." />
+  <meta name="description" content="Live market data — ETF tracker and top S&P 500 stocks. Click any ticker for full detail with chart and statistics." />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,10 +18,10 @@
 
   <main id="main">
     <section class="page-hero">
-      <div class="container">
+      <div class="container container--wide">
         <span class="kicker reveal">Markets</span>
-        <h1 class="page-hero__title reveal">The ETFs we trade</h1>
-        <p class="page-hero__lede reveal">Live data for SPY, QQQ and DIA — today's open and close, the last 60 trading days' high and low, and the full price history. <span class="data-source" id="dataSource"></span></p>
+        <h1 class="page-hero__title reveal">Live Market View</h1>
+        <p class="page-hero__lede reveal">ETFs we trade plus the top S&amp;P 500 companies — prices refreshed every minute. Click any tile for the full chart and stats. <span class="data-source" id="dataSource"></span></p>
         <div class="markets__bar reveal">
           <button class="chip is-active" data-range="60">60 days</button>
           <button class="chip" data-range="30">30 days</button>
@@ -32,10 +32,30 @@
       </div>
     </section>
 
+    <!-- ETF horizontal row -->
     <section class="section section--tight">
-      <div class="container">
-        <div id="marketCards" class="market__list">
-          <div class="snap__loading">Loading market data…</div>
+      <div class="container container--wide">
+        <div class="section__head reveal" style="margin-bottom:20px">
+          <span class="kicker">ETFs we trade</span>
+          <h2>Our tracked instruments</h2>
+        </div>
+        <div id="etfRow" class="etf-row">
+          <div class="snap__loading">Loading ETF data…</div>
+        </div>
+        <div id="etfDetail" class="etf-detail" hidden></div>
+      </div>
+    </section>
+
+    <!-- Top 20 S&P 500 -->
+    <section class="section section--alt section--tight">
+      <div class="container container--wide">
+        <div class="section__head reveal" style="margin-bottom:20px">
+          <span class="kicker">S&amp;P 500 leaders</span>
+          <h2>Top 20 companies by index weight</h2>
+          <p>The largest constituents of the S&amp;P 500 — live prices and 5-day sparklines.</p>
+        </div>
+        <div id="sp500Grid" class="sp500-grid">
+          <div class="snap__loading">Loading S&amp;P 500 data…</div>
         </div>
       </div>
     </section>

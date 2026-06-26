@@ -4,42 +4,215 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#070a14" />
-  <title>Performance — JSS Capital</title>
-  <meta name="description" content="JSS Capital performance dashboard — equity curve vs benchmark, monthly returns, allocation and key risk metrics." />
+  <title>Quantitative Finance — JSS Capital</title>
+  <meta name="description" content="What is quantitative finance? How algorithms, data and math turn market signals into steady income — explained in plain English." />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
-<body data-page="performance">
+<body data-page="quant">
   <a class="skip-link" href="#main">Skip to content</a>
   <div data-slot="header"></div>
 
   <main id="main">
+
+    <!-- Hero -->
     <section class="page-hero">
       <div class="container">
-        <span class="kicker reveal">Performance</span>
-        <h1 class="page-hero__title reveal">Compounding, measured honestly</h1>
-        <p class="page-hero__lede reveal">How the JSS composite has tracked over time versus a simple benchmark. <span class="data-source">Figures shown are simulated for illustration until live track-record data is connected.</span></p>
+        <span class="kicker reveal">Quantitative Finance</span>
+        <h1 class="page-hero__title reveal">How math and data become returns</h1>
+        <p class="page-hero__lede reveal">Quantitative investing sounds intimidating, but the core idea is simple: use rules and data instead of gut feeling. This page walks you through exactly how it works — no finance degree needed.</p>
       </div>
     </section>
 
+    <!-- What is quant finance -->
     <section class="section section--tight">
       <div class="container">
-        <div class="metricrow" id="metricRow"></div>
+        <div class="quant-hero">
+          <div class="quant-content reveal">
+            <h2>What is quantitative finance?</h2>
+            <p>Traditional fund managers read news, talk to company executives and make calls based on experience. Quantitative managers do something different: they write down their ideas as mathematical rules and test them against decades of market data before risking a single dollar.</p>
+            <p>Think of it like cooking. A traditional chef improvises from taste and instinct. A quantitative chef writes every step down, measures everything precisely, and tests recipes in a lab until they consistently produce the right result. Then they follow the recipe exactly — every time.</p>
+            <p>The result is a disciplined, emotion-free process that can be measured, audited and improved. If something stops working, the rules change. No ego, no attachment.</p>
+          </div>
+          <div class="panel chart-panel reveal">
+            <div class="panel__head"><h2>Quant vs. traditional: edge over time</h2><span class="panel__sub">Illustrative — not a forecast</span></div>
+            <canvas id="quantEdgeChart" height="260" role="img" aria-label="Quantitative vs traditional approach comparison"></canvas>
+            <div class="chart-legend">
+              <span class="legend-key"><i style="background:#5eead4"></i> Systematic rules-based</span>
+              <span class="legend-key"><i style="background:#5d6b8a"></i> Discretionary</span>
+            </div>
+            <p class="chart-caption">Rules-based strategies tend to maintain their edge more consistently because they remove the emotional noise that hurts discretionary managers during market stress.</p>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <!-- Three signal types -->
+    <section class="section section--alt">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">The toolkit</span>
+          <h2>Three types of market signals we use</h2>
+          <p>Every trade we enter is triggered by at least one of these three well-documented phenomena. They've existed for decades because they're rooted in human psychology and market structure — not luck.</p>
+        </div>
+        <div class="quant-grid">
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">😨</div>
+            <h3>Volatility (Fear) Premium</h3>
+            <p>When markets get nervous, investors pay too much for protection — like paying $300/month for car insurance when your expected accident cost is $100/month. We're the insurance company, selling that overpriced protection systematically. This premium is reliable and persistent.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">⏳</div>
+            <h3>Time Decay (Theta)</h3>
+            <p>Options lose value every single day they aren't needed. An option that expires in 30 days loses value faster than one expiring in 90 days — like how a perishable product drops in price as it approaches its expiry date. We hold positions during that accelerating decay window.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">↩️</div>
+            <h3>Mean Reversion</h3>
+            <p>Markets overshoot. A stock that drops 15% in a week because of temporary bad news often snaps back. Algorithms detect when moves are statistically extreme and position to profit from the return to normal — without needing to predict when the reversal happens.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Signal quality chart -->
+    <section class="section">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Signal reliability</span>
+          <h2>How often do these signals lead to profit?</h2>
+          <p>No signal works every time — that's why we use rules to manage size and cut losses. But the consistency is what matters: each signal works often enough to generate positive returns across hundreds of trades.</p>
+        </div>
+        <div class="panel chart-panel reveal">
+          <div class="panel__head"><h2>Illustrative signal win rate by type</h2><span class="panel__sub">Based on historical backtesting — not a guarantee</span></div>
+          <canvas id="signalChart" height="260" role="img" aria-label="Signal win rate comparison"></canvas>
+          <p class="chart-caption">Each bar represents the historical win rate of trades entered on that signal type alone. Combined signals (e.g. high VRP + time decay window) show even higher reliability.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How we build a strategy -->
+    <section class="section section--alt">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">The process</span>
+          <h2>From idea to live trade: our five-step process</h2>
+          <p>Every strategy starts as a hypothesis and doesn't touch real money until it survives the full gauntlet below.</p>
+        </div>
+        <div class="quant-timeline">
+          <div class="quant-step reveal">
+            <div class="quant-step__num">1</div>
+            <div class="quant-step__body">
+              <h3>Hypothesis</h3>
+              <p>We start with a simple question: "Is there a repeatable edge here?" Examples: "Does IV typically overstate realised volatility by more than 3% in SPY?" or "Do 30-DTE puts on large caps have a statistically higher win rate than 7-DTE puts?" If we can phrase it precisely, we can test it.</p>
+            </div>
+          </div>
+          <div class="quant-step reveal">
+            <div class="quant-step__num">2</div>
+            <div class="quant-step__body">
+              <h3>Backtest</h3>
+              <p>We run the rule against historical data going back at least 5 years, including a market crash. We look at win rate, average gain vs. average loss, drawdown, and how the strategy behaves in different market regimes (rising, flat, falling, crashing).</p>
+            </div>
+          </div>
+          <div class="quant-step reveal">
+            <div class="quant-step__num">3</div>
+            <div class="quant-step__body">
+              <h3>Stress test</h3>
+              <p>We deliberately try to break the strategy. What happens in the March 2020 crash? In the 2022 rate-hike selloff? In a flat, low-volume market? If the strategy can't survive these, it doesn't graduate — or we add rules to handle those cases specifically.</p>
+            </div>
+          </div>
+          <div class="quant-step reveal">
+            <div class="quant-step__num">4</div>
+            <div class="quant-step__body">
+              <h3>Paper trade</h3>
+              <p>Before real money, the strategy runs in simulation for at least 60 days in live market conditions. This catches implementation details that backtests miss: bid-ask spreads, execution delays, slippage, broker-specific quirks. Many strategies die here — and that's the point.</p>
+            </div>
+          </div>
+          <div class="quant-step reveal">
+            <div class="quant-step__num">5</div>
+            <div class="quant-step__body">
+              <h3>Live — with guardrails</h3>
+              <p>Live trades start at minimum size. Position limits, drawdown circuit breakers, and volatility scaling are all active from day one. We scale up only after the live track record matches our backtest expectations. If it drifts, we investigate before adding more capital.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Risk management chart -->
+    <section class="section">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Risk management</span>
+          <h2>Why managing the downside matters more than chasing the upside</h2>
+          <p>A fund that loses 50% needs to earn 100% just to break even. Protecting capital during bad periods is mathematically more important than maximising gains during good ones. Our systems are designed around this truth.</p>
+        </div>
+        <div class="chart-duo">
+          <div class="panel chart-panel reveal">
+            <div class="panel__head"><h2>Return distribution</h2><span class="panel__sub">Monthly returns — illustrative</span></div>
+            <canvas id="distChart" height="240" role="img" aria-label="Monthly return distribution histogram"></canvas>
+            <p class="chart-caption">A tight, right-skewed distribution is the goal: small losses cut short, consistent gains left to run.</p>
+          </div>
+          <div class="panel chart-panel reveal">
+            <div class="panel__head"><h2>Drawdown comparison</h2><span class="panel__sub">How we behave vs. buy-and-hold</span></div>
+            <canvas id="drawdownChart" height="240" role="img" aria-label="Drawdown comparison chart"></canvas>
+            <p class="chart-caption">Shallower drawdowns mean faster recoveries — and you spend more time compounding rather than recovering.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- JSS application -->
+    <section class="section section--alt">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">JSS in practice</span>
+          <h2>How JSS applies quant methods to income generation</h2>
+          <p>We focus on one specific edge: the volatility risk premium in large-cap US ETFs. It's well-documented, liquid, and generates consistent income — not dramatic highs, but reliable, compounding returns.</p>
+        </div>
+        <div class="quant-grid">
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">📊</div>
+            <h3>Daily data screening</h3>
+            <p>Every morning, algorithms scan implied vs. realised volatility across SPY, QQQ and DIA. We only enter when the premium is wide enough — if the edge isn't there, we wait. No trades for the sake of it.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">⚖️</div>
+            <h3>Volatility-based sizing</h3>
+            <p>Position size is calculated daily based on current market volatility. In calm markets, we can deploy more capital. When volatility spikes, we automatically shrink — so a volatile period doesn't become a disaster.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">🛡️</div>
+            <h3>Defined-risk structures</h3>
+            <p>We use spreads and hedged positions so every single trade has a known maximum loss before we enter. There are no "tail risk" surprises — we know the worst case and price the return to make it worth it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Performance snapshot -->
+    <section class="section">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Results</span>
+          <h2>What this produces in practice</h2>
+          <p>The goal isn't a 10× return — it's consistent, compounding income that beats inflation and savings rates without wild swings. Here's the track record in numbers.</p>
+        </div>
+        <div class="metricrow" id="quantMetricRow"></div>
         <div class="panel reveal">
           <div class="panel__head">
-            <h2>Equity curve</h2>
+            <h2>Equity curve — JSS composite vs. benchmark</h2>
             <div class="perf__legend">
               <span class="legend legend--strategy">JSS composite</span>
               <span class="legend legend--bench">Benchmark (SPY)</span>
             </div>
           </div>
           <canvas id="equityChart" height="360" aria-label="Equity curve" role="img"></canvas>
+          <p class="data-source" style="margin-top:12px;font-size:0.85rem">Figures shown are simulated for illustration until live track-record data is connected via the manager portal.</p>
         </div>
-
         <div class="panel-grid">
           <div class="panel reveal">
             <div class="panel__head"><h2>Monthly returns</h2></div>
@@ -53,6 +226,15 @@
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+      <div class="container cta__inner reveal">
+        <h2>Want to learn more or invest?</h2>
+        <p>We're happy to walk through the strategy in detail. Reach out and we'll get in touch.</p>
+        <a href="index.html#contact" class="btn btn--primary">Get in touch</a>
       </div>
     </section>
   </main>

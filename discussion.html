@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>Discussion — JSS Capital</title>
+  <meta name="description" content="JSS Capital community discussion board — share your market thoughts, ask questions and discuss options strategies with other investors." />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body data-page="discussion">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div data-slot="header"></div>
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="container container--wide">
+        <span class="kicker reveal">Community</span>
+        <h1 class="page-hero__title reveal">Discussion Board</h1>
+        <p class="page-hero__lede reveal">Share your market outlook, ask questions about options strategies, or just think out loud. Click any topic to read and join the conversation.</p>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="container container--wide">
+        <div class="board">
+          <div class="board__header reveal">
+            <div>
+              <span class="board__count" id="boardCount"></span>
+            </div>
+            <button class="btn btn--primary btn--sm" id="newTopicBtn" type="button">+ New Topic</button>
+          </div>
+          <div class="board__grid" id="boardGrid">
+            <div class="snap__loading">Loading board…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- New topic modal -->
+  <div class="modal-overlay is-hidden" id="modalOverlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <h2 id="modalTitle">Start a new topic</h2>
+      <div class="field">
+        <label for="newTitle">Topic title</label>
+        <input id="newTitle" type="text" placeholder="e.g. What's your take on SPY this week?" maxlength="120" />
+      </div>
+      <div class="field">
+        <label for="newBody">Your thoughts</label>
+        <textarea id="newBody" rows="4" placeholder="Share what's on your mind…" maxlength="800"></textarea>
+      </div>
+      <div class="field">
+        <label for="newAuthor">Your name (optional)</label>
+        <input id="newAuthor" type="text" placeholder="Anonymous" maxlength="40" />
+      </div>
+      <p class="cta__note is-error" id="modalErr" role="status" aria-live="polite"></p>
+      <div class="modal__actions">
+        <button class="modal__cancel" id="modalCancel" type="button">Cancel</button>
+        <button class="btn btn--primary btn--sm" id="modalSubmit" type="button">Post topic</button>
+      </div>
+    </div>
+  </div>
+
+  <div data-slot="footer"></div>
+
+  <script src="scripts/config.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/site.js"></script>
+  <script src="scripts/discussion.js" defer></script>
+</body>
+</html>

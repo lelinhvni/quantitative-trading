@@ -26,6 +26,8 @@
     thetaChart();
     vrpChart();
     cashChart();
+    wheelChart();
+    trackChart();
   }
 
   function growthChart() {
@@ -100,6 +102,74 @@
       ],
       yFmt: (v) => Math.round(v) + "%",
     });
+  }
+
+  function wheelChart() {
+    const c = document.getElementById("wheelChart");
+    if (!c) return;
+    // Phases across 2 complete Wheel cycles (12 "weeks" represented as phases)
+    const phases = [
+      { label: "Put\n#1",  val: 1.2, color: "#5eead4" },
+      { label: "Hold",     val: 0,   color: "#3b465f" },
+      { label: "Call\n#1", val: 0.8, color: "#818cf8" },
+      { label: "Gain\n#1", val: 2.4, color: "#34d399" },
+      { label: "Put\n#2",  val: 1.3, color: "#5eead4" },
+      { label: "Hold",     val: 0,   color: "#3b465f" },
+      { label: "Call\n#2", val: 1.0, color: "#818cf8" },
+      { label: "Put\n#3",  val: 0.9, color: "#5eead4" },
+      { label: "Call\n#3", val: 1.1, color: "#818cf8" },
+      { label: "Gain\n#3", val: 1.8, color: "#34d399" },
+    ];
+    F.chart.barChart(c, {
+      yFmt: (v) => v.toFixed(1) + "%",
+      groups: phases.map((p) => ({ label: p.label, bars: [{ value: p.val, color: p.color }] })),
+    });
+  }
+
+  function trackChart() {
+    const c = document.getElementById("trackChart");
+    if (!c) return;
+    let seed = 20240117;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const months = 42;
+    const strat = [], bench = [], labels = [];
+    let s = 100, b = 100, monthly = [];
+    const start = new Date(); start.setMonth(start.getMonth() - months + 1);
+    for (let i = 0; i < months; i++) {
+      const d = new Date(start); d.setMonth(start.getMonth() + i);
+      labels.push(d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }));
+      const mkt = (rnd() - 0.46) * 0.06;
+      const sr = 0.004 + (rnd() - 0.42) * 0.03 + mkt * 0.35;
+      s *= 1 + sr; b *= 1 + mkt;
+      strat.push(s); bench.push(b);
+      monthly.push(sr);
+    }
+    F.chart.lineChart(c, {
+      labels,
+      series: [
+        { values: strat, color: "#5eead4", fill: "rgba(94,234,212,0.16)", width: 2.4 },
+        { values: bench, color: "#5d6b8a", width: 1.6 },
+      ],
+      yFmt: (v) => v.toFixed(0),
+    });
+    const el = document.getElementById("trackMetrics");
+    if (el) {
+      const totRet = (strat[months - 1] / strat[0] - 1) * 100;
+      const cagr = (Math.pow(strat[months - 1] / strat[0], 12 / months) - 1) * 100;
+      let peak = -Infinity, maxdd = 0;
+      strat.forEach((v) => { peak = Math.max(peak, v); maxdd = Math.min(maxdd, v / peak - 1); });
+      const mean = monthly.reduce((a, b) => a + b, 0) / monthly.length;
+      const sd = Math.sqrt(monthly.reduce((a, b) => a + (b - mean) ** 2, 0) / monthly.length || 1);
+      const sharpe = sd ? (mean / sd) * Math.sqrt(12) : 0;
+      const wins = (monthly.filter((r) => r > 0).length / monthly.length) * 100;
+      const ms = [
+        { v: F.fmtPct(totRet, 1), l: "Total return (sim.)" },
+        { v: F.fmtPct(cagr, 1),   l: "CAGR (ann.)" },
+        { v: sharpe.toFixed(2),    l: "Sharpe ratio" },
+        { v: wins.toFixed(0) + "%", l: "Positive months" },
+      ];
+      el.innerHTML = ms.map((m) => `<div class="track-metric"><div class="track-metric__v">${m.v}</div><div class="track-metric__l">${m.l}</div></div>`).join("");
+    }
   }
 
   function cashChart() {

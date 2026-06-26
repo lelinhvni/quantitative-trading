@@ -185,6 +185,59 @@
       </div>
     </section>
 
+    <!-- The Wheel Strategy -->
+    <section class="section section--alt" id="wheel">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Income strategy</span>
+          <h2>The Wheel — rinse and repeat income</h2>
+          <p>One of our favourite tools: a self-renewing cycle that collects premium at every turn. Instead of hoping a stock goes up, we get paid just for being willing to own it — and then paid again while we do.</p>
+        </div>
+        <div class="wheel-intro">
+          <div class="wheel-steps">
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">🎯</div>
+              <div class="wheel-step__body">
+                <h4>Step 1 — Sell a cash-secured put</h4>
+                <p>We pick a stock at a price we'd happily own. Someone pays us a premium for the right to make us buy at that price. Cash in hand, immediately.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">📉</div>
+              <div class="wheel-step__body">
+                <h4>Step 2 — If assigned, we own it</h4>
+                <p>If the stock drops to our strike price, we buy it — but at a discount (we already collected the put premium). We're not upset; this was always an option we priced in.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">📞</div>
+              <div class="wheel-step__body">
+                <h4>Step 3 — Sell a covered call</h4>
+                <p>Now we own the stock, we sell someone the right to buy it from us at a higher price. More premium collected. We're getting paid to wait.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">🔄</div>
+              <div class="wheel-step__body">
+                <h4>Step 4 — Called away or repeat</h4>
+                <p>If the stock rises above our call strike, it's sold at a profit — plus we keep all premiums. Then we start the Wheel again on the next candidate.</p>
+              </div>
+            </div>
+          </div>
+          <div class="panel chart-panel reveal">
+            <div class="panel__head"><h2>Illustrative Wheel income cycle</h2><span class="panel__sub">Example pattern — not actual results</span></div>
+            <canvas id="wheelChart" height="260" role="img" aria-label="Wheel strategy income cycle"></canvas>
+            <div class="chart-legend">
+              <span class="legend-key"><i style="background:#5eead4"></i> Put premium</span>
+              <span class="legend-key"><i style="background:#818cf8"></i> Call premium</span>
+              <span class="legend-key"><i style="background:#34d399"></i> Assignment gain</span>
+            </div>
+            <p class="chart-caption">Each bar shows income collected in that phase. The Wheel keeps turning — put, own, call, repeat.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Protect your money -->
     <section class="section" id="protect">
       <div class="container">
@@ -196,7 +249,7 @@
         <div class="cards">
           <article class="card reveal"><div class="card__icon">📉</div><h3>Smaller in storms</h3><p>When markets get wild, the system automatically shrinks position sizes — so a rough patch stays a scrape, not a wound.</p></article>
           <article class="card reveal"><div class="card__icon">🤖</div><h3>Always-on safeguards</h3><p>Rules watch the portfolio around the clock and adjust or close positions before small losses can grow into big ones.</p></article>
-          <article class="card reveal"><div class="card__icon">🌪️</div><h3>Crash-tested</h3><p>The strategy is stress-tested against history's worst days — 1987, 2008, 2020 — to make sure it can take a punch.</p></article>
+          <article class="card reveal"><div class="card__icon">🌪️</div><h3>Crash-tested</h3><p>The strategy is stress-tested against history's volatile periods — including 2019–2022 — to make sure it can take a punch and keep generating income.</p></article>
         </div>
       </div>
     </section>
@@ -214,6 +267,29 @@
           <canvas id="cashChart" height="280" role="img" aria-label="Illustrative monthly income pattern"></canvas>
           <p class="chart-caption">Small, regular premiums add up. The goal isn't a jackpot — it's consistency that compounds.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- Track record -->
+    <section class="section section--alt" id="trackrecord">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Track record</span>
+          <h2>How the strategy has tracked over time</h2>
+          <p>A rules-based approach produces measurable results. Below is our composite equity curve against a simple buy-and-hold benchmark. <span class="data-source">Simulated for illustration — real NAV data populates automatically once connected.</span></p>
+        </div>
+        <div class="track-metrics reveal" id="trackMetrics"></div>
+        <div class="panel chart-panel reveal">
+          <div class="panel__head">
+            <h2>Equity curve</h2>
+            <div class="chart-legend" style="margin-top:0">
+              <span class="legend-key"><i style="background:#5eead4"></i> JSS composite</span>
+              <span class="legend-key"><i style="background:#5d6b8a"></i> Benchmark (SPY)</span>
+            </div>
+          </div>
+          <canvas id="trackChart" height="300" role="img" aria-label="Equity curve vs benchmark"></canvas>
+        </div>
+        <p style="text-align:center;margin-top:20px"><a href="performance.html" class="btn btn--ghost">Learn how we build strategies →</a></p>
       </div>
     </section>
 

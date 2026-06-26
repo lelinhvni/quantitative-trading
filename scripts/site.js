@@ -8,10 +8,11 @@
   const page = document.body.dataset.page || "";
 
   const NAV = [
-    { id: "home",        label: "Home",        href: "index.html" },
-    { id: "performance", label: "Performance", href: "performance.html" },
-    { id: "markets",     label: "Markets",     href: "markets.html" },
-    { id: "news",        label: "News",        href: "news.html" },
+    { id: "home",       label: "Home",          href: "index.html" },
+    { id: "quant",      label: "Quant Finance", href: "performance.html" },
+    { id: "markets",    label: "Markets",       href: "markets.html" },
+    { id: "news",       label: "News",          href: "news.html" },
+    { id: "discussion", label: "Discussion",    href: "discussion.html" },
   ];
 
   /* ---------- header ---------- */
