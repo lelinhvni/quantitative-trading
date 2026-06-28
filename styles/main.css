@@ -788,6 +788,11 @@ button { font: inherit; cursor: pointer; }
 @media (max-width: 860px) { .quant-hero { grid-template-columns: 1fr; } }
 .quant-content h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; }
 .quant-content p { color: var(--muted); font-size: 1.03rem; line-height: 1.72; margin-bottom: 14px; }
+.quant-quote {
+  margin-top: 20px; padding: 16px 20px; border-left: 3px solid var(--teal);
+  background: rgba(94,234,212,0.07); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  color: var(--text); font-size: 1rem; line-height: 1.7; font-style: italic;
+}
 .quant-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
 @media (max-width: 900px) { .quant-grid { grid-template-columns: 1fr; } }
 .quant-card {
