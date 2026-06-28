@@ -27,6 +27,7 @@
     vrpChart();
     cashChart();
     wheelChart();
+    pairChart();
     trackChart();
   }
 
@@ -124,6 +125,94 @@
       yFmt: (v) => v.toFixed(1) + "%",
       groups: phases.map((p) => ({ label: p.label, bars: [{ value: p.val, color: p.color }] })),
     });
+  }
+
+  function pairChart() {
+    const c = document.getElementById("pairChart");
+    if (!c) return;
+    // Generate a realistic mean-reverting Z-score series
+    let seed = 55441;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const n = 60;
+    const vals = [], labels = [];
+    let z = 0;
+    for (let i = 0; i < n; i++) {
+      z = z * 0.88 + (rnd() - 0.5) * 1.1;   // mean-reverting AR(1) process
+      vals.push(+z.toFixed(3));
+      labels.push(i % 10 === 0 ? "Day " + (i + 1) : "");
+    }
+
+    // Draw using canvas directly for entry/exit zone highlighting
+    const ratio = devicePixelRatio || 1;
+    const rect = c.getBoundingClientRect();
+    const w = rect.width || 700, h = 260;
+    c.width = w * ratio; c.height = h * ratio; c.style.height = h + "px";
+    const ctx = c.getContext("2d"); ctx.scale(ratio, ratio);
+
+    const pad = { t: 18, b: 26, l: 48, r: 12 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+    const maxZ = 3, minZ = -3;
+    const xStep = pw / (n - 1);
+    const toY = (v) => pad.t + ph - ((v - minZ) / (maxZ - minZ)) * ph;
+    const toX = (i) => pad.l + i * xStep;
+
+    // Entry zone bands (|Z| > 2)
+    ctx.fillStyle = "rgba(248,113,113,0.1)";
+    ctx.fillRect(pad.l, pad.t, pw, (ph * (maxZ - 2)) / (maxZ - minZ));
+    ctx.fillRect(pad.l, toY(-2), pw, (ph * 2) / (maxZ - minZ));
+
+    // Gridlines + Z labels
+    ctx.font = "10px JetBrains Mono, monospace"; ctx.fillStyle = "rgba(147,160,189,0.6)"; ctx.textAlign = "right";
+    [-2, -1, 0, 1, 2].forEach((v) => {
+      const y = toY(v);
+      ctx.strokeStyle = v === 0 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.06)";
+      ctx.lineWidth = v === 0 ? 1.5 : 1;
+      ctx.setLineDash(v === 0 ? [] : [4, 4]);
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textBaseline = "middle"; ctx.fillText(v === 0 ? "0" : (v > 0 ? "+" : "") + v, pad.l - 6, y);
+    });
+
+    // Entry/exit threshold dashed lines
+    ctx.strokeStyle = "rgba(248,113,113,0.55)"; ctx.lineWidth = 1; ctx.setLineDash([5, 3]);
+    [2, -2].forEach((v) => {
+      ctx.beginPath(); ctx.moveTo(pad.l, toY(v)); ctx.lineTo(w - pad.r, toY(v)); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // Trade annotations (entry/exit arrows)
+    vals.forEach((v, i) => {
+      if (i === 0) return;
+      const prev = vals[i - 1];
+      const x = toX(i), y = toY(v);
+      if ((prev < 2 && v >= 2) || (prev > -2 && v <= -2)) {
+        ctx.fillStyle = "#f87171"; ctx.font = "bold 11px Inter, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("▼ Enter", x, y - 10);
+      }
+      if ((prev >= 0.3 && v < 0.3 && vals.some((vv, ii) => ii < i && Math.abs(vv) >= 2)) ||
+          (prev <= -0.3 && v > -0.3 && vals.some((vv, ii) => ii < i && Math.abs(vv) >= 2))) {
+        ctx.fillStyle = "#34d399"; ctx.font = "bold 11px Inter, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("▲ Exit", x, y + 16);
+      }
+    });
+
+    // Spread Z-score line
+    ctx.strokeStyle = "#818cf8"; ctx.lineWidth = 2.2; ctx.lineJoin = "round";
+    ctx.beginPath();
+    vals.forEach((v, i) => { i === 0 ? ctx.moveTo(toX(i), toY(v)) : ctx.lineTo(toX(i), toY(v)); });
+    ctx.stroke();
+
+    // Dots on extreme points
+    vals.forEach((v, i) => {
+      if (Math.abs(v) >= 1.9) {
+        ctx.fillStyle = Math.abs(v) >= 2 ? "#f87171" : "#818cf8";
+        ctx.beginPath(); ctx.arc(toX(i), toY(v), 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+
+    // Day labels
+    ctx.font = "10px JetBrains Mono, monospace"; ctx.fillStyle = "rgba(147,160,189,0.6)"; ctx.textAlign = "center";
+    labels.forEach((l, i) => { if (l) ctx.fillText(l, toX(i), h - pad.b + 14); });
   }
 
   function trackChart() {

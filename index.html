@@ -238,6 +238,58 @@
       </div>
     </section>
 
+    <!-- Pair Trading -->
+    <section class="section" id="pairtrade">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Income strategy</span>
+          <h2>Pair Trading — profit from the relationship, not the direction</h2>
+          <p>Most investors bet on whether a stock goes up or down. Pair trading ignores direction entirely — we bet on the <em>relationship between two assets</em> returning to normal. It works in rising markets, falling markets, and flat ones.</p>
+        </div>
+        <div class="wheel-intro">
+          <div class="wheel-steps">
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">🔗</div>
+              <div class="wheel-step__body">
+                <h4>Step 1 — Find a historically linked pair</h4>
+                <p>We identify two assets that move together over time — think SPY vs. QQQ, or two competing companies in the same sector. The link is tested statistically (cointegration), not just eyeballed.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">📐</div>
+              <div class="wheel-step__body">
+                <h4>Step 2 — Measure the spread</h4>
+                <p>We track the price difference between the two assets as a Z-score. When they drift more than ~2 standard deviations apart, history says they're overdue to reconnect.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">↔️</div>
+              <div class="wheel-step__body">
+                <h4>Step 3 — Buy the laggard, short the leader</h4>
+                <p>When the spread widens, we buy the underperformer and short-sell the overperformer in equal dollar amounts. If the pair reconnects, both legs profit — regardless of whether the market moves up or down.</p>
+              </div>
+            </div>
+            <div class="wheel-step reveal">
+              <div class="wheel-step__icon">✅</div>
+              <div class="wheel-step__body">
+                <h4>Step 4 — Close when the spread converges</h4>
+                <p>Once the gap closes back to normal (Z-score near 0), both positions are closed. Profit comes from the convergence, not from predicting market direction. We then watch for the next divergence.</p>
+              </div>
+            </div>
+          </div>
+          <div class="panel chart-panel reveal">
+            <div class="panel__head"><h2>Illustrative spread Z-score</h2><span class="panel__sub">Entry / exit signals — not actual results</span></div>
+            <canvas id="pairChart" height="260" role="img" aria-label="Pair trading spread Z-score chart"></canvas>
+            <div class="chart-legend">
+              <span class="legend-key"><i style="background:#818cf8"></i> Spread Z-score</span>
+              <span class="legend-key"><i style="background:rgba(248,113,113,0.5)"></i> Entry zone (|Z| &gt; 2)</span>
+            </div>
+            <p class="chart-caption">When the Z-score crosses the dashed lines, we enter a trade. When it returns to zero, we exit. The strategy is market-neutral — direction doesn't matter, only the gap between the two assets.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Protect your money -->
     <section class="section" id="protect">
       <div class="container">
