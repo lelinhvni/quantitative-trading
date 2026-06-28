@@ -18,189 +18,382 @@
 
   <main id="main">
 
-    <!-- Hero -->
+    <!-- ① Hero -->
     <section class="page-hero">
       <div class="container">
         <span class="kicker reveal">Quantitative Finance</span>
         <h1 class="page-hero__title reveal">How math and data become returns</h1>
-        <p class="page-hero__lede reveal">Quantitative investing sounds intimidating, but the core idea is simple: use rules and data instead of gut feeling. This page walks you through exactly how it works — no finance degree needed.</p>
+        <p class="page-hero__lede reveal">Quantitative investing sounds intimidating — but the core idea is simple: replace gut feeling with rules and data. This page walks you through exactly how it works, step by step, with real examples. No finance degree needed.</p>
+        <nav class="quant-toc reveal" aria-label="Page sections">
+          <a href="#what-is-quant">What is quant finance?</a>
+          <a href="#how-quants-work">How it works</a>
+          <a href="#short-selling">Short selling</a>
+          <a href="#pairs-trading">Pairs trading</a>
+          <a href="#signals">Our signals</a>
+          <a href="#process">Our process</a>
+          <a href="#risk">Risk management</a>
+          <a href="#results">Results</a>
+        </nav>
       </div>
     </section>
 
-    <!-- What is quant finance -->
-    <section class="section section--tight">
+    <!-- ② What is quant finance? -->
+    <section class="section section--tight" id="what-is-quant">
       <div class="container">
         <div class="quant-hero">
           <div class="quant-content reveal">
             <h2>What is quantitative finance?</h2>
-            <p>Traditional fund managers read news, talk to company executives and make calls based on experience. Quantitative managers do something different: they write down their ideas as mathematical rules and test them against decades of market data before risking a single dollar.</p>
-            <p>Think of it like cooking. A traditional chef improvises from taste and instinct. A quantitative chef writes every step down, measures everything precisely, and tests recipes in a lab until they consistently produce the right result. Then they follow the recipe exactly — every time.</p>
-            <p>The result is a disciplined, emotion-free process that can be measured, audited and improved. If something stops working, the rules change. No ego, no attachment.</p>
+            <p>Traditional fund managers read news, talk to company executives and make calls based on experience and instinct. Quantitative managers do something fundamentally different: they write down every idea as a precise mathematical rule, then test it against decades of market data before risking a single dollar.</p>
+            <p>Think of it like cooking. A traditional chef improvises from taste. A quantitative chef writes every step down, measures everything precisely, and tests recipes in a lab until they produce the right result every time — then follows the recipe exactly, without exception.</p>
+            <p>The result is a disciplined, emotion-free process that can be measured, audited and improved. If a rule stops working, it changes. No ego, no attachment, no second-guessing at 2am.</p>
             <blockquote class="quant-quote">"A quant's edge is systematic decision-making. By removing discretion and replacing it with rigorously tested models, they aim to profit from statistical patterns the human eye cannot reliably detect."</blockquote>
           </div>
           <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Quant vs. traditional: edge over time</h2><span class="panel__sub">Illustrative — not a forecast</span></div>
+            <div class="panel__head"><h2>Quant vs. traditional: consistency over time</h2><span class="panel__sub">Illustrative — not a forecast</span></div>
             <canvas id="quantEdgeChart" height="260" role="img" aria-label="Quantitative vs traditional approach comparison"></canvas>
             <div class="chart-legend">
               <span class="legend-key"><i style="background:#5eead4"></i> Systematic rules-based</span>
               <span class="legend-key"><i style="background:#5d6b8a"></i> Discretionary</span>
             </div>
-            <p class="chart-caption">Rules-based strategies tend to maintain their edge more consistently because they remove the emotional noise that hurts discretionary managers during market stress.</p>
+            <p class="chart-caption">Rules-based strategies maintain their edge more consistently — especially during market stress, when human emotion causes the most mistakes.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Three signal types -->
-    <section class="section section--alt">
+    <!-- ③ How quants actually work -->
+    <section class="section section--alt" id="how-quants-work">
       <div class="container">
         <div class="section__head reveal">
-          <span class="kicker">The toolkit</span>
+          <span class="kicker">Under the hood</span>
+          <h2>How quant analysis actually works</h2>
+          <p>Before diving into specific strategies, it helps to understand the raw material quants work with and what they're looking for.</p>
+        </div>
+        <div class="quant-grid">
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">📡</div>
+            <h3>Data is the raw material</h3>
+            <p>Quants feed computers decades of price history, trading volume, interest rates, economic reports and even news sentiment. The more data, the more patterns can be found and tested — this is why the biggest quant funds invest heavily in data infrastructure.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">🔍</div>
+            <h3>Find a statistical edge</h3>
+            <p>A "signal" is any measurable pattern that has historically predicted a price move — even slightly. For example: "when the VIX rises above 25 on a Tuesday, SPY tends to rise 1.2% over the next five days." Each signal is tested on historical data to see if the edge is real or just noise.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">🤖</div>
+            <h3>Automate the execution</h3>
+            <p>Once a signal is validated, an algorithm watches for it in real-time and executes the trade automatically — without hesitation, without emotion, at any hour. This removes the biggest failure point in investing: the human mind under pressure.</p>
+          </div>
+        </div>
+        <div class="quant-explainer reveal">
+          <div class="quant-explainer__icon">💡</div>
+          <div>
+            <strong>The key insight:</strong> quants don't need to predict the future. They just need an edge that's right slightly more than half the time — and then repeat that edge hundreds of times a year across many positions. Small, consistent wins compound into significant returns.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ Short Selling -->
+    <section class="section" id="short-selling">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Profiting in both directions</span>
+          <h2>Short selling — making money when prices fall</h2>
+          <p>Most everyday investors can only profit when a stock <em>rises</em>. Buy low, sell high. But quants have access to a second direction: short selling. Understanding this unlocks how strategies like pairs trading work.</p>
+        </div>
+        <div class="quant-hero" style="padding-bottom:0">
+          <div class="quant-content reveal">
+            <h2 style="font-size:1.4rem">The short selling mechanic</h2>
+            <p>Short selling sounds backwards — and it is. Instead of buying first and selling later, you sell first and buy later. Here's how it works in three steps:</p>
+            <div class="short-steps">
+              <div class="short-step reveal">
+                <div class="short-step__num">1</div>
+                <div class="short-step__body">
+                  <strong>Borrow &amp; sell</strong>
+                  <p>You borrow 100 shares of Stock X at $50 from your broker and immediately sell them. You now hold $5,000 in cash — but you owe 100 shares back to the broker.</p>
+                </div>
+              </div>
+              <div class="short-step reveal">
+                <div class="short-step__num">2</div>
+                <div class="short-step__body">
+                  <strong>Wait for the fall</strong>
+                  <p>Stock X drops from $50 to $40. You buy back 100 shares for $4,000 — spending $1,000 less than you received when you sold.</p>
+                </div>
+              </div>
+              <div class="short-step reveal">
+                <div class="short-step__num">3</div>
+                <div class="short-step__body">
+                  <strong>Return &amp; pocket the difference</strong>
+                  <p>You return the 100 shares to the broker. Profit = $1,000 (minus small borrowing fees). The whole trade works without ever "owning" the stock in the traditional sense.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="panel reveal" style="align-self:start">
+            <h3 style="margin-bottom:16px;font-size:1.05rem">Short selling at a glance</h3>
+            <div class="fact-table">
+              <div class="fact-row">
+                <span class="fact-label">Borrow &amp; sell at</span>
+                <span class="fact-val pos">$50 × 100 = <strong>$5,000 in</strong></span>
+              </div>
+              <div class="fact-row">
+                <span class="fact-label">Buy back at</span>
+                <span class="fact-val neg">$40 × 100 = <strong>$4,000 out</strong></span>
+              </div>
+              <div class="fact-row fact-row--total">
+                <span class="fact-label">Profit</span>
+                <span class="fact-val pos"><strong>$1,000</strong></span>
+              </div>
+            </div>
+            <div class="quant-warning">
+              <span class="quant-warning__icon">⚠️</span>
+              <div>
+                <strong>The key risk:</strong> if the stock rises instead of falls, losses are theoretically unlimited — a stock can go up forever. This is why quants pair short positions with long positions (like in pairs trading) to cap the risk.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑤ Pairs Trading -->
+    <section class="section section--alt" id="pairs-trading">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Market-neutral strategy</span>
+          <h2>Pairs trading — profit from the relationship, not the direction</h2>
+          <p>Pairs trading combines a long position and a short position on two related stocks. Pioneered by quantitative researchers at Morgan Stanley in the 1980s, it's one of the most elegant market-neutral strategies ever designed.</p>
+        </div>
+        <div class="quant-hero" style="padding-bottom:0">
+          <div class="quant-content reveal">
+            <h2 style="font-size:1.3rem">The core idea</h2>
+            <p>Find two stocks that historically move together — like Coca-Cola (KO) and PepsiCo (PEP). They're competitors in the same industry, so their prices tend to track each other over time. When one temporarily runs ahead of the other, you bet on the gap closing.</p>
+            <p>You go <strong style="color:var(--green)">long</strong> the underperformer and <strong style="color:var(--red)">short</strong> the overperformer — in equal dollar amounts. When the prices converge back to normal, both legs profit. The overall market direction is irrelevant.</p>
+            <div class="quant-explainer reveal" style="margin-top:20px">
+              <div class="quant-explainer__icon">🔑</div>
+              <div>
+                <strong>Why "market neutral"?</strong> If the market crashes 20% during a pairs trade, both stocks would likely fall together — and the pairs trade still profits, because you only need the <em>relative</em> gap between them to close.
+              </div>
+            </div>
+          </div>
+          <div class="reveal" style="overflow-x:auto">
+            <h3 style="margin-bottom:16px;font-size:1.05rem">Step-by-step example: KO vs PEP</h3>
+            <table class="pairs-table">
+              <thead>
+                <tr>
+                  <th>Phase</th>
+                  <th>Stock A (KO)</th>
+                  <th>Stock B (PEP)</th>
+                  <th>What's happening</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="pairs-phase">Normal</span></td>
+                  <td class="mono">$60</td>
+                  <td class="mono">$55</td>
+                  <td>Spread = $5 (historical average)</td>
+                </tr>
+                <tr>
+                  <td><span class="pairs-phase pairs-phase--warn">Divergence</span></td>
+                  <td class="mono pos">$68 ▲</td>
+                  <td class="mono neg">$53 ▼</td>
+                  <td>Spread widens to $15 — 2σ above mean</td>
+                </tr>
+                <tr class="pairs-entry">
+                  <td><span class="pairs-phase pairs-phase--action">Entry</span></td>
+                  <td class="mono neg"><strong>SHORT $68</strong></td>
+                  <td class="mono pos"><strong>LONG $53</strong></td>
+                  <td>Bet on spread closing back to $5</td>
+                </tr>
+                <tr>
+                  <td><span class="pairs-phase">Convergence</span></td>
+                  <td class="mono neg">$63 ▼</td>
+                  <td class="mono pos">$58 ▲</td>
+                  <td>Spread returns to $5 as expected</td>
+                </tr>
+                <tr class="pairs-profit">
+                  <td><span class="pairs-phase pairs-phase--profit">Exit &amp; Profit</span></td>
+                  <td class="mono pos">+$5 on short</td>
+                  <td class="mono pos">+$5 on long</td>
+                  <td class="pos"><strong>Total = $10 profit per pair</strong></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑥ Three signal types -->
+    <section class="section" id="signals">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">What triggers a trade</span>
           <h2>Three types of market signals we use</h2>
-          <p>Every trade we enter is triggered by at least one of these three well-documented phenomena. They've existed for decades because they're rooted in human psychology and market structure — not luck.</p>
+          <p>Every trade JSS enters is triggered by at least one of these three well-documented phenomena. They've existed for decades because they're rooted in human psychology and market structure — not luck.</p>
         </div>
         <div class="quant-grid">
           <div class="quant-card reveal">
             <div class="quant-card__icon">😨</div>
             <h3>Volatility (Fear) Premium</h3>
-            <p>When markets get nervous, investors pay too much for protection — like paying $300/month for car insurance when your expected accident cost is $100/month. We're the insurance company, selling that overpriced protection systematically. This premium is reliable and persistent.</p>
+            <p>When markets get nervous, investors pay too much for protection — like paying $300/month for car insurance when your expected accident cost is only $100. We're the insurance company: we sell that overpriced protection systematically and collect the difference. This premium is reliable and persistent.</p>
           </div>
           <div class="quant-card reveal">
             <div class="quant-card__icon">⏳</div>
             <h3>Time Decay (Theta)</h3>
-            <p>Options lose value every single day they aren't needed. An option that expires in 30 days loses value faster than one expiring in 90 days — like how a perishable product drops in price as it approaches its expiry date. We hold positions during that accelerating decay window.</p>
+            <p>Options lose value every single day they aren't needed — like a perishable product approaching its expiry date. An option expiring in 30 days loses value faster than one expiring in 90 days. We hold positions during that accelerating decay window and collect the daily erosion as income.</p>
           </div>
           <div class="quant-card reveal">
             <div class="quant-card__icon">↩️</div>
             <h3>Mean Reversion</h3>
-            <p>Markets overshoot. A stock that drops 15% in a week because of temporary bad news often snaps back. Algorithms detect when moves are statistically extreme and position to profit from the return to normal — without needing to predict when the reversal happens.</p>
+            <p>Markets overshoot. A stock that drops 15% in a week due to temporary bad news often snaps back. Algorithms detect when a move is statistically extreme — more than 2 standard deviations from normal — and position to profit from the return to average. No direction prediction needed.</p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- Signal quality chart -->
-    <section class="section">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Signal reliability</span>
-          <h2>How often do these signals lead to profit?</h2>
-          <p>No signal works every time — that's why we use rules to manage size and cut losses. But the consistency is what matters: each signal works often enough to generate positive returns across hundreds of trades.</p>
-        </div>
-        <div class="panel chart-panel reveal">
-          <div class="panel__head"><h2>Illustrative signal win rate by type</h2><span class="panel__sub">Based on historical backtesting — not a guarantee</span></div>
-          <canvas id="signalChart" height="260" role="img" aria-label="Signal win rate comparison"></canvas>
-          <p class="chart-caption">Each bar represents the historical win rate of trades entered on that signal type alone. Combined signals (e.g. high VRP + time decay window) show even higher reliability.</p>
+        <div class="panel chart-panel reveal" style="margin-top:28px">
+          <div class="panel__head"><h2>How reliable are these signals?</h2><span class="panel__sub">Illustrative win rates from backtesting — not a guarantee</span></div>
+          <canvas id="signalChart" height="240" role="img" aria-label="Signal win rate comparison"></canvas>
+          <p class="chart-caption">No signal works every time — that's why we combine them. When multiple signals align (e.g. high VRP + a 30-DTE time window), reliability increases significantly. Across hundreds of trades, the edge compounds.</p>
         </div>
       </div>
     </section>
 
-    <!-- How we build a strategy -->
-    <section class="section section--alt">
+    <!-- ⑦ How we build a strategy -->
+    <section class="section section--alt" id="process">
       <div class="container">
         <div class="section__head reveal">
-          <span class="kicker">The process</span>
-          <h2>From idea to live trade: our five-step process</h2>
-          <p>Every strategy starts as a hypothesis and doesn't touch real money until it survives the full gauntlet below.</p>
+          <span class="kicker">From idea to live trade</span>
+          <h2>Our five-step strategy development process</h2>
+          <p>Every strategy starts as a hypothesis and doesn't touch real money until it survives the full gauntlet below. Most ideas fail — which is the point.</p>
         </div>
         <div class="quant-timeline">
           <div class="quant-step reveal">
             <div class="quant-step__num">1</div>
             <div class="quant-step__body">
               <h3>Hypothesis</h3>
-              <p>We start with a simple question: "Is there a repeatable edge here?" Examples: "Does IV typically overstate realised volatility by more than 3% in SPY?" or "Do 30-DTE puts on large caps have a statistically higher win rate than 7-DTE puts?" If we can phrase it precisely, we can test it.</p>
+              <p>We start with a precise, testable question: "Does IV typically overstate realised volatility by more than 3% in SPY?" or "Do 30-DTE puts on large-caps show a statistically higher win rate than 7-DTE puts?" If we can phrase it precisely, we can test it.</p>
             </div>
           </div>
           <div class="quant-step reveal">
             <div class="quant-step__num">2</div>
             <div class="quant-step__body">
               <h3>Backtest</h3>
-              <p>We run the rule against historical data going back at least 5 years, including a market crash. We look at win rate, average gain vs. average loss, drawdown, and how the strategy behaves in different market regimes (rising, flat, falling, crashing).</p>
+              <p>The rule is run against at least 5 years of historical data, including at least one major crash. We study win rate, average gain vs. average loss, maximum drawdown, and how the strategy behaves in rising, flat, falling and crashing markets.</p>
             </div>
           </div>
           <div class="quant-step reveal">
             <div class="quant-step__num">3</div>
             <div class="quant-step__body">
               <h3>Stress test</h3>
-              <p>We deliberately try to break the strategy. What happens in the March 2020 crash? In the 2022 rate-hike selloff? In a flat, low-volume market? If the strategy can't survive these, it doesn't graduate — or we add rules to handle those cases specifically.</p>
+              <p>We deliberately try to break the strategy. March 2020 crash? 2022 rate-hike selloff? Flat, low-volume summer of 2023? If the strategy can't survive these, it doesn't graduate — or we add rules to handle those regimes specifically.</p>
             </div>
           </div>
           <div class="quant-step reveal">
             <div class="quant-step__num">4</div>
             <div class="quant-step__body">
               <h3>Paper trade</h3>
-              <p>Before real money, the strategy runs in simulation for at least 60 days in live market conditions. This catches implementation details that backtests miss: bid-ask spreads, execution delays, slippage, broker-specific quirks. Many strategies die here — and that's the point.</p>
+              <p>Before real money, the strategy runs in live-market simulation for at least 60 days. This catches what backtests miss: real bid-ask spreads, execution delays, slippage, and broker quirks. Many strategies die here — and that's exactly the point.</p>
             </div>
           </div>
           <div class="quant-step reveal">
             <div class="quant-step__num">5</div>
             <div class="quant-step__body">
               <h3>Live — with guardrails</h3>
-              <p>Live trades start at minimum size. Position limits, drawdown circuit breakers, and volatility scaling are all active from day one. We scale up only after the live track record matches our backtest expectations. If it drifts, we investigate before adding more capital.</p>
+              <p>Live trades start at minimum size. Position limits, drawdown circuit breakers, and volatility scaling are active from day one. We scale up only after the live track record matches backtest expectations. Any drift triggers an investigation before adding more capital.</p>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Risk management chart -->
-    <section class="section">
+    <!-- ⑧ Portfolio construction -->
+    <section class="section" id="portfolio">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="kicker">Portfolio construction</span>
+          <h2>Building a portfolio — not just picking trades</h2>
+          <p>A single good trade isn't enough. A quant's job is to combine many strategies and positions so that the overall portfolio maximises risk-adjusted return — meaning the best return for the least amount of risk taken.</p>
+        </div>
+        <div class="quant-grid">
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">🎯</div>
+            <h3>Optimised weights</h3>
+            <p>Given a universe of assets and a set of constraints (max position size, max sector exposure, correlation limits), algorithms find the combination of position weights that historically delivered the highest Sharpe ratio — the industry's standard measure of risk-adjusted return.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">🔄</div>
+            <h3>Diversification by design</h3>
+            <p>Quant portfolios often run dozens of uncorrelated strategies simultaneously. If one stops working — a signal breaks down, a pair permanently decouples — the impact on the portfolio is small. No single strategy makes or breaks the fund.</p>
+          </div>
+          <div class="quant-card reveal">
+            <div class="quant-card__icon">📏</div>
+            <h3>Dynamic rebalancing</h3>
+            <p>Weights aren't set once and forgotten. As market conditions change — volatility rises, correlations shift, new signals emerge — the portfolio is rebalanced automatically. The system adapts continuously without human intervention or emotional bias.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑨ Risk management -->
+    <section class="section section--alt" id="risk">
       <div class="container">
         <div class="section__head reveal">
           <span class="kicker">Risk management</span>
-          <h2>Why managing the downside matters more than chasing the upside</h2>
-          <p>A fund that loses 50% needs to earn 100% just to break even. Protecting capital during bad periods is mathematically more important than maximising gains during good ones. Our systems are designed around this truth.</p>
+          <h2>Why protecting the downside matters more than chasing the upside</h2>
+          <p>A fund that loses 50% needs to earn 100% just to break even. Mathematically, avoiding large losses is more powerful than maximising gains. Every JSS system is designed around this truth.</p>
         </div>
         <div class="chart-duo">
           <div class="panel chart-panel reveal">
             <div class="panel__head"><h2>Return distribution</h2><span class="panel__sub">Monthly returns — illustrative</span></div>
             <canvas id="distChart" height="240" role="img" aria-label="Monthly return distribution histogram"></canvas>
-            <p class="chart-caption">A tight, right-skewed distribution is the goal: small losses cut short, consistent gains left to run.</p>
+            <p class="chart-caption">The goal is a tight, right-skewed distribution: small losses cut short quickly, consistent gains left to run fully.</p>
           </div>
           <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Drawdown comparison</h2><span class="panel__sub">How we behave vs. buy-and-hold</span></div>
+            <div class="panel__head"><h2>Drawdown vs. buy-and-hold</h2><span class="panel__sub">How far below peak — lower is better</span></div>
             <canvas id="drawdownChart" height="240" role="img" aria-label="Drawdown comparison chart"></canvas>
-            <p class="chart-caption">Shallower drawdowns mean faster recoveries — and you spend more time compounding rather than recovering.</p>
+            <p class="chart-caption">Shallower drawdowns mean faster recoveries. Less time recovering = more time compounding.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- JSS application -->
-    <section class="section section--alt">
+    <!-- ⑩ JSS in practice -->
+    <section class="section">
       <div class="container">
         <div class="section__head reveal">
           <span class="kicker">JSS in practice</span>
-          <h2>How JSS applies quant methods to income generation</h2>
-          <p>We focus on one specific edge: the volatility risk premium in large-cap US ETFs. It's well-documented, liquid, and generates consistent income — not dramatic highs, but reliable, compounding returns.</p>
+          <h2>How we apply all of this</h2>
+          <p>JSS focuses on one specific, well-documented edge: the volatility risk premium in large-cap US ETFs — combined with systematic mean-reversion and pairs strategies. Liquid, measurable, and consistently income-generating.</p>
         </div>
         <div class="quant-grid">
           <div class="quant-card reveal">
             <div class="quant-card__icon">📊</div>
             <h3>Daily data screening</h3>
-            <p>Every morning, algorithms scan implied vs. realised volatility across SPY, QQQ and DIA. We only enter when the premium is wide enough — if the edge isn't there, we wait. No trades for the sake of it.</p>
+            <p>Every morning, algorithms scan implied vs. realised volatility across SPY, QQQ and DIA, check pair spreads for divergence signals, and flag any mean-reversion setups. We only enter when the edge is present — if it isn't, we wait.</p>
           </div>
           <div class="quant-card reveal">
             <div class="quant-card__icon">⚖️</div>
             <h3>Volatility-based sizing</h3>
-            <p>Position size is calculated daily based on current market volatility. In calm markets, we can deploy more capital. When volatility spikes, we automatically shrink — so a volatile period doesn't become a disaster.</p>
+            <p>Position size is recalculated daily using current market volatility. In calm periods, we can deploy more capital. When volatility spikes, positions automatically shrink — so a turbulent week doesn't become a fund-level event.</p>
           </div>
           <div class="quant-card reveal">
             <div class="quant-card__icon">🛡️</div>
             <h3>Defined-risk structures</h3>
-            <p>We use spreads and hedged positions so every single trade has a known maximum loss before we enter. There are no "tail risk" surprises — we know the worst case and price the return to make it worth it.</p>
+            <p>Every trade — including pair trades and short positions — enters with a known maximum loss. Spreads, hedges and stop-loss rules ensure there are no "tail risk" surprises. We know the worst case before we enter, and price the trade to make it worth it.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Performance snapshot -->
-    <section class="section">
+    <!-- ⑪ Performance snapshot -->
+    <section class="section section--alt" id="results">
       <div class="container">
         <div class="section__head reveal">
           <span class="kicker">Results</span>
           <h2>What this produces in practice</h2>
-          <p>The goal isn't a 10× return — it's consistent, compounding income that beats inflation and savings rates without wild swings. Here's the track record in numbers.</p>
+          <p>The goal isn't a 10× return — it's consistent, compounding income that beats inflation and savings rates without wild swings.</p>
         </div>
         <div class="metricrow" id="quantMetricRow"></div>
         <div class="panel reveal">

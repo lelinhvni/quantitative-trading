@@ -842,3 +842,83 @@ button { font: inherit; cursor: pointer; }
 .track-metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px; }
 .track-metric__v { font-family: "JetBrains Mono", monospace; font-size: 1.5rem; font-weight: 600; margin-bottom: 4px; }
 .track-metric__l { color: var(--muted); font-size: 0.82rem; }
+
+/* ============================================================
+   Quant Finance page — new sections
+   ============================================================ */
+
+/* Page TOC nav */
+.quant-toc {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px;
+}
+.quant-toc a {
+  font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border-2);
+  padding: 6px 14px; border-radius: 999px;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.quant-toc a:hover { color: var(--teal); border-color: var(--teal); background: rgba(94,234,212,0.06); }
+
+/* Explainer callout */
+.quant-explainer {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: rgba(94,234,212,0.07); border: 1px solid rgba(94,234,212,0.18);
+  border-radius: var(--radius-sm); padding: 16px 18px; margin-top: 24px; font-size: 0.95rem;
+}
+.quant-explainer__icon { font-size: 1.3rem; flex: none; line-height: 1; margin-top: 2px; }
+.quant-explainer strong { color: var(--text); }
+.quant-explainer p, .quant-explainer div { color: var(--muted); line-height: 1.65; }
+
+/* Short selling steps */
+.short-steps { display: flex; flex-direction: column; gap: 14px; margin-top: 20px; }
+.short-step { display: flex; gap: 16px; align-items: flex-start; }
+.short-step__num {
+  flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--grad);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.9rem; color: #06121a;
+}
+.short-step__body strong { display: block; font-size: 0.97rem; margin-bottom: 4px; }
+.short-step__body p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; margin: 0; }
+
+/* Fact table (short selling at a glance) */
+.fact-table { display: flex; flex-direction: column; gap: 0; margin-bottom: 16px; }
+.fact-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  font-size: 0.92rem;
+}
+.fact-row:last-child { border-bottom: 0; }
+.fact-row--total { padding-top: 14px; margin-top: 4px; border-top: 2px solid var(--border-2); border-bottom: 0; }
+.fact-row--total .fact-val { font-size: 1.15rem; }
+.fact-label { color: var(--muted); }
+.fact-val { font-family: "JetBrains Mono", monospace; font-weight: 600; }
+
+/* Warning box */
+.quant-warning {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2);
+  border-radius: var(--radius-sm); padding: 14px 16px; font-size: 0.9rem; margin-top: 16px;
+}
+.quant-warning__icon { font-size: 1.1rem; flex: none; line-height: 1.4; }
+.quant-warning strong { color: var(--red); display: block; margin-bottom: 3px; }
+.quant-warning div { color: var(--muted); line-height: 1.6; }
+
+/* Pairs trading table */
+.pairs-table {
+  width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 560px;
+}
+.pairs-table th {
+  text-align: left; color: var(--faint); font-size: 0.74rem; text-transform: uppercase;
+  letter-spacing: 0.06em; padding: 0 14px 12px; border-bottom: 1px solid var(--border);
+}
+.pairs-table td { padding: 13px 14px; border-bottom: 1px solid var(--border); }
+.pairs-table tbody tr:hover { background: rgba(255,255,255,0.025); }
+.pairs-entry td { background: rgba(94,234,212,0.06); }
+.pairs-profit td { background: rgba(52,211,153,0.07); }
+.pairs-phase {
+  font-family: "JetBrains Mono", monospace; font-size: 0.75rem; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,0.06); color: var(--muted); white-space: nowrap;
+}
+.pairs-phase--warn  { background: rgba(251,191,36,0.12); color: #fbbf24; }
+.pairs-phase--action{ background: rgba(94,234,212,0.12); color: var(--teal); }
+.pairs-phase--profit{ background: rgba(52,211,153,0.14); color: var(--green); }
