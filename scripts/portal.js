@@ -1,17 +1,169 @@
 /* ============================================================
    JSS Capital — Investor portal
-   Supports two modes:
-     LIVE: Supabase configured in config.js → real auth + DB
-     DEMO: Supabase not configured          → demo login + local data
+   LIVE: Supabase configured → real auth + DB
+   DEMO: Supabase not configured → demo login + local data
    ============================================================ */
 (function () {
   "use strict";
-  const F = window.JSS;
-  const DB = window.JSSDB;
+  const F   = window.JSS;
+  const DB  = window.JSSDB;
   const CFG = window.JSS_CONFIG;
 
-  let liveMode = false;
+  let liveMode   = false;
+  let _activeTab = "overview";
 
+  /* ============================================================
+     DEMO DATA — 2026 trades (Excel format: Col C = final P&L $)
+     Columns: Name | Return% | P&L$ | CreatedAt | Expiration |
+              NetCredit | Chance | MaxLoss | MaxProfit |
+              High | Low | Delta | Theta | Gamma | Vega | Rho |
+              IV | Link | Group
+              Sub-rows: Symbol | Qty | Entry | Current | Close
+     ============================================================ */
+  const DEMO_TRADES = [
+    { id:"t01", name:"SPY Iron Condor",            returnPct: 8.2,  pnl:  820,
+      createdAt:"2026-01-06", expiration:"2026-01-17",
+      netCredit:820, chance:78, maxLoss:4180, maxProfit:820, high:590, low:520,
+      delta:-0.08, theta:45.2, gamma:0.003, vega:-12.4, rho:0.8, iv:18.4,
+      group:"Iron Condor", status:"closed",
+      legs:[
+        {symbol:"SPY 520P", qty:-2, entry:1.85, current:0.00, close:0.00},
+        {symbol:"SPY 515P", qty: 2, entry:0.95, current:0.00, close:0.00},
+        {symbol:"SPY 580C", qty:-2, entry:2.10, current:0.00, close:0.00},
+        {symbol:"SPY 585C", qty: 2, entry:1.05, current:0.00, close:0.00},
+      ]},
+    { id:"t02", name:"QQQ Bull Put Spread",        returnPct: 9.0,  pnl:  450,
+      createdAt:"2026-01-20", expiration:"2026-01-30",
+      netCredit:450, chance:82, maxLoss:5550, maxProfit:450, high:490, low:420,
+      delta:-0.12, theta:28.5, gamma:0.005, vega:-8.2, rho:0.4, iv:22.1,
+      group:"Bull Put Spread", status:"closed",
+      legs:[
+        {symbol:"QQQ 430P", qty:-3, entry:2.10, current:0.00, close:0.10},
+        {symbol:"QQQ 425P", qty: 3, entry:1.60, current:0.00, close:0.05},
+      ]},
+    { id:"t03", name:"SPY Covered Call — The Wheel", returnPct: 1.4,  pnl:  380,
+      createdAt:"2026-02-03", expiration:"2026-02-21",
+      netCredit:380, chance:72, maxLoss:null, maxProfit:380, high:578, low:null,
+      delta:-0.28, theta:22.1, gamma:0.008, vega:-9.8, rho:0.6, iv:15.8,
+      group:"The Wheel", status:"closed",
+      legs:[
+        {symbol:"SPY 575C", qty:-2, entry:2.20, current:0.00, close:0.05},
+      ]},
+    { id:"t04", name:"DIA Cash-Secured Put",        returnPct:-3.6,  pnl: -180,
+      createdAt:"2026-02-17", expiration:"2026-03-07",
+      netCredit:320, chance:74, maxLoss:39680, maxProfit:320, high:415, low:385,
+      delta:-0.25, theta:18.4, gamma:0.006, vega:-10.2, rho:0.3, iv:19.5,
+      group:"Cash-Secured Put", status:"closed",
+      legs:[
+        {symbol:"DIA 390P", qty:-2, entry:1.60, current:0.00, close:2.50},
+      ]},
+    { id:"t05", name:"QQQ Iron Condor",            returnPct:11.6,  pnl:  620,
+      createdAt:"2026-03-10", expiration:"2026-03-28",
+      netCredit:620, chance:76, maxLoss:5380, maxProfit:620, high:500, low:430,
+      delta:-0.06, theta:52.8, gamma:0.002, vega:-15.1, rho:0.5, iv:24.8,
+      group:"Iron Condor", status:"closed",
+      legs:[
+        {symbol:"QQQ 435P", qty:-3, entry:1.95, current:0.00, close:0.10},
+        {symbol:"QQQ 430P", qty: 3, entry:1.05, current:0.00, close:0.05},
+        {symbol:"QQQ 490C", qty:-3, entry:1.88, current:0.00, close:0.10},
+        {symbol:"QQQ 495C", qty: 3, entry:0.88, current:0.00, close:0.05},
+      ]},
+    { id:"t06", name:"SPY Cash-Secured Put — The Wheel", returnPct: 3.2,  pnl:  950,
+      createdAt:"2026-04-01", expiration:"2026-04-17",
+      netCredit:950, chance:80, maxLoss:null, maxProfit:950, high:null, low:540,
+      delta:-0.20, theta:62.5, gamma:0.007, vega:-14.8, rho:0.9, iv:17.2,
+      group:"The Wheel", status:"closed",
+      legs:[
+        {symbol:"SPY 545P", qty:-5, entry:1.90, current:0.00, close:0.00},
+      ]},
+    { id:"t07", name:"SPY Covered Call — The Wheel", returnPct: 1.6,  pnl:  410,
+      createdAt:"2026-04-22", expiration:"2026-05-02",
+      netCredit:410, chance:75, maxLoss:null, maxProfit:410, high:565, low:null,
+      delta:-0.25, theta:38.2, gamma:0.009, vega:-8.5, rho:0.7, iv:14.6,
+      group:"The Wheel", status:"closed",
+      legs:[
+        {symbol:"SPY 560C", qty:-5, entry:0.82, current:0.00, close:0.00},
+      ]},
+    { id:"t08", name:"QQQ Bull Put Spread",        returnPct:10.4,  pnl:  520,
+      createdAt:"2026-05-06", expiration:"2026-05-16",
+      netCredit:520, chance:81, maxLoss:4980, maxProfit:520, high:480, low:440,
+      delta:-0.10, theta:34.1, gamma:0.004, vega:-9.6, rho:0.4, iv:21.3,
+      group:"Bull Put Spread", status:"closed",
+      legs:[
+        {symbol:"QQQ 445P", qty:-4, entry:1.85, current:0.00, close:0.05},
+        {symbol:"QQQ 440P", qty: 4, entry:0.55, current:0.00, close:0.02},
+      ]},
+    { id:"t09", name:"SPY Iron Condor",            returnPct: 9.1,  pnl:  730,
+      createdAt:"2026-05-19", expiration:"2026-05-30",
+      netCredit:730, chance:77, maxLoss:7270, maxProfit:730, high:570, low:530,
+      delta:-0.07, theta:48.9, gamma:0.003, vega:-11.8, rho:0.8, iv:16.4,
+      group:"Iron Condor", status:"closed",
+      legs:[
+        {symbol:"SPY 532P", qty:-4, entry:2.05, current:0.00, close:0.10},
+        {symbol:"SPY 527P", qty: 4, entry:1.22, current:0.00, close:0.05},
+        {symbol:"SPY 570C", qty:-4, entry:2.10, current:0.00, close:0.10},
+        {symbol:"SPY 575C", qty: 4, entry:1.22, current:0.00, close:0.05},
+      ]},
+    { id:"t10", name:"SPY Covered Call",           returnPct: 1.2,  pnl:  380,
+      createdAt:"2026-06-02", expiration:"2026-06-13",
+      netCredit:380, chance:74, maxLoss:null, maxProfit:380, high:572, low:null,
+      delta:-0.26, theta:36.4, gamma:0.008, vega:-9.2, rho:0.7, iv:15.1,
+      group:"The Wheel", status:"closed",
+      legs:[
+        {symbol:"SPY 568C", qty:-4, entry:0.95, current:0.00, close:0.00},
+      ]},
+    { id:"t11", name:"DIA Iron Condor",            returnPct: 9.4,  pnl:  680,
+      createdAt:"2026-06-09", expiration:"2026-06-20",
+      netCredit:680, chance:79, maxLoss:6320, maxProfit:680, high:425, low:388,
+      delta:-0.07, theta:41.2, gamma:0.003, vega:-10.6, rho:0.6, iv:17.8,
+      group:"Iron Condor", status:"closed",
+      legs:[
+        {symbol:"DIA 390P", qty:-4, entry:1.88, current:0.00, close:0.05},
+        {symbol:"DIA 386P", qty: 4, entry:1.08, current:0.00, close:0.02},
+        {symbol:"DIA 422C", qty:-4, entry:1.90, current:0.00, close:0.05},
+        {symbol:"DIA 426C", qty: 4, entry:1.10, current:0.00, close:0.02},
+      ]},
+    { id:"t12", name:"QQQ Cash-Secured Put",       returnPct: 5.8,  pnl:  290,
+      createdAt:"2026-06-16", expiration:"2026-06-27",
+      netCredit:290, chance:83, maxLoss:null, maxProfit:290, high:null, low:458,
+      delta:-0.17, theta:24.6, gamma:0.006, vega:-7.8, rho:0.4, iv:20.4,
+      group:"Cash-Secured Put", status:"open",
+      legs:[
+        {symbol:"QQQ 460P", qty:-2, entry:1.45, current:0.50, close:null},
+      ]},
+  ];
+
+  const DEMO_MSGS_KEY = "jss_msgs_v1";
+  const DEMO_RISK_KEY = "jss_risk_v1";
+
+  function getDemoMsgs() {
+    try { return JSON.parse(localStorage.getItem(DEMO_MSGS_KEY)); } catch { return null; }
+  }
+  function saveDemoMsgs(msgs) { localStorage.setItem(DEMO_MSGS_KEY, JSON.stringify(msgs)); }
+  function initDemoMsgs() {
+    const existing = getDemoMsgs();
+    if (existing) return existing;
+    const msgs = [
+      { id:"m1", from:"manager", fromName:"JSS Capital", subject:"Welcome to JSS Capital",
+        body:"Dear Investor, your account is now active. Your initial deposit is on record. Log in any time to track performance, view trades and message us with questions.",
+        date:"2026-01-05T09:00:00Z", read:true },
+      { id:"m2", from:"investor", fromName:"You", subject:"Question about The Wheel",
+        body:"Hi, I see a lot of Wheel strategy trades. Can you explain how it reduces risk compared to just buying shares outright?",
+        date:"2026-02-10T14:30:00Z", read:true },
+      { id:"m3", from:"manager", fromName:"JSS Capital", subject:"RE: Question about The Wheel",
+        body:"Great question! With The Wheel we sell a cash-secured put first — collecting premium and agreeing to buy at a lower price only if the market drops. If assigned, we then sell covered calls to generate income while holding. Both steps pay us premium. It's lower risk than buying shares outright because we either never buy (premium profit) or buy at a discount with ongoing income.",
+        date:"2026-02-11T10:15:00Z", read:true },
+      { id:"m4", from:"manager", fromName:"JSS Capital", subject:"Q1 2026 Performance Update",
+        body:"Q1 2026 summary: Net P&L +$2,090 across 5 closed positions. Win rate 80%. The DIA cash-secured put in March resulted in a small loss as DIA briefly declined — within normal risk parameters. Q2 is off to a strong start with two Wheel positions and an iron condor open.",
+        date:"2026-04-02T08:00:00Z", read:false },
+    ];
+    saveDemoMsgs(msgs);
+    return msgs;
+  }
+
+  /* ============================================================
+     INIT
+     ============================================================ */
   document.addEventListener("DOMContentLoaded", async () => {
     liveMode = DB && DB.init();
     if (liveMode) await initLive();
@@ -23,55 +175,38 @@
      ============================================================ */
   async function initLive() {
     document.getElementById("loginView").hidden = false;
-    document.getElementById("appView").hidden = true;
+    document.getElementById("appView").hidden   = true;
 
-    // Listen for auth state changes
     DB.onAuthChange(async (event, session) => {
-      if (event === "SIGNED_IN" && session) {
-        await showLiveApp();
-      } else if (event === "SIGNED_OUT") {
-        showLogin();
-      }
+      if (event === "SIGNED_IN" && session) await showLiveApp();
+      else if (event === "SIGNED_OUT") showLogin();
     });
 
-    // Check existing session
     const session = await DB.getSession();
     if (session) await showLiveApp(); else showLogin();
-
-    bindLiveLogin();
-    bindLogout();
-    bindForgot();
+    bindLiveLogin(); bindLogout(); bindForgot();
   }
 
   function bindForgot() {
-    const btn = document.getElementById("forgotBtn");
+    const btn  = document.getElementById("forgotBtn");
     if (!btn) return;
     const note = document.getElementById("loginNote");
     btn.addEventListener("click", async () => {
       const email = (document.getElementById("lemail").value || "").trim().toLowerCase();
       note.classList.remove("is-error");
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-        note.textContent = "Enter your email above first, then tap “Forgot password?”.";
-        note.classList.add("is-error");
-        return;
+        note.textContent = "Enter your email above first, then tap Forgot password?";
+        note.classList.add("is-error"); return;
       }
-      if (!liveMode) {
-        note.textContent = "Password reset works once the fund's live login is configured. For the demo, use the sample accounts below.";
-        return;
-      }
-      try {
-        await DB.resetPassword(email);
-        note.textContent = "If an account exists for that email, a reset link is on its way.";
-      } catch (err) {
-        note.textContent = err.message || "Could not send a reset link right now.";
-        note.classList.add("is-error");
-      }
+      if (!liveMode) { note.textContent = "Password reset works once live login is configured. Use the demo accounts below."; return; }
+      try { await DB.resetPassword(email); note.textContent = "If an account exists for that email, a reset link is on its way."; }
+      catch (err) { note.textContent = err.message || "Could not send a reset link right now."; note.classList.add("is-error"); }
     });
   }
 
   function showLogin() {
     document.getElementById("loginView").hidden = false;
-    document.getElementById("appView").hidden = true;
+    document.getElementById("appView").hidden   = true;
   }
 
   function bindLiveLogin() {
@@ -81,16 +216,8 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       note.classList.remove("is-error"); note.textContent = "Signing in…";
-      try {
-        await DB.signIn(
-          document.getElementById("lemail").value.trim().toLowerCase(),
-          document.getElementById("lpass").value
-        );
-        // Auth state change handler takes over
-      } catch (err) {
-        note.textContent = err.message || "Sign-in failed.";
-        note.classList.add("is-error");
-      }
+      try { await DB.signIn(document.getElementById("lemail").value.trim().toLowerCase(), document.getElementById("lpass").value); }
+      catch (err) { note.textContent = err.message || "Sign-in failed."; note.classList.add("is-error"); }
     });
   }
 
@@ -98,15 +225,12 @@
     try {
       const profile = await DB.getProfile(true);
       document.getElementById("loginView").hidden = true;
-      document.getElementById("appView").hidden = false;
+      document.getElementById("appView").hidden   = false;
       document.getElementById("greeting").textContent = "Welcome, " + profile.name;
-      document.getElementById("roleLine").textContent =
-        profile.role === "manager" ? "Fund manager" : "Investor account";
+      document.getElementById("roleLine").textContent = profile.role === "manager" ? "Fund manager" : "Investor account";
       if (profile.role === "manager") await renderManager();
       else await renderInvestor(profile);
-    } catch (err) {
-      showError("Could not load your account: " + err.message);
-    }
+    } catch (err) { showError("Could not load your account: " + err.message); }
   }
 
   function bindLogout() {
@@ -117,314 +241,787 @@
   }
 
   /* ============================================================
-     INVESTOR VIEW
+     LIVE MODE — INVESTOR VIEW
      ============================================================ */
   async function renderInvestor(profile) {
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
-
     const [account, latestNav, events, allNav, trades, positions] = await Promise.all([
-      DB.getMyAccount(),
-      DB.getLatestNav(),
-      DB.getMyCapitalEvents(),
-      DB.getAllNavHistory(),
-      DB.getTrades(60).catch(() => []),
-      DB.getPositions().catch(() => []),
+      DB.getMyAccount(), DB.getLatestNav(), DB.getMyCapitalEvents(),
+      DB.getAllNavHistory(), DB.getTrades(60).catch(() => []), DB.getPositions().catch(() => []),
     ]);
-
-    const navPU = latestNav ? +latestNav.nav_per_unit : null;
-    const units = account ? +account.units : 0;
+    const navPU  = latestNav ? +latestNav.nav_per_unit : null;
+    const units  = account ? +account.units : 0;
     const curVal = navPU ? units * navPU : null;
-    const totalDep = events.filter((e) => e.type === "deposit").reduce((a, e) => a + +e.amount, 0);
-    const totalWith = events.filter((e) => e.type === "withdrawal").reduce((a, e) => a + +e.amount, 0);
-    const netInvested = totalDep - totalWith;
-    const gain = curVal != null ? curVal - netInvested : null;
-    const retPct = curVal != null && netInvested > 0 ? (gain / netInvested) * 100 : null;
-
-    // Build account value series from NAV history × units
+    const totalDep  = events.filter(e => e.type === "deposit").reduce((a,e) => a + +e.amount, 0);
+    const totalWith = events.filter(e => e.type === "withdrawal").reduce((a,e) => a + +e.amount, 0);
+    const netInv = totalDep - totalWith;
+    const gain   = curVal != null ? curVal - netInv : null;
+    const retPct = curVal != null && netInv > 0 ? (gain / netInv) * 100 : null;
     const navSeries = allNav.length ? allNav : null;
 
     body.innerHTML = `
-      <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${curVal != null ? F.fmtMoney(curVal, 0) : "—"}</div><div class="metric__l">Current value</div></div>
-        <div class="metric"><div class="metric__v">${F.fmtMoney(netInvested, 0)}</div><div class="metric__l">Net invested</div></div>
-        <div class="metric"><div class="metric__v ${gain != null && gain >= 0 ? "pos" : "neg"}">${gain != null ? F.fmtMoney(gain, 0) : "—"}</div><div class="metric__l">Total gain/loss</div></div>
-        <div class="metric"><div class="metric__v ${retPct != null && retPct >= 0 ? "pos" : "neg"}">${retPct != null ? F.fmtPct(retPct) : "—"}</div><div class="metric__l">Total return</div></div>
-        <div class="metric"><div class="metric__v mono">${units.toFixed(4)}</div><div class="metric__l">Fund units held</div></div>
-      </div>
-      ${navSeries ? `
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Account value over time</h2><span class="panel__sub">NAV × your units</span></div>
-        <canvas id="acctChart" height="300" role="img" aria-label="Account value chart"></canvas>
-      </div>` : ""}
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Capital events</h2></div>
-        ${events.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Units</th><th>NAV at txn</th><th>Note</th></tr></thead>
-          <tbody>${events.map((ev) => `
-            <tr>
-              <td class="mono">${ev.date}</td>
-              <td><span class="pill ${ev.type === "deposit" ? "pill--buy" : "pill--sell"}">${ev.type}</span></td>
-              <td class="mono">${F.fmtMoney(ev.amount, 0)}</td>
-              <td class="mono">${ev.units != null ? F.fmtNum(ev.units, 4) : "—"}</td>
-              <td class="mono">${ev.nav_at_txn != null ? F.fmtNum(ev.nav_at_txn, 2) : "—"}</td>
-              <td>${ev.note || ""}</td>
-            </tr>`).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No capital events recorded yet.</p>`}
-      </div>
-      ${positionsPanel(positions)}
-      ${tradesPanel(trades, { title: "Trade activity", sub: "Every signal we've acted on" })}
-      ${latestNav ? `<p class="portal__note">NAV as of ${latestNav.date}: ${F.fmtNum(latestNav.nav_per_unit, 2)} per unit.</p>` : `<p class="portal__note">No NAV entries yet — fund manager will add these.</p>`}`;
+      ${tabNav("overview", 0)}
+      <div id="tabContent">
+        <div class="metricrow reveal">
+          <div class="metric"><div class="metric__v">${curVal != null ? F.fmtMoney(curVal,0) : "—"}</div><div class="metric__l">Current value</div></div>
+          <div class="metric"><div class="metric__v">${F.fmtMoney(netInv,0)}</div><div class="metric__l">Net invested</div></div>
+          <div class="metric"><div class="metric__v ${gain!=null&&gain>=0?"pos":"neg"}">${gain!=null?F.fmtMoney(gain,0):"—"}</div><div class="metric__l">Total gain/loss</div></div>
+          <div class="metric"><div class="metric__v ${retPct!=null&&retPct>=0?"pos":"neg"}">${retPct!=null?F.fmtPct(retPct):"—"}</div><div class="metric__l">Total return</div></div>
+          <div class="metric"><div class="metric__v mono">${units.toFixed(4)}</div><div class="metric__l">Fund units</div></div>
+        </div>
+        ${navSeries ? `<div class="panel reveal"><div class="panel__head"><h2>Account value over time</h2></div><canvas id="acctChart" height="280"></canvas></div>` : ""}
+        ${riskPanelHtml(localStorage.getItem(DEMO_RISK_KEY)||"balanced")}
+        <div class="panel reveal"><div class="panel__head"><h2>Capital events</h2></div>
+          ${events.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Units</th><th>NAV at txn</th><th>Note</th></tr></thead><tbody>${events.map(ev=>`<tr><td class="mono">${ev.date}</td><td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${ev.type}</span></td><td class="mono">${F.fmtMoney(ev.amount,0)}</td><td class="mono">${ev.units!=null?F.fmtNum(ev.units,4):"—"}</td><td class="mono">${ev.nav_at_txn!=null?F.fmtNum(ev.nav_at_txn,2):"—"}</td><td>${ev.note||""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
+        </div>
+        ${positionsPanel(positions)}
+        ${tradesPanel(trades, {title:"Trade activity", sub:"Executions logged"})}
+        ${liveMode ? "" : `<p class="portal__note">NAV as of ${latestNav?latestNav.date:"—"}: ${navPU?F.fmtNum(navPU,2):"—"} per unit.</p>`}
+      </div>`;
 
     revealAll();
     if (navSeries && units > 0) {
       const c = document.getElementById("acctChart");
       if (c) F.chart.lineChart(c, {
-        labels: navSeries.map((n) => n.date.slice(5)),
-        series: [{ values: navSeries.map((n) => units * +n.nav_per_unit), color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.4 }],
-        yFmt: (v) => "$" + (v / 1000).toFixed(0) + "k",
+        labels: navSeries.map(n => n.date.slice(5)),
+        series: [{values: navSeries.map(n => units * +n.nav_per_unit), color:"#5eead4", fill:"rgba(94,234,212,0.18)", width:2.4}],
+        yFmt: v => "$"+(v/1000).toFixed(0)+"k",
       });
     }
+    bindRiskPanel();
   }
 
   /* ============================================================
-     MANAGER VIEW
+     LIVE MODE — MANAGER VIEW
      ============================================================ */
   async function renderManager() {
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading manager dashboard…</div>`;
-
     const [investors, latestNav, positions, leads, navHistory, recentTrades] = await Promise.all([
-      DB.getAllInvestors().catch(() => []),
-      DB.getLatestNav().catch(() => null),
-      DB.getPositions().catch(() => []),
-      DB.getLeads().catch(() => []),
-      DB.getAllNavHistory().catch(() => []),
-      DB.getTrades(80).catch(() => []),
+      DB.getAllInvestors().catch(()=>[]), DB.getLatestNav().catch(()=>null),
+      DB.getPositions().catch(()=>[]), DB.getLeads().catch(()=>[]),
+      DB.getAllNavHistory().catch(()=>[]), DB.getTrades(80).catch(()=>[]),
     ]);
-
     const navPU = latestNav ? +latestNav.nav_per_unit : 1000;
-    const aum = investors.reduce((a, inv) => a + +inv.units * navPU, 0);
-    const totalInvested = investors.reduce((a, inv) => a + +(inv.net_invested || 0), 0);
+    const aum   = investors.reduce((a,inv) => a + +inv.units * navPU, 0);
 
     body.innerHTML = `
       <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(aum, 0)}</div><div class="metric__l">AUM (est.)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(aum,0)}</div><div class="metric__l">AUM (est.)</div></div>
         <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
-        <div class="metric"><div class="metric__v">${navPU ? F.fmtNum(navPU, 2) : "—"}</div><div class="metric__l">Latest NAV / unit</div></div>
-        <div class="metric"><div class="metric__v">${latestNav ? latestNav.date : "None"}</div><div class="metric__l">Last NAV date</div></div>
+        <div class="metric"><div class="metric__v">${navPU?F.fmtNum(navPU,2):"—"}</div><div class="metric__l">NAV / unit</div></div>
+        <div class="metric"><div class="metric__v">${latestNav?latestNav.date:"None"}</div><div class="metric__l">Last NAV date</div></div>
         <div class="metric"><div class="metric__v">${leads.length}</div><div class="metric__l">Leads</div></div>
       </div>
-
-      <!-- NAV entry -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Update NAV</h2><span class="panel__sub">Set today's NAV per unit</span></div>
-        <form class="mgr-form" id="navForm">
-          <div class="field"><label>Date</label><input type="date" name="date" value="${new Date().toISOString().slice(0,10)}" required /></div>
-          <div class="field"><label>NAV per unit</label><input type="number" name="nav" step="0.0001" min="0" required placeholder="1212.40" value="${navPU ? navPU : ""}" /></div>
-          <div class="field"><label>AUM ($, optional)</label><input type="number" name="aum" step="0.01" min="0" placeholder="124091.00" /></div>
-          <div class="field field--full"><label>Note</label><input type="text" name="note" placeholder="End of day valuation" /></div>
-          <button type="submit" class="btn btn--primary">Save NAV</button>
-          <p class="cta__note" id="navNote" role="status" aria-live="polite"></p>
-        </form>
-        ${navHistory.length ? `
-        <div class="table-wrap" style="margin-top:18px">
-          <table class="ttable"><thead><tr><th>Date</th><th>NAV / unit</th><th>AUM</th><th>Note</th></tr></thead>
-          <tbody>${navHistory.slice().reverse().slice(0, 12).map((n) => `
-            <tr><td class="mono">${n.date}</td><td class="mono">${F.fmtNum(n.nav_per_unit, 2)}</td><td class="mono">${n.aum ? F.fmtMoney(n.aum, 0) : "—"}</td><td>${n.note || ""}</td></tr>
-          `).join("")}</tbody></table>
-        </div>` : ""}
-      </div>
-
-      <!-- Add trade -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Log a trade</h2><span class="panel__sub">Manual entry or paste from broker</span></div>
-        <form class="mgr-form" id="tradeForm">
-          <div class="field"><label>Symbol</label>
-            <select name="symbol">
-              ${(CFG.tickers || []).map((t) => `<option>${t.symbol}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Side</label>
-            <select name="side"><option>BUY</option><option>SELL</option></select>
-          </div>
-          <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" min="0.0001" required placeholder="200" /></div>
-          <div class="field"><label>Price ($)</label><input type="number" name="price" step="0.0001" min="0" required placeholder="545.20" /></div>
-          <div class="field"><label>Strategy</label>
-            <select name="strategy">
-              ${["Trend","Momentum","Mean-Rev","Risk overlay","Breakout","Manual"].map((s) => `<option>${s}</option>`).join("")}
-            </select>
-          </div>
-          <div class="field"><label>Executed at (optional)</label><input type="datetime-local" name="executedAt" /></div>
-          <div class="field field--full"><label>Note</label><input type="text" name="note" placeholder="Optional notes" /></div>
-          <button type="submit" class="btn btn--primary">Add trade</button>
-          <p class="cta__note" id="tradeNote" role="status" aria-live="polite"></p>
-        </form>
-      </div>
-
-      <!-- CSV bulk upload -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Upload trades via CSV</h2><span class="panel__sub">Paste or upload a pre-formatted file</span></div>
-        <p class="portal__note" style="margin-bottom:14px">
-          Required columns (header row must match exactly):<br>
-          <code class="csv-header-hint">Date,Time,Symbol,Side,Qty,Price,Strategy,Note</code><br>
-          Example: <code class="csv-header-hint">2025-11-01,09:32:00,SPY,BUY,200,545.20,Trend,Morning breakout</code>
-        </p>
-        <div class="csv-upload">
-          <div class="field field--full">
-            <label>Upload CSV file</label>
-            <input type="file" id="csvFile" accept=".csv,text/csv" class="csv-file-input" />
-          </div>
-          <div class="field field--full">
-            <label>Or paste CSV text</label>
-            <textarea id="csvText" class="csv-textarea" rows="6" placeholder="Date,Time,Symbol,Side,Qty,Price,Strategy,Note&#10;2025-11-01,09:32:00,SPY,BUY,200,545.20,Trend,&#10;2025-11-01,14:15:00,QQQ,SELL,100,470.80,Mean-Rev,Partial exit"></textarea>
-          </div>
-          <div>
-            <button id="csvParseBtn" class="btn btn--ghost">Preview trades</button>
-          </div>
-          <div id="csvPreview" class="csv-preview" hidden></div>
-          <div id="csvActions" hidden>
-            <button id="csvConfirmBtn" class="btn btn--primary">Confirm &amp; upload</button>
-            <p class="cta__note" id="csvNote" role="status" aria-live="polite"></p>
-          </div>
-        </div>
-      </div>
-
-      ${tradesPanel(recentTrades, { title: "Recent trades", sub: "Most recent executions logged" })}
-
-      <!-- Positions -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Open positions</h2></div>
-        ${positions.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Updated</th></tr></thead>
-          <tbody>${positions.map((p) => `
-            <tr><td><b>${p.symbol}</b></td><td class="mono">${F.fmtNum(p.qty, 2)}</td><td class="mono">${F.fmtNum(p.avg_cost, 2)}</td><td class="mono">${new Date(p.updated_at).toLocaleDateString()}</td></tr>
-          `).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No open positions logged yet.</p>`}
-        <!-- Position upsert form -->
-        <details class="mgr-details">
-          <summary>Update / add position</summary>
-          <form class="mgr-form mgr-form--sm" id="posForm">
-            <div class="field"><label>Symbol</label>
-              <select name="symbol">${(CFG.tickers || []).map((t) => `<option>${t.symbol}</option>`).join("")}</select>
-            </div>
-            <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" required placeholder="400" /></div>
-            <div class="field"><label>Avg cost</label><input type="number" name="avgCost" step="0.0001" required placeholder="545.80" /></div>
-            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
-            <p class="cta__note" id="posNote" role="status" aria-live="polite"></p>
-          </form>
-        </details>
-      </div>
-
-      <!-- Investors -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Investor accounts</h2></div>
-        ${investors.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th><th>Since</th></tr></thead>
-          <tbody>${investors.map((inv) => {
-            const val = +inv.units * navPU;
-            return `<tr>
-              <td><b>${inv.profiles ? inv.profiles.name : "—"}</b></td>
-              <td class="mono">${F.fmtNum(inv.units, 4)}</td>
-              <td class="mono">${F.fmtMoney(val, 0)}</td>
-              <td class="mono">${inv.since || "—"}</td>
-            </tr>`;
-          }).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No investor accounts yet. See README for how to add investors.</p>`}
-        <!-- Update investor units form -->
-        <details class="mgr-details">
-          <summary>Update investor units</summary>
-          <form class="mgr-form mgr-form--sm" id="unitsForm">
-            <div class="field"><label>Investor ID (UUID)</label><input type="text" name="investorId" placeholder="From Supabase Auth dashboard" /></div>
-            <div class="field"><label>Units</label><input type="number" name="units" step="0.000001" min="0" required placeholder="25.000000" /></div>
-            <div class="field"><label>Since</label><input type="date" name="since" /></div>
-            <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
-            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
-            <p class="cta__note" id="unitsNote" role="status" aria-live="polite"></p>
-          </form>
-        </details>
-      </div>
-
-      <!-- Leads -->
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Contact leads</h2><span class="panel__sub">from homepage form</span></div>
-        ${leads.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Name</th><th>Email</th><th>Message</th><th>When</th></tr></thead>
-          <tbody>${leads.map((l) => `
-            <tr>
-              <td>${esc(l.name)}</td>
-              <td>${esc(l.email)}</td>
-              <td>${esc(l.message || "")}</td>
-              <td class="mono">${new Date(l.created_at).toLocaleDateString()}</td>
-            </tr>`).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No leads yet.</p>`}
-      </div>
-
+      ${mgrNavPanel(navPU, navHistory)}
+      ${mgrTradePanel()}
+      ${mgrCsvPanel()}
+      ${tradesPanel(recentTrades, {title:"Recent trades", sub:"Most recent executions"})}
+      ${mgrPositionsPanel(positions)}
+      ${mgrInvestorsPanel(investors, navPU)}
+      ${mgrLeadsPanel(leads)}
       <p class="portal__note">Live data from Supabase.</p>`;
 
     revealAll();
     bindManagerForms(navPU);
   }
 
+  /* ============================================================
+     DEMO MODE
+     ============================================================ */
+  function initDemo() {
+    document.getElementById("loginView").hidden = false;
+    document.getElementById("appView").hidden   = true;
+
+    const banner = document.createElement("div");
+    banner.className = "demo-banner";
+    banner.innerHTML = `<b>Demo mode</b> — Supabase not configured. <a href="README.md" class="inline-link">See setup guide.</a>`;
+    document.getElementById("loginView").prepend(banner);
+
+    document.querySelectorAll(".demo-cred").forEach(b =>
+      b.addEventListener("click", () => {
+        document.getElementById("lemail").value = b.dataset.email;
+        document.getElementById("lpass").value  = b.dataset.pass;
+      })
+    );
+
+    const form = document.getElementById("loginForm");
+    const note = document.getElementById("loginNote");
+    if (form) form.addEventListener("submit", e => {
+      e.preventDefault();
+      const email = document.getElementById("lemail").value.trim().toLowerCase();
+      const pass  = document.getElementById("lpass").value;
+      const user  = (CFG.demoUsers||[]).find(u => u.email.toLowerCase()===email && u.password===pass);
+      if (!user) { note.textContent = "Incorrect demo credentials."; note.classList.add("is-error"); return; }
+      sessionStorage.setItem("jss_demo_session", JSON.stringify(user));
+      showDemoApp(user);
+    });
+
+    const existing = (() => { try { return JSON.parse(sessionStorage.getItem("jss_demo_session")); } catch { return null; } })();
+    if (existing) showDemoApp(existing);
+
+    document.getElementById("logoutBtn")?.addEventListener("click", () => {
+      sessionStorage.removeItem("jss_demo_session"); showLogin();
+    });
+    bindForgot();
+  }
+
+  function showDemoApp(user) {
+    document.getElementById("loginView").hidden = true;
+    document.getElementById("appView").hidden   = false;
+    document.getElementById("greeting").textContent = "Welcome, " + user.name;
+    document.getElementById("roleLine").textContent = user.role === "manager" ? "Fund manager (demo)" : "Investor account (demo)";
+    const body = document.getElementById("portalBody");
+    if (user.role === "manager") { body.innerHTML = demoManagerBody(); revealAll(); }
+    else { body.innerHTML = demoInvestorShell(user); revealAll(); switchDemoTab("overview", user); }
+  }
+
+  /* ============================================================
+     DEMO INVESTOR — tabbed shell
+     ============================================================ */
+  function demoInvestorShell(user) {
+    const msgs     = initDemoMsgs();
+    const unread   = msgs.filter(m => !m.read && m.from === "manager").length;
+    return `
+      <div class="demo-banner">Demo data — configure Supabase to show real investor balances.</div>
+      ${tabNav("overview", unread)}
+      <div id="tabContent"></div>`;
+  }
+
+  function tabNav(active, unread) {
+    const badge = unread > 0 ? `<span class="tab-badge">${unread}</span>` : "";
+    return `
+      <div class="portal-tabs" id="portalTabs" role="tablist">
+        <button class="portal-tab ${active==="overview"?"is-active":""}" data-tab="overview" role="tab">Overview</button>
+        <button class="portal-tab ${active==="results"?"is-active":""}"  data-tab="results"  role="tab">2026 Results</button>
+        <button class="portal-tab ${active==="trades"?"is-active":""}"   data-tab="trades"   role="tab">Trade Details</button>
+        <button class="portal-tab ${active==="messages"?"is-active":""}" data-tab="messages" role="tab">Messages${badge}</button>
+      </div>`;
+  }
+
+  function switchDemoTab(tab, user) {
+    _activeTab = tab;
+    document.querySelectorAll(".portal-tab").forEach(b =>
+      b.classList.toggle("is-active", b.dataset.tab === tab)
+    );
+    const el = document.getElementById("tabContent");
+    if (!el) return;
+    if      (tab === "overview")  { el.innerHTML = overviewHtml(user);    drawOverviewCharts(user); }
+    else if (tab === "results")   { el.innerHTML = results2026Html();      drawResultsChart(); }
+    else if (tab === "trades")    { el.innerHTML = tradesDetailHtml();     bindTradeToggles(); bindTradeFilter(); }
+    else if (tab === "messages")  { el.innerHTML = messagesHtml("investor"); bindMsgForm("investor"); markMsgsRead(); }
+    revealAll();
+
+    document.querySelectorAll(".portal-tab").forEach(b =>
+      b.addEventListener("click", () => switchDemoTab(b.dataset.tab, user), {once:true})
+    );
+  }
+
+  /* ============================================================
+     TAB 1 — OVERVIEW
+     ============================================================ */
+  function overviewHtml(user) {
+    const inv     = user.invested || 25000;
+    const curVal  = inv * 1.242;  // 2026 demo growth
+    const gain    = curVal - inv;
+    const retPct  = (gain / inv) * 100;
+    const risk    = localStorage.getItem(DEMO_RISK_KEY) || "balanced";
+
+    const months   = ["Jan","Feb","Mar","Apr","May","Jun"];
+    const monthly  = [1270, 200, 620, 1360, 1250, 1350];
+    const cumPnl   = monthly.reduce((acc,v,i) => { acc.push((acc[i-1]||0)+v); return acc; }, []);
+    const portVals = cumPnl.map(p => inv + p);
+
+    return `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(curVal,0)}</div><div class="metric__l">Current value</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(inv,0)}</div><div class="metric__l">Invested</div></div>
+        <div class="metric"><div class="metric__v pos">${F.fmtMoney(gain,0)}</div><div class="metric__l">Total gain (2026)</div></div>
+        <div class="metric"><div class="metric__v pos">+${retPct.toFixed(1)}%</div><div class="metric__l">Total return</div></div>
+        <div class="metric"><div class="metric__v pos">+${F.fmtMoney(1350,0)}</div><div class="metric__l">Jun income</div></div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Account value — 2026</h2><span class="panel__sub">Monthly NAV × units</span></div>
+        <canvas id="acctChart" height="260" role="img" aria-label="Account value"></canvas>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">P&amp;L per month (bar = closed trades)</span></div>
+        <canvas id="monthlyMiniChart" height="180" role="img" aria-label="Monthly P&L"></canvas>
+      </div>
+
+      ${riskPanelHtml(risk)}
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Portfolio holdings</h2><span class="panel__sub">Illustrative allocation</span></div>
+        <div class="port-alloc">
+          <canvas id="allocChart" width="180" height="180" style="flex-shrink:0"></canvas>
+          <div class="port-legend">
+            <div class="port-leg"><span class="port-leg__dot" style="background:#5eead4"></span><span>SPY S&P 500 ETF</span><span class="mono">45%</span></div>
+            <div class="port-leg"><span class="port-leg__dot" style="background:#818cf8"></span><span>QQQ Nasdaq-100</span><span class="mono">35%</span></div>
+            <div class="port-leg"><span class="port-leg__dot" style="background:#fbbf24"></span><span>DIA Dow Jones</span><span class="mono">15%</span></div>
+            <div class="port-leg"><span class="port-leg__dot" style="background:#94a3b8"></span><span>Cash &amp; premiums</span><span class="mono">5%</span></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function drawOverviewCharts(user) {
+    const inv    = user.invested || 25000;
+    const months = ["Jan","Feb","Mar","Apr","May","Jun"];
+    const cumPnl = [1270,1470,2090,3450,4700,6050];
+    const portV  = cumPnl.map(p => inv + p);
+
+    const acct = document.getElementById("acctChart");
+    if (acct) F.chart.lineChart(acct, {
+      labels: months,
+      series: [{values: portV, color:"#5eead4", fill:"rgba(94,234,212,0.15)", width:2.4}],
+      yFmt: v => "$"+(v/1000).toFixed(1)+"k",
+    });
+
+    const mini = document.getElementById("monthlyMiniChart");
+    if (mini) F.chart.barChart(mini, {
+      groups: [1270,200,620,1360,1250,1350].map((v,i) => ({
+        label: months[i],
+        bars: [{value:v, color: v>=0?"#5eead4":"#f87171"}],
+      })),
+      yFmt: v => "$"+(v/1000).toFixed(1)+"k",
+    });
+
+    const alloc = document.getElementById("allocChart");
+    if (alloc) F.chart.donut(alloc, [
+      {value:45, color:"#5eead4", label:"SPY"},
+      {value:35, color:"#818cf8", label:"QQQ"},
+      {value:15, color:"#fbbf24", label:"DIA"},
+      {value: 5, color:"#94a3b8", label:"Cash"},
+    ]);
+  }
+
+  /* ============================================================
+     RISK PANEL (shared)
+     ============================================================ */
+  const RISK_OPTIONS = [
+    { key:"conservative", icon:"🛡️", label:"Conservative", target:"5–8% / yr",  desc:"Iron condors & covered calls only. Low delta, wide wings." },
+    { key:"balanced",     icon:"⚖️", label:"Balanced",     target:"10–15% / yr", desc:"Full strategy suite, moderate position sizing. (Default)" },
+    { key:"growth",       icon:"📈", label:"Growth",        target:"18–25% / yr", desc:"Higher theta exposure, tighter spreads, larger contracts." },
+    { key:"aggressive",   icon:"🚀", label:"Aggressive",   target:"25%+ / yr",   desc:"Full capital deployment, maximum risk/reward. Volatility expected." },
+  ];
+
+  function riskPanelHtml(current) {
+    return `
+      <div class="panel reveal" id="riskPanel">
+        <div class="panel__head"><h2>Portfolio risk preference</h2><span class="panel__sub">Request your risk profile — manager reviews and adjusts</span></div>
+        <div class="risk-grid">
+          ${RISK_OPTIONS.map(r => `
+          <div class="risk-card ${r.key===current?"is-selected":""}" data-risk="${r.key}" role="button" tabindex="0">
+            <div class="risk-card__icon">${r.icon}</div>
+            <div class="risk-card__level">${r.label}</div>
+            <div class="risk-card__target">${r.target}</div>
+            <div class="risk-card__desc">${r.desc}</div>
+          </div>`).join("")}
+        </div>
+        <div class="risk-save-bar">
+          <button class="btn btn--ghost btn--sm" id="saveRiskBtn">Save preference</button>
+          <span class="cta__note" id="riskNote" role="status" aria-live="polite"></span>
+        </div>
+      </div>`;
+  }
+
+  function bindRiskPanel() {
+    const panel = document.getElementById("riskPanel");
+    if (!panel) return;
+    panel.querySelectorAll(".risk-card").forEach(c =>
+      c.addEventListener("click", () => {
+        panel.querySelectorAll(".risk-card").forEach(x => x.classList.remove("is-selected"));
+        c.classList.add("is-selected");
+      })
+    );
+    const saveBtn  = document.getElementById("saveRiskBtn");
+    const riskNote = document.getElementById("riskNote");
+    if (saveBtn) saveBtn.addEventListener("click", () => {
+      const sel = panel.querySelector(".risk-card.is-selected");
+      if (!sel) return;
+      const key = sel.dataset.risk;
+      localStorage.setItem(DEMO_RISK_KEY, key);
+      const opt = RISK_OPTIONS.find(r => r.key === key);
+      riskNote.textContent = `Preference saved: ${opt.label} (${opt.target}). Manager notified.`;
+    });
+  }
+
+  /* ============================================================
+     TAB 2 — 2026 RESULTS
+     ============================================================ */
+  function results2026Html() {
+    const trades = DEMO_TRADES.filter(t => t.createdAt.startsWith("2026"));
+    const totalPnl   = trades.reduce((a,t) => a+t.pnl, 0);
+    const wins       = trades.filter(t => t.pnl > 0).length;
+    const winRate    = (wins / trades.length * 100).toFixed(0);
+    const bestMonth  = "April";
+    const months     = ["Jan","Feb","Mar","Apr","May","Jun"];
+    const byMonth    = [0,1,2,3,4,5].map(m =>
+      trades.filter(t => new Date(t.createdAt).getMonth() === m).reduce((a,t) => a+t.pnl, 0)
+    );
+    const maxAbs = Math.max(...byMonth.map(Math.abs), 1);
+
+    return `
+      <div class="pnl-hero reveal">
+        <div class="pnl-stat"><div class="pnl-stat__v pos">+${F.fmtMoney(totalPnl,0)}</div><div class="pnl-stat__l">Total 2026 P&amp;L</div></div>
+        <div class="pnl-stat"><div class="pnl-stat__v">${trades.length}</div><div class="pnl-stat__l">Closed trades</div></div>
+        <div class="pnl-stat"><div class="pnl-stat__v pos">${winRate}%</div><div class="pnl-stat__l">Win rate</div></div>
+        <div class="pnl-stat"><div class="pnl-stat__v pos">${bestMonth}</div><div class="pnl-stat__l">Best month</div></div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Monthly P&amp;L — 2026</h2></div>
+        <canvas id="resultsChart" height="200" role="img" aria-label="Monthly P&L chart"></canvas>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Monthly breakdown</h2></div>
+        <div class="monthly-grid">
+          ${months.map((m,i) => {
+            const v = byMonth[i];
+            const pct = Math.abs(v)/maxAbs*100;
+            return `
+              <div class="monthly-row">
+                <span class="monthly-row__lbl">${m}</span>
+                <div class="monthly-row__bar-wrap">
+                  <div class="monthly-row__bar ${v>=0?"pos":"neg"}" style="width:${pct.toFixed(1)}%"></div>
+                </div>
+                <span class="monthly-row__val ${v>=0?"pos":"neg"}">${v>=0?"+":""}${F.fmtMoney(v,0)}</span>
+              </div>`;
+          }).join("")}
+        </div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Trade log — 2026</h2><span class="panel__sub">Column C (P&amp;L $) drives results; all other columns are context</span></div>
+        <div class="table-wrap">
+          <table class="ttable">
+            <thead><tr><th>Trade name</th><th>Strategy</th><th>Opened</th><th>Expired</th><th>Net credit</th><th>Chance</th><th>P&amp;L $</th><th>Return %</th><th>Status</th></tr></thead>
+            <tbody>
+              ${trades.map(t => `
+              <tr>
+                <td><b>${esc(t.name)}</b></td>
+                <td><span class="trade-group-badge ${groupClass(t.group)}">${esc(t.group)}</span></td>
+                <td class="mono">${t.createdAt}</td>
+                <td class="mono">${t.expiration}</td>
+                <td class="mono">${F.fmtMoney(t.netCredit,0)}</td>
+                <td class="mono">${t.chance}%</td>
+                <td class="mono ${t.pnl>=0?"pos":"neg"}"><b>${t.pnl>=0?"+":""}${F.fmtMoney(t.pnl,0)}</b></td>
+                <td class="mono ${t.returnPct>=0?"pos":"neg"}">${t.returnPct>=0?"+":""}${t.returnPct.toFixed(1)}%</td>
+                <td><span class="pill ${t.status==="open"?"pill--buy":"pill--sell"}">${t.status}</span></td>
+              </tr>`).join("")}
+            </tbody>
+            <tfoot><tr>
+              <td colspan="6"><b>Total 2026</b></td>
+              <td class="mono pos"><b>+${F.fmtMoney(totalPnl,0)}</b></td>
+              <td colspan="2" class="muted">Avg win rate ${winRate}%</td>
+            </tr></tfoot>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  function drawResultsChart() {
+    const c = document.getElementById("resultsChart");
+    if (!c) return;
+    const months  = ["Jan","Feb","Mar","Apr","May","Jun"];
+    const byMonth = [1270, 200, 620, 1360, 1250, 1350];
+    F.chart.barChart(c, {
+      groups: byMonth.map((v,i) => ({
+        label: months[i],
+        bars: [{value:v, color: v>=0?"#5eead4":"#f87171"}],
+      })),
+      yFmt: v => "$"+(v/1000).toFixed(1)+"k",
+    });
+  }
+
+  /* ============================================================
+     TAB 3 — TRADE DETAILS (Excel format)
+     ============================================================ */
+  function tradesDetailHtml() {
+    const groups = ["All", ...new Set(DEMO_TRADES.map(t => t.group))];
+    return `
+      <div class="trade-filter-chips reveal" id="tradeFilterChips">
+        ${groups.map((g,i) => `<button class="trade-chip ${i===0?"is-active":""}" data-filter="${g}">${g}</button>`).join("")}
+      </div>
+      <div class="trade-cards reveal" id="tradeCardsWrap">
+        ${DEMO_TRADES.map(tradeCardHtml).join("")}
+      </div>`;
+  }
+
+  function tradeCardHtml(t) {
+    const pnlClass = t.pnl >= 0 ? "pos" : "neg";
+    const pnlSign  = t.pnl >= 0 ? "+" : "";
+    return `
+      <div class="trade-card" data-id="${t.id}" data-group="${esc(t.group)}">
+        <div class="trade-card__head">
+          <div class="trade-card__info">
+            <span class="trade-group-badge ${groupClass(t.group)}">${esc(t.group)}</span>
+            <div class="trade-card__name">${esc(t.name)}</div>
+            <div class="trade-card__dates">${t.createdAt} → ${t.expiration} &nbsp;·&nbsp; <span class="pill ${t.status==="open"?"pill--buy":"pill--sell"}">${t.status}</span></div>
+          </div>
+          <div class="trade-card__pnl ${pnlClass}">
+            <span class="trade-card__pnl-val">${pnlSign}${F.fmtMoney(t.pnl,0)}</span>
+            <span class="trade-card__pnl-pct">${pnlSign}${t.returnPct.toFixed(1)}%</span>
+          </div>
+        </div>
+        <div class="trade-card__summary">
+          <span class="trade-kv"><span class="trade-kv__l">Net Credit</span><span class="trade-kv__v">${F.fmtMoney(t.netCredit,0)}</span></span>
+          <span class="trade-kv"><span class="trade-kv__l">Chance</span><span class="trade-kv__v">${t.chance}%</span></span>
+          <span class="trade-kv"><span class="trade-kv__l">Max Loss</span><span class="trade-kv__v neg">${t.maxLoss!=null?F.fmtMoney(t.maxLoss,0):"Unlimited"}</span></span>
+          <span class="trade-kv"><span class="trade-kv__l">Max Profit</span><span class="trade-kv__v pos">${F.fmtMoney(t.maxProfit,0)}</span></span>
+          ${t.high!=null?`<span class="trade-kv"><span class="trade-kv__l">High</span><span class="trade-kv__v">${F.fmtNum(t.high,0)}</span></span>`:""}
+          ${t.low!=null ?`<span class="trade-kv"><span class="trade-kv__l">Low</span><span class="trade-kv__v">${F.fmtNum(t.low,0)}</span></span>`:""}
+          <span class="trade-kv"><span class="trade-kv__l">IV</span><span class="trade-kv__v">${t.iv.toFixed(1)}%</span></span>
+        </div>
+        <div class="trade-card__expanders">
+          <button class="trade-toggle" data-target="legs-${t.id}">&#9654; Position legs</button>
+          <button class="trade-toggle" data-target="greeks-${t.id}">&#9654; Greeks &amp; details</button>
+        </div>
+        <div class="trade-legs" id="legs-${t.id}" hidden>
+          <div class="table-wrap">
+            <table class="ttable">
+              <thead><tr><th>Symbol</th><th>Qty</th><th>Entry Price</th><th>Current Price</th><th>Close Price</th></tr></thead>
+              <tbody>
+                ${t.legs.map(leg => `
+                <tr>
+                  <td><b>${esc(leg.symbol)}</b></td>
+                  <td class="mono ${leg.qty<0?"neg":"pos"}">${leg.qty>0?"+":""}${leg.qty}</td>
+                  <td class="mono">${F.fmtNum(leg.entry,2)}</td>
+                  <td class="mono">${leg.current!=null?F.fmtNum(leg.current,2):"—"}</td>
+                  <td class="mono">${leg.close!=null?F.fmtNum(leg.close,2):"—"}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="trade-greeks" id="greeks-${t.id}" hidden>
+          <div class="trade-greeks__grid">
+            <div class="greek-kv"><span class="greek-kv__l">Δ Delta</span><span class="greek-kv__v">${t.delta.toFixed(3)}</span></div>
+            <div class="greek-kv"><span class="greek-kv__l">Θ Theta</span><span class="greek-kv__v">+${t.theta.toFixed(1)}</span></div>
+            <div class="greek-kv"><span class="greek-kv__l">Γ Gamma</span><span class="greek-kv__v">${t.gamma.toFixed(3)}</span></div>
+            <div class="greek-kv"><span class="greek-kv__l">V Vega</span><span class="greek-kv__v">${t.vega.toFixed(1)}</span></div>
+            <div class="greek-kv"><span class="greek-kv__l">ρ Rho</span><span class="greek-kv__v">${t.rho.toFixed(1)}</span></div>
+            <div class="greek-kv"><span class="greek-kv__l">IV</span><span class="greek-kv__v">${t.iv.toFixed(1)}%</span></div>
+          </div>
+          <p class="trade-greeks__note">Theta (+${t.theta.toFixed(1)}) = daily premium decay earned. Delta (${t.delta.toFixed(3)}) = directional exposure. These are for educational context — the final P&amp;L result is shown above.</p>
+        </div>
+      </div>`;
+  }
+
+  function bindTradeToggles() {
+    document.querySelectorAll(".trade-toggle").forEach(btn =>
+      btn.addEventListener("click", () => {
+        const el = document.getElementById(btn.dataset.target);
+        if (!el) return;
+        const nowOpen = el.hidden;
+        el.hidden = !nowOpen;
+        btn.classList.toggle("is-open", nowOpen);
+        btn.textContent = btn.textContent.replace(/[▶▼►]/,"");
+        btn.innerHTML   = (nowOpen ? "&#9660;" : "&#9654;") + " " + btn.textContent.trim();
+      })
+    );
+  }
+
+  function bindTradeFilter() {
+    const chips = document.querySelectorAll(".trade-chip");
+    const wrap  = document.getElementById("tradeCardsWrap");
+    chips.forEach(chip =>
+      chip.addEventListener("click", () => {
+        chips.forEach(c => c.classList.remove("is-active"));
+        chip.classList.add("is-active");
+        const f = chip.dataset.filter;
+        wrap.querySelectorAll(".trade-card").forEach(card =>
+          card.hidden = f !== "All" && card.dataset.group !== f
+        );
+      })
+    );
+  }
+
+  function groupClass(group) {
+    const map = {
+      "Iron Condor":"group--iron-condor",
+      "The Wheel":"group--the-wheel",
+      "Bull Put Spread":"group--bull-put",
+      "Cash-Secured Put":"group--csp",
+    };
+    return map[group] || "group--iron-condor";
+  }
+
+  /* ============================================================
+     TAB 4 — MESSAGES
+     ============================================================ */
+  function messagesHtml(role) {
+    const msgs   = initDemoMsgs();
+    const sorted = [...msgs].sort((a,b) => new Date(a.date)-new Date(b.date));
+    return `
+      <div class="msg-center reveal">
+        <div class="panel">
+          <div class="panel__head"><h2>Messages</h2><span class="panel__sub">Your conversation with JSS Capital</span></div>
+          <div class="msg-thread" id="msgThread">
+            ${sorted.map(m => msgBubbleHtml(m, role)).join("")}
+          </div>
+          <div class="msg-compose">
+            <div class="field"><label for="msgSubject">Subject</label><input id="msgSubject" type="text" placeholder="Question about my account…" /></div>
+            <div class="field"><label for="msgBody">Message</label><textarea id="msgBody" rows="4" placeholder="Write your message here…"></textarea></div>
+            <div class="msg-compose__actions">
+              <button class="btn btn--primary btn--sm" id="sendMsgBtn">Send message</button>
+              <span class="cta__note" id="msgNote" role="status" aria-live="polite"></span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function msgBubbleHtml(m, viewerRole) {
+    const isOwn = m.from === viewerRole;
+    const cls   = isOwn ? "msg-bubble--investor" : "msg-bubble--manager";
+    const ts    = new Date(m.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    return `
+      <div class="msg-bubble ${cls}">
+        <div class="msg-bubble__meta">${esc(m.fromName)} · ${ts}</div>
+        ${m.subject?`<div class="msg-bubble__subject">${esc(m.subject)}</div>`:""}
+        <div>${esc(m.body)}</div>
+      </div>`;
+  }
+
+  function bindMsgForm(role) {
+    const btn  = document.getElementById("sendMsgBtn");
+    const note = document.getElementById("msgNote");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const subj = (document.getElementById("msgSubject").value||"").trim();
+      const body = (document.getElementById("msgBody").value||"").trim();
+      if (!body) { note.textContent = "Please enter a message."; note.classList.add("is-error"); return; }
+      const msgs = initDemoMsgs();
+      msgs.push({
+        id: "m"+Date.now(), from:"investor", fromName:"You",
+        subject: subj, body, date: new Date().toISOString(), read:true,
+      });
+      saveDemoMsgs(msgs);
+      const thread = document.getElementById("msgThread");
+      if (thread) {
+        const div = document.createElement("div");
+        div.innerHTML = msgBubbleHtml(msgs[msgs.length-1], "investor");
+        thread.appendChild(div.firstElementChild);
+        thread.scrollTop = thread.scrollHeight;
+      }
+      document.getElementById("msgSubject").value = "";
+      document.getElementById("msgBody").value    = "";
+      note.classList.remove("is-error");
+      note.textContent = "Message sent — JSS Capital will reply within 1 business day.";
+    });
+  }
+
+  function markMsgsRead() {
+    const msgs = getDemoMsgs();
+    if (!msgs) return;
+    msgs.forEach(m => { if (m.from === "manager") m.read = true; });
+    saveDemoMsgs(msgs);
+    // Clear badge
+    document.querySelectorAll(".tab-badge").forEach(b => b.remove());
+  }
+
+  /* ============================================================
+     DEMO MANAGER VIEW
+     ============================================================ */
+  function demoManagerBody() {
+    const investors = [
+      {name:"Sample Investor A", units:25, val:25000*1.242},
+      {name:"Sample Investor B", units:50, val:50000*1.242},
+      {name:"Sample Investor C", units:12, val:12500*1.242},
+    ];
+    const aum  = investors.reduce((a,i) => a+i.val, 0);
+    const msgs = initDemoMsgs();
+    const invMsgs = msgs.filter(m => m.from==="investor");
+    return `
+      <div class="demo-banner">Demo data. Configure Supabase for real investor management.</div>
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(aum,0)}</div><div class="metric__l">AUM (demo)</div></div>
+        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
+        <div class="metric"><div class="metric__v">1,242.00</div><div class="metric__l">NAV / unit</div></div>
+        <div class="metric"><div class="metric__v pos">+${F.fmtMoney(6050,0)}</div><div class="metric__l">2026 P&amp;L</div></div>
+        <div class="metric"><div class="metric__v">${invMsgs.length}</div><div class="metric__l">Investor messages</div></div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investors (demo)</h2></div>
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th></tr></thead>
+          <tbody>${investors.map(i=>`<tr><td><b>${i.name}</b></td><td class="mono">${i.units}.0000</td><td class="mono">${F.fmtMoney(i.val,0)}</td></tr>`).join("")}</tbody>
+        </table></div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>2026 Trade Log</h2><span class="panel__sub">All 12 positions — Column C is final P&amp;L</span></div>
+        <div class="trade-cards">
+          ${DEMO_TRADES.map(tradeCardHtml).join("")}
+        </div>
+      </div>
+
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor messages</h2></div>
+        <div class="msg-thread" id="msgThreadMgr">
+          ${msgs.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(m=>msgBubbleHtml(m,"manager")).join("")}
+        </div>
+        <div class="msg-compose" style="margin-top:16px">
+          <div class="field"><label for="mgrMsgSubject">Reply subject</label><input id="mgrMsgSubject" type="text" placeholder="RE: …" /></div>
+          <div class="field"><label for="mgrMsgBody">Reply</label><textarea id="mgrMsgBody" rows="3" placeholder="Reply to investor…"></textarea></div>
+          <div class="msg-compose__actions">
+            <button class="btn btn--ghost btn--sm" id="sendMgrMsgBtn">Send reply</button>
+            <span class="cta__note" id="mgrMsgNote" role="status"></span>
+          </div>
+        </div>
+      </div>
+
+      ${positionsPanel(demoPositions())}
+      ${tradesPanel(demoTradesRaw(), {title:"Recent executions (demo)", sub:"Sample broker fills"})}`;
+  }
+
+  /* ============================================================
+     MANAGER LIVE PANELS
+     ============================================================ */
+  function mgrNavPanel(navPU, navHistory) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Update NAV</h2><span class="panel__sub">Set today's NAV per unit</span></div>
+        <form class="mgr-form" id="navForm">
+          <div class="field"><label>Date</label><input type="date" name="date" value="${new Date().toISOString().slice(0,10)}" required /></div>
+          <div class="field"><label>NAV per unit</label><input type="number" name="nav" step="0.0001" min="0" required placeholder="1242.00" value="${navPU||""}" /></div>
+          <div class="field"><label>AUM ($, optional)</label><input type="number" name="aum" step="0.01" min="0" /></div>
+          <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
+          <button type="submit" class="btn btn--primary">Save NAV</button>
+          <p class="cta__note" id="navNote" role="status" aria-live="polite"></p>
+        </form>
+        ${navHistory.length ? `<div class="table-wrap" style="margin-top:18px"><table class="ttable"><thead><tr><th>Date</th><th>NAV / unit</th><th>AUM</th><th>Note</th></tr></thead><tbody>${navHistory.slice().reverse().slice(0,12).map(n=>`<tr><td class="mono">${n.date}</td><td class="mono">${F.fmtNum(n.nav_per_unit,2)}</td><td class="mono">${n.aum?F.fmtMoney(n.aum,0):"—"}</td><td>${n.note||""}</td></tr>`).join("")}</tbody></table></div>` : ""}
+      </div>`;
+  }
+
+  function mgrTradePanel() {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Log a trade</h2><span class="panel__sub">Manual entry or paste from broker</span></div>
+        <form class="mgr-form" id="tradeForm">
+          <div class="field"><label>Symbol</label><select name="symbol">${(CFG.tickers||[]).map(t=>`<option>${t.symbol}</option>`).join("")}</select></div>
+          <div class="field"><label>Side</label><select name="side"><option>BUY</option><option>SELL</option></select></div>
+          <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" min="0.0001" required /></div>
+          <div class="field"><label>Price ($)</label><input type="number" name="price" step="0.0001" min="0" required /></div>
+          <div class="field"><label>Strategy</label><select name="strategy">${["Iron Condor","The Wheel","Bull Put Spread","Cash-Secured Put","Covered Call","Trend","Momentum","Manual"].map(s=>`<option>${s}</option>`).join("")}</select></div>
+          <div class="field"><label>Executed at</label><input type="datetime-local" name="executedAt" /></div>
+          <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
+          <button type="submit" class="btn btn--primary">Add trade</button>
+          <p class="cta__note" id="tradeNote" role="status" aria-live="polite"></p>
+        </form>
+      </div>`;
+  }
+
+  function mgrCsvPanel() {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Upload trades via CSV</h2></div>
+        <p class="portal__note" style="margin-bottom:14px">Required columns: <code class="csv-header-hint">Date,Time,Symbol,Side,Qty,Price,Strategy,Note</code></p>
+        <div class="csv-upload">
+          <div class="field field--full"><label>Upload CSV</label><input type="file" id="csvFile" accept=".csv,text/csv" class="csv-file-input" /></div>
+          <div class="field field--full"><label>Or paste CSV</label><textarea id="csvText" class="csv-textarea" rows="5" placeholder="Date,Time,Symbol,Side,Qty,Price,Strategy,Note&#10;2026-01-06,09:30:00,SPY,SELL,4,2.05,Iron Condor,"></textarea></div>
+          <button id="csvParseBtn" class="btn btn--ghost">Preview</button>
+          <div id="csvPreview" class="csv-preview" hidden></div>
+          <div id="csvActions" hidden>
+            <button id="csvConfirmBtn" class="btn btn--primary">Confirm &amp; upload</button>
+            <p class="cta__note" id="csvNote" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function mgrPositionsPanel(positions) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Open positions</h2></div>
+        ${positions.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Updated</th></tr></thead><tbody>${positions.map(p=>`<tr><td><b>${p.symbol}</b></td><td class="mono">${F.fmtNum(p.qty,2)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td><td class="mono">${new Date(p.updated_at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
+        <details class="mgr-details"><summary>Update / add position</summary>
+          <form class="mgr-form mgr-form--sm" id="posForm">
+            <div class="field"><label>Symbol</label><select name="symbol">${(CFG.tickers||[]).map(t=>`<option>${t.symbol}</option>`).join("")}</select></div>
+            <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" required /></div>
+            <div class="field"><label>Avg cost</label><input type="number" name="avgCost" step="0.0001" required /></div>
+            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
+            <p class="cta__note" id="posNote" role="status" aria-live="polite"></p>
+          </form>
+        </details>
+      </div>`;
+  }
+
+  function mgrInvestorsPanel(investors, navPU) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor accounts</h2></div>
+        ${investors.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Investor</th><th>Units</th><th>Est. value</th><th>Since</th></tr></thead><tbody>${investors.map(inv=>{const val=+inv.units*navPU;return`<tr><td><b>${inv.profiles?inv.profiles.name:"—"}</b></td><td class="mono">${F.fmtNum(inv.units,4)}</td><td class="mono">${F.fmtMoney(val,0)}</td><td class="mono">${inv.since||"—"}</td></tr>`;}).join("")}</tbody></table></div>` : `<p class="portal__note">No investor accounts yet.</p>`}
+        <details class="mgr-details"><summary>Update investor units</summary>
+          <form class="mgr-form mgr-form--sm" id="unitsForm">
+            <div class="field"><label>Investor ID (UUID)</label><input type="text" name="investorId" /></div>
+            <div class="field"><label>Units</label><input type="number" name="units" step="0.000001" min="0" required /></div>
+            <div class="field"><label>Since</label><input type="date" name="since" /></div>
+            <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
+            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
+            <p class="cta__note" id="unitsNote" role="status" aria-live="polite"></p>
+          </form>
+        </details>
+      </div>`;
+  }
+
+  function mgrLeadsPanel(leads) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Contact leads</h2><span class="panel__sub">from homepage form</span></div>
+        ${leads.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Name</th><th>Email</th><th>Message</th><th>When</th></tr></thead><tbody>${leads.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.email)}</td><td>${esc(l.message||"")}</td><td class="mono">${new Date(l.created_at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No leads yet.</p>`}
+      </div>`;
+  }
+
+  /* ============================================================
+     MANAGER FORMS (live mode)
+     ============================================================ */
   function bindManagerForms(navPU) {
-    /* NAV form */
     const navForm = document.getElementById("navForm");
-    if (navForm) navForm.addEventListener("submit", async (e) => {
+    if (navForm) navForm.addEventListener("submit", async e => {
       e.preventDefault();
       const note = document.getElementById("navNote");
       try {
-        await DB.upsertNav({
-          date: navForm.elements.date.value,
-          navPerUnit: parseFloat(navForm.elements.nav.value),
-          aum: navForm.elements.aum.value ? parseFloat(navForm.elements.aum.value) : null,
-          note: navForm.elements.note.value.trim() || null,
-        });
+        await DB.upsertNav({date:navForm.elements.date.value, navPerUnit:parseFloat(navForm.elements.nav.value), aum:navForm.elements.aum.value?parseFloat(navForm.elements.aum.value):null, note:navForm.elements.note.value.trim()||null});
         note.textContent = "✓ NAV saved."; note.classList.remove("is-error");
-      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+      } catch(err) { note.textContent = "Error: "+err.message; note.classList.add("is-error"); }
     });
 
-    /* Trade form */
     const tradeForm = document.getElementById("tradeForm");
-    if (tradeForm) tradeForm.addEventListener("submit", async (e) => {
+    if (tradeForm) tradeForm.addEventListener("submit", async e => {
       e.preventDefault();
       const note = document.getElementById("tradeNote");
       try {
         const t = tradeForm.elements;
-        const ex = t.executedAt.value ? new Date(t.executedAt.value).toISOString() : null;
-        await DB.addTrade({ symbol: t.symbol.value, side: t.side.value, qty: parseFloat(t.qty.value),
-          price: parseFloat(t.price.value), strategy: t.strategy.value, note: t.note.value.trim() || null,
-          executedAt: ex });
+        await DB.addTrade({symbol:t.symbol.value, side:t.side.value, qty:parseFloat(t.qty.value), price:parseFloat(t.price.value), strategy:t.strategy.value, note:t.note.value.trim()||null, executedAt:t.executedAt.value?new Date(t.executedAt.value).toISOString():null});
         note.textContent = "✓ Trade added."; note.classList.remove("is-error"); tradeForm.reset();
-      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+      } catch(err) { note.textContent = "Error: "+err.message; note.classList.add("is-error"); }
     });
 
-    /* Position form */
     const posForm = document.getElementById("posForm");
-    if (posForm) posForm.addEventListener("submit", async (e) => {
+    if (posForm) posForm.addEventListener("submit", async e => {
       e.preventDefault();
       const note = document.getElementById("posNote");
       try {
         const t = posForm.elements;
-        await DB.upsertPosition({ symbol: t.symbol.value, qty: parseFloat(t.qty.value), avgCost: parseFloat(t.avgCost.value) });
+        await DB.upsertPosition({symbol:t.symbol.value, qty:parseFloat(t.qty.value), avgCost:parseFloat(t.avgCost.value)});
         note.textContent = "✓ Position updated."; note.classList.remove("is-error");
-      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+      } catch(err) { note.textContent = "Error: "+err.message; note.classList.add("is-error"); }
     });
 
-    /* CSV bulk upload */
     let parsedCsvTrades = [];
-
     const csvFile = document.getElementById("csvFile");
     if (csvFile) csvFile.addEventListener("change", () => {
-      const file = csvFile.files[0];
-      if (!file) return;
+      const file = csvFile.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        document.getElementById("csvText").value = ev.target.result;
-      };
+      reader.onload = ev => { document.getElementById("csvText").value = ev.target.result; };
       reader.readAsText(file);
     });
 
@@ -434,44 +1031,14 @@
       const note = document.getElementById("csvNote");
       const preview = document.getElementById("csvPreview");
       const actions = document.getElementById("csvActions");
-      parsedCsvTrades = [];
-      preview.hidden = true;
-      actions.hidden = true;
-
-      if (!text) { return; }
-
+      parsedCsvTrades = []; preview.hidden = true; actions.hidden = true;
+      if (!text) return;
       const result = parseCsvTrades(text);
-      if (result.errors.length) {
-        preview.innerHTML = `<p style="color:var(--red,#f87171);margin:0">${esc(result.errors.join("; "))}</p>`;
-        preview.hidden = false;
-        return;
-      }
-      if (!result.trades.length) {
-        preview.innerHTML = `<p style="color:var(--muted);margin:0">No valid rows found.</p>`;
-        preview.hidden = false;
-        return;
-      }
-
+      if (result.errors.length) { preview.innerHTML = `<p style="color:var(--red,#f87171);margin:0">${esc(result.errors.join("; "))}</p>`; preview.hidden=false; return; }
+      if (!result.trades.length) { preview.innerHTML = `<p style="color:var(--muted);margin:0">No valid rows found.</p>`; preview.hidden=false; return; }
       parsedCsvTrades = result.trades;
-      preview.innerHTML = `
-        <p style="margin-bottom:10px;color:var(--muted)">${parsedCsvTrades.length} trade${parsedCsvTrades.length !== 1 ? "s" : ""} parsed — review before uploading:</p>
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Date / Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th><th>Note</th></tr></thead>
-          <tbody>${parsedCsvTrades.map((t) => `
-            <tr>
-              <td class="mono">${esc(t.executedAt.slice(0, 16).replace("T", " "))}</td>
-              <td><b>${esc(t.symbol)}</b></td>
-              <td><span class="pill ${t.side === "BUY" ? "pill--buy" : "pill--sell"}">${esc(t.side)}</span></td>
-              <td class="mono">${t.qty}</td>
-              <td class="mono">${F.fmtMoney(t.price)}</td>
-              <td>${esc(t.strategy || "—")}</td>
-              <td>${esc(t.note || "")}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table></div>`;
-      preview.hidden = false;
-      if (note) note.textContent = "";
-      actions.hidden = false;
+      preview.innerHTML = `<p style="margin-bottom:10px;color:var(--muted)">${parsedCsvTrades.length} trade(s) — review before uploading:</p><div class="table-wrap"><table class="ttable"><thead><tr><th>Date/Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th></tr></thead><tbody>${parsedCsvTrades.map(t=>`<tr><td class="mono">${esc(t.executedAt.slice(0,16).replace("T"," "))}</td><td><b>${esc(t.symbol)}</b></td><td><span class="pill ${t.side==="BUY"?"pill--buy":"pill--sell"}">${esc(t.side)}</span></td><td class="mono">${t.qty}</td><td class="mono">${F.fmtMoney(t.price)}</td><td>${esc(t.strategy||"—")}</td></tr>`).join("")}</tbody></table></div>`;
+      preview.hidden=false; if (note) note.textContent=""; actions.hidden=false;
     });
 
     const csvConfirmBtn = document.getElementById("csvConfirmBtn");
@@ -482,282 +1049,165 @@
       note.textContent = "Uploading…"; note.classList.remove("is-error");
       try {
         await DB.bulkAddTrades(parsedCsvTrades);
-        note.textContent = `✓ ${parsedCsvTrades.length} trade${parsedCsvTrades.length !== 1 ? "s" : ""} uploaded.`;
-        parsedCsvTrades = [];
-        document.getElementById("csvText").value = "";
-        if (csvFile) csvFile.value = "";
-        document.getElementById("csvPreview").hidden = true;
-        document.getElementById("csvActions").hidden = true;
-      } catch (err) {
-        note.textContent = "Error: " + err.message;
-        note.classList.add("is-error");
-      } finally {
-        csvConfirmBtn.disabled = false;
-      }
+        note.textContent = `✓ ${parsedCsvTrades.length} trade(s) uploaded.`;
+        parsedCsvTrades=[]; document.getElementById("csvText").value="";
+        if(csvFile) csvFile.value="";
+        document.getElementById("csvPreview").hidden=true;
+        document.getElementById("csvActions").hidden=true;
+      } catch(err) { note.textContent="Error: "+err.message; note.classList.add("is-error"); }
+      finally { csvConfirmBtn.disabled=false; }
     });
 
-    /* Investor units form */
     const unitsForm = document.getElementById("unitsForm");
-    if (unitsForm) unitsForm.addEventListener("submit", async (e) => {
+    if (unitsForm) unitsForm.addEventListener("submit", async e => {
       e.preventDefault();
       const note = document.getElementById("unitsNote");
       try {
         const t = unitsForm.elements;
-        await DB.upsertInvestorAccount({
-          investorId: t.investorId.value.trim(), units: parseFloat(t.units.value),
-          since: t.since.value || new Date().toISOString().slice(0, 10), note: t.note.value.trim() || null });
+        await DB.upsertInvestorAccount({investorId:t.investorId.value.trim(), units:parseFloat(t.units.value), since:t.since.value||new Date().toISOString().slice(0,10), note:t.note.value.trim()||null});
         note.textContent = "✓ Investor account updated."; note.classList.remove("is-error");
-      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+      } catch(err) { note.textContent="Error: "+err.message; note.classList.add("is-error"); }
     });
   }
 
   /* ============================================================
-     DEMO MODE (Supabase not configured)
-     ============================================================ */
-  function initDemo() {
-    document.getElementById("loginView").hidden = false;
-    document.getElementById("appView").hidden = true;
-
-    const banner = document.createElement("div");
-    banner.className = "demo-banner";
-    banner.innerHTML = `<b>Demo mode</b> — Supabase is not yet configured. <a href="README.md" class="inline-link">See setup guide.</a>`;
-    document.getElementById("loginView").prepend(banner);
-
-    document.querySelectorAll(".demo-cred").forEach((b) =>
-      b.addEventListener("click", () => {
-        document.getElementById("lemail").value = b.dataset.email;
-        document.getElementById("lpass").value = b.dataset.pass;
-      })
-    );
-
-    const form = document.getElementById("loginForm");
-    const note = document.getElementById("loginNote");
-    if (form) form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const email = document.getElementById("lemail").value.trim().toLowerCase();
-      const pass = document.getElementById("lpass").value;
-      const user = (CFG.demoUsers || []).find((u) => u.email.toLowerCase() === email && u.password === pass);
-      if (!user) { note.textContent = "Incorrect demo credentials."; note.classList.add("is-error"); return; }
-      sessionStorage.setItem("jss_demo_session", JSON.stringify(user));
-      showDemoApp(user);
-    });
-
-    const existingSession = (() => { try { return JSON.parse(sessionStorage.getItem("jss_demo_session")); } catch { return null; } })();
-    if (existingSession) showDemoApp(existingSession);
-
-    document.getElementById("logoutBtn")?.addEventListener("click", () => {
-      sessionStorage.removeItem("jss_demo_session"); showLogin();
-    });
-
-    bindForgot();
-  }
-
-  function showDemoApp(user) {
-    document.getElementById("loginView").hidden = true;
-    document.getElementById("appView").hidden = false;
-    document.getElementById("greeting").textContent = "Welcome, " + user.name;
-    document.getElementById("roleLine").textContent = user.role === "manager" ? "Fund manager (demo)" : "Investor account (demo)";
-    const body = document.getElementById("portalBody");
-    body.innerHTML = demoBody(user);
-    revealAll();
-    drawDemoCharts(user);
-  }
-
-  function demoBody(user) {
-    if (user.role === "manager") return demoManagerBody();
-    const inv = user.invested || 25000;
-    const curVal = inv * 1.114;
-    const gain = curVal - inv; const retPct = (gain / inv) * 100;
-    return `
-      <div class="demo-banner">Demo data. Configure Supabase to show real investor balances.</div>
-      <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(curVal, 0)}</div><div class="metric__l">Current value (demo)</div></div>
-        <div class="metric"><div class="metric__v">${F.fmtMoney(inv, 0)}</div><div class="metric__l">Invested</div></div>
-        <div class="metric"><div class="metric__v pos">${F.fmtMoney(gain, 0)}</div><div class="metric__l">Total gain</div></div>
-        <div class="metric"><div class="metric__v pos">${F.fmtPct(retPct)}</div><div class="metric__l">Return</div></div>
-      </div>
-      <div class="panel reveal"><div class="panel__head"><h2>Account value (demo)</h2></div>
-        <canvas id="acctChart" height="280" role="img"></canvas></div>
-      ${positionsPanel(demoPositions())}
-      ${tradesPanel(demoTradesRaw(), { title: "Trade activity (demo)", sub: "Sample executions" })}`;
-  }
-
-  function demoManagerBody() {
-    const investors = [
-      { name: "Sample Investor A", units: 25, val: 25000 * 1.114 },
-      { name: "Sample Investor B", units: 50, val: 50000 * 1.114 },
-      { name: "Sample Investor C", units: 12, val: 12500 * 1.114 },
-    ];
-    const aum = investors.reduce((a, i) => a + i.val, 0);
-    return `
-      <div class="demo-banner">Demo data. Configure Supabase for real investor management.</div>
-      <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(aum, 0)}</div><div class="metric__l">AUM (demo)</div></div>
-        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
-        <div class="metric"><div class="metric__v">1,212.40</div><div class="metric__l">Latest NAV / unit</div></div>
-      </div>
-      <div class="panel reveal"><div class="panel__head"><h2>Investors (demo)</h2></div>
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th></tr></thead>
-          <tbody>${investors.map((i) => `<tr><td><b>${i.name}</b></td><td class="mono">${i.units}.0000</td><td class="mono">${F.fmtMoney(i.val, 0)}</td></tr>`).join("")}</tbody>
-        </table></div>
-      </div>
-      ${positionsPanel(demoPositions())}
-      ${tradesPanel(demoTradesRaw(), { title: "Recent trades (demo)", sub: "Sample executions" })}`;
-  }
-
-  function drawDemoCharts(user) {
-    const c = document.getElementById("acctChart");
-    if (!c) return;
-    const invested = (user.invested || 25000);
-    const n = 10;
-    const vals = Array.from({ length: n }, (_, i) => invested * (1 + i * 0.013));
-    const labels = Array.from({ length: n }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - (n - 1) + i); return d.toLocaleDateString("en-US", { month: "short" }); });
-    F.chart.lineChart(c, { labels, series: [{ values: vals, color: "#5eead4", fill: "rgba(94,234,212,0.18)", width: 2.4 }], yFmt: (v) => "$" + (v / 1000).toFixed(0) + "k" });
-  }
-
-  /* ============================================================
-     Shared helpers
+     SHARED HELPERS
      ============================================================ */
   function showError(msg) {
     const body = document.getElementById("portalBody");
     if (body) body.innerHTML = `<div class="snap__loading">${esc(msg)}</div>`;
     document.getElementById("loginView").hidden = true;
-    document.getElementById("appView").hidden = false;
+    document.getElementById("appView").hidden   = false;
   }
 
   function revealAll() {
-    requestAnimationFrame(() => document.querySelectorAll(".reveal").forEach((e) => e.classList.add("is-visible")));
+    requestAnimationFrame(() => document.querySelectorAll(".reveal").forEach(e => e.classList.add("is-visible")));
   }
 
-  function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function esc(s) {
+    return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
 
-  /* ============================================================
-     Shared trade + position panels (registered users only)
-     ============================================================ */
   function normaliseTrade(raw) {
     return {
       t: new Date(raw.executed_at || raw.created_at),
-      sym: raw.symbol, side: (raw.side || "").toUpperCase(),
-      qty: +raw.qty, px: +raw.price, strat: raw.strategy || "—",
+      sym: raw.symbol, side: (raw.side||"").toUpperCase(),
+      qty: +raw.qty, px: +raw.price, strat: raw.strategy||"—",
     };
   }
 
   function tradesPanel(trades, opts) {
-    opts = opts || {};
-    const title = opts.title || "Trade activity";
-    const sub = opts.sub || "";
-    const rows = (trades || []).map(normaliseTrade);
+    opts = opts||{};
+    const rows = (trades||[]).map(normaliseTrade);
     return `
       <div class="panel reveal">
-        <div class="panel__head"><h2>${esc(title)}</h2>${sub ? `<span class="panel__sub">${esc(sub)}</span>` : ""}</div>
-        ${rows.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th></tr></thead>
-          <tbody>${rows.map((t) => `
-            <tr>
-              <td class="mono">${t.t.toLocaleDateString()} ${t.t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
-              <td><b>${esc(t.sym)}</b></td>
-              <td><span class="pill ${t.side === "BUY" ? "pill--buy" : "pill--sell"}">${esc(t.side)}</span></td>
-              <td class="mono">${F.fmtNum(t.qty, 0)}</td>
-              <td class="mono">${F.fmtMoney(t.px)}</td>
-              <td>${esc(t.strat)}</td>
-            </tr>`).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No trades recorded yet.</p>`}
+        <div class="panel__head"><h2>${esc(opts.title||"Trade activity")}</h2>${opts.sub?`<span class="panel__sub">${esc(opts.sub)}</span>`:""}</div>
+        ${rows.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th></tr></thead><tbody>${rows.map(t=>`<tr><td class="mono">${t.t.toLocaleDateString()} ${t.t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td><td><b>${esc(t.sym)}</b></td><td><span class="pill ${t.side==="BUY"?"pill--buy":"pill--sell"}">${esc(t.side)}</span></td><td class="mono">${F.fmtNum(t.qty,0)}</td><td class="mono">${F.fmtMoney(t.px)}</td><td>${esc(t.strat)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No trades recorded yet.</p>`}
       </div>`;
   }
 
   function positionsPanel(positions) {
-    const list = positions || [];
+    const list = positions||[];
     return `
       <div class="panel reveal">
         <div class="panel__head"><h2>Open positions</h2></div>
-        ${list.length ? `
-        <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th></tr></thead>
-          <tbody>${list.map((p) => `<tr><td><b>${esc(p.symbol)}</b></td><td class="mono">${F.fmtNum(p.qty, 0)}</td><td class="mono">${F.fmtNum(p.avg_cost, 2)}</td></tr>`).join("")}</tbody>
-        </table></div>` : `<p class="portal__note">No open positions.</p>`}
+        ${list.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th></tr></thead><tbody>${list.map(p=>`<tr><td><b>${esc(p.symbol)}</b></td><td class="mono">${F.fmtNum(p.qty,0)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
       </div>`;
   }
 
   function demoTradesRaw() {
-    const syms = ["SPY", "QQQ", "DIA"];
-    const strat = ["Theta harvest", "Iron condor", "Bull put spread", "Risk overlay"];
-    const px = { SPY: 545, QQQ: 470, DIA: 400 };
-    const out = [];
-    for (let i = 0; i < 8; i++) {
-      const s = syms[i % 3];
-      out.push({
-        executed_at: new Date(Date.now() - i * 86400000 * 1.4).toISOString(),
-        symbol: s, side: i % 2 ? "SELL" : "BUY",
-        qty: Math.round(50 + Math.random() * 200),
-        price: px[s] * (1 + (Math.random() - 0.5) * 0.01),
-        strategy: strat[i % strat.length],
-      });
-    }
-    return out;
+    const syms = ["SPY","QQQ","DIA"];
+    const strat = ["Iron Condor","The Wheel","Bull Put Spread","Cash-Secured Put"];
+    const px = {SPY:560, QQQ:470, DIA:408};
+    return Array.from({length:8},(_,i) => {
+      const s = syms[i%3];
+      return {executed_at:new Date(Date.now()-i*86400000*1.4).toISOString(), symbol:s, side:i%2?"SELL":"BUY", qty:Math.round(50+i*30), price:px[s]*(1+(i%2?-1:1)*0.005), strategy:strat[i%strat.length]};
+    });
   }
 
   function demoPositions() {
     return [
-      { symbol: "SPY", qty: 400, avg_cost: 545.8 },
-      { symbol: "QQQ", qty: 275, avg_cost: 470.9 },
-      { symbol: "DIA", qty: 200, avg_cost: 402.6 },
+      {symbol:"SPY", qty:400, avg_cost:545.8},
+      {symbol:"QQQ", qty:275, avg_cost:470.9},
+      {symbol:"DIA", qty:200, avg_cost:402.6},
     ];
   }
 
-  /* ---------- CSV parser for bulk trade upload ---------- */
   function parseCsvTrades(text) {
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-    const errors = [];
-    const trades = [];
-
-    if (!lines.length) { errors.push("Empty input"); return { trades, errors }; }
-
-    // Normalize header
-    const rawHeader = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const EXPECTED = ["date", "time", "symbol", "side", "qty", "price", "strategy", "note"];
-    const missing = EXPECTED.slice(0, 6).filter((h) => !rawHeader.includes(h));
-    if (missing.length) {
-      errors.push("Missing required columns: " + missing.join(", ") + ". First row must be: Date,Time,Symbol,Side,Qty,Price,Strategy,Note");
-      return { trades, errors };
-    }
-
-    const idx = (name) => rawHeader.indexOf(name);
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim());
-      const date     = cols[idx("date")]     || "";
-      const time     = cols[idx("time")]     || "00:00:00";
-      const symbol   = (cols[idx("symbol")] || "").toUpperCase();
-      const side     = (cols[idx("side")]   || "").toUpperCase();
-      const qtyRaw   = cols[idx("qty")]      || "";
-      const priceRaw = cols[idx("price")]    || "";
-      const strategy = idx("strategy") >= 0 ? (cols[idx("strategy")] || "") : "";
-      const note     = idx("note")     >= 0 ? (cols[idx("note")]     || "") : "";
-
-      if (!date || !symbol || !side || !qtyRaw || !priceRaw) {
-        errors.push(`Row ${i + 1}: missing required field(s)`);
-        continue;
-      }
-      if (!["BUY", "SELL"].includes(side)) {
-        errors.push(`Row ${i + 1}: Side must be BUY or SELL (got "${side}")`);
-        continue;
-      }
-      const qty   = parseFloat(qtyRaw);
-      const price = parseFloat(priceRaw);
-      if (isNaN(qty)   || qty   <= 0) { errors.push(`Row ${i + 1}: invalid Qty "${qtyRaw}"`);   continue; }
-      if (isNaN(price) || price <= 0) { errors.push(`Row ${i + 1}: invalid Price "${priceRaw}"`); continue; }
-
+    const lines  = text.split("\n").map(l=>l.trim()).filter(Boolean);
+    const errors = [], trades = [];
+    if (!lines.length) { errors.push("Empty input"); return {trades,errors}; }
+    const rawHeader = lines[0].split(",").map(h=>h.trim().toLowerCase());
+    const EXPECTED  = ["date","time","symbol","side","qty","price"];
+    const missing   = EXPECTED.filter(h=>!rawHeader.includes(h));
+    if (missing.length) { errors.push("Missing columns: "+missing.join(", ")); return {trades,errors}; }
+    const idx = name => rawHeader.indexOf(name);
+    for (let i=1;i<lines.length;i++) {
+      const cols     = lines[i].split(",").map(c=>c.trim());
+      const date     = cols[idx("date")]||"";
+      const time     = cols[idx("time")]||"00:00:00";
+      const symbol   = (cols[idx("symbol")]||"").toUpperCase();
+      const side     = (cols[idx("side")]||"").toUpperCase();
+      const qtyRaw   = cols[idx("qty")]||"";
+      const priceRaw = cols[idx("price")]||"";
+      const strategy = idx("strategy")>=0?(cols[idx("strategy")]||""):"";
+      const note     = idx("note")>=0?(cols[idx("note")]||""):"";
+      if (!date||!symbol||!side||!qtyRaw||!priceRaw) { errors.push(`Row ${i+1}: missing required field`); continue; }
+      if (!["BUY","SELL"].includes(side)) { errors.push(`Row ${i+1}: Side must be BUY or SELL`); continue; }
+      const qty=parseFloat(qtyRaw), price=parseFloat(priceRaw);
+      if (isNaN(qty)||qty<=0) { errors.push(`Row ${i+1}: invalid Qty`); continue; }
+      if (isNaN(price)||price<=0) { errors.push(`Row ${i+1}: invalid Price`); continue; }
       const executedAt = new Date(`${date}T${time}`).toISOString();
-      if (executedAt === "Invalid Date") {
-        errors.push(`Row ${i + 1}: invalid date/time "${date} ${time}"`);
-        continue;
-      }
-
-      trades.push({ symbol, side, qty, price, strategy: strategy || null, note: note || null, executedAt, status: "filled" });
+      if (executedAt==="Invalid Date") { errors.push(`Row ${i+1}: invalid date`); continue; }
+      trades.push({symbol,side,qty,price,strategy:strategy||null,note:note||null,executedAt,status:"filled"});
     }
-
-    return { trades, errors };
+    return {trades,errors};
   }
+
+  /* bind tab clicks after any render */
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".portal-tab");
+    if (!btn || !btn.dataset.tab) return;
+    const session = (() => { try { return JSON.parse(sessionStorage.getItem("jss_demo_session")); } catch { return null; } })();
+    if (session && session.role === "investor") switchDemoTab(btn.dataset.tab, session);
+  });
+
+  /* bind risk panel via delegation */
+  document.addEventListener("click", e => {
+    const card = e.target.closest(".risk-card");
+    if (!card) return;
+    document.querySelectorAll(".risk-card").forEach(c => c.classList.remove("is-selected"));
+    card.classList.add("is-selected");
+  });
+  document.addEventListener("click", e => {
+    if (e.target.id !== "saveRiskBtn") return;
+    const sel  = document.querySelector(".risk-card.is-selected");
+    const note = document.getElementById("riskNote");
+    if (!sel||!note) return;
+    localStorage.setItem(DEMO_RISK_KEY, sel.dataset.risk);
+    const opt = RISK_OPTIONS.find(r=>r.key===sel.dataset.risk);
+    note.textContent = `Saved: ${opt.label} (${opt.target}) — manager notified.`;
+  });
+
+  /* Manager reply button */
+  document.addEventListener("click", e => {
+    if (e.target.id !== "sendMgrMsgBtn") return;
+    const subj = (document.getElementById("mgrMsgSubject")?.value||"").trim();
+    const body = (document.getElementById("mgrMsgBody")?.value||"").trim();
+    const note = document.getElementById("mgrMsgNote");
+    if (!body) { if(note){note.textContent="Enter a reply.";note.classList.add("is-error");} return; }
+    const msgs = initDemoMsgs();
+    msgs.push({id:"m"+Date.now(),from:"manager",fromName:"JSS Capital",subject:subj,body,date:new Date().toISOString(),read:false});
+    saveDemoMsgs(msgs);
+    const thread = document.getElementById("msgThreadMgr");
+    if (thread) {
+      const d=document.createElement("div");
+      d.innerHTML=msgBubbleHtml(msgs[msgs.length-1],"manager");
+      thread.appendChild(d.firstElementChild);
+      thread.scrollTop=thread.scrollHeight;
+    }
+    if(document.getElementById("mgrMsgSubject"))document.getElementById("mgrMsgSubject").value="";
+    if(document.getElementById("mgrMsgBody"))document.getElementById("mgrMsgBody").value="";
+    if(note){note.classList.remove("is-error");note.textContent="Reply sent.";}
+  });
 })();
