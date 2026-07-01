@@ -1095,3 +1095,41 @@ button { font: inherit; cursor: pointer; }
 /* ttable tfoot */
 .ttable tfoot td { border-top: 2px solid rgba(255,255,255,0.12); padding-top: 10px; }
 .ttable .muted   { color: var(--muted); }
+
+/* ============================================================
+   MOBILE HARDENING — charts, pairs table, portal
+   ============================================================ */
+
+/* Pairs table → stacked cards on phones (no horizontal clipping) */
+@media (max-width: 640px) {
+  .pairs-table { min-width: 0; }
+  .pairs-table thead { display: none; }
+  .pairs-table tbody tr {
+    display: block; border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 12px;
+  }
+  .pairs-table tbody tr:hover { background: none; }
+  .pairs-entry, .pairs-entry td { background: rgba(94,234,212,0.06); }
+  .pairs-profit, .pairs-profit td { background: rgba(52,211,153,0.07); }
+  .pairs-table td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 7px 0; border-bottom: none; text-align: right;
+  }
+  .pairs-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--faint); flex: none; text-align: left;
+  }
+  .pairs-table td[data-label="Phase"]::before { content: none; }
+  .pairs-table td[data-label="Phase"] { justify-content: flex-start; padding-bottom: 10px; }
+}
+
+/* Portal: tighter trade cards + scrollable tabs on phones */
+@media (max-width: 640px) {
+  .portal-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .portal-tab { flex: none; padding: 9px 14px; }
+  .trade-card__head { flex-direction: column; gap: 6px; }
+  .trade-card__pnl { text-align: left; display: flex; align-items: baseline; gap: 10px; }
+  .trade-card__summary { gap: 6px 14px; }
+  .msg-bubble { max-width: 92%; }
+}

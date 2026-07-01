@@ -207,14 +207,20 @@
      Lightweight canvas charting
      ============================================================ */
   function hidpi(canvas) {
-    const ratio = global.devicePixelRatio || 1;
+    // Cap DPR at 2: retina-sharp but stays well under iOS canvas memory limits.
+    const ratio = Math.min(global.devicePixelRatio || 1, 2);
     const rect = canvas.getBoundingClientRect();
     const w = rect.width || canvas.clientWidth || 600;
-    const h = canvas.height || 320;
-    canvas.width = w * ratio; canvas.height = h * ratio;
+    // canvas.height gets overwritten below with the DPR-scaled bitmap size,
+    // so remember the design height from the first call — re-reading it on a
+    // redraw (e.g. iOS Safari fires resize when the URL bar collapses) would
+    // multiply the height by DPR every time and blow the chart up.
+    if (!canvas.dataset.baseH) canvas.dataset.baseH = canvas.height || 320;
+    const h = +canvas.dataset.baseH;
+    canvas.width = Math.round(w * ratio); canvas.height = Math.round(h * ratio);
     canvas.style.height = h + "px";
     const ctx = canvas.getContext("2d");
-    ctx.scale(ratio, ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     return { ctx, w, h };
   }
 
@@ -325,6 +331,9 @@
     ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(w - pad.r, zeroY); ctx.stroke();
 
     const gW = plotW / groups.length;
+    // Thin labels on narrow screens: skip labels that would overlap.
+    const maxLabelW = Math.max(...groups.map((g) => ctx.measureText(g.label).width), 1);
+    const labelStep = Math.max(1, Math.ceil((maxLabelW + 10) / gW));
     groups.forEach((grp, gi) => {
       const n = grp.bars.length;
       const inner = gW * 0.62;
@@ -339,10 +348,12 @@
         roundRect(ctx, bx + bw * 0.1, top, bw * 0.8, Math.max(2, bot - top), r);
         ctx.fill();
       });
-      // group label
-      ctx.fillStyle = "rgba(147,160,189,0.85)"; ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(grp.label, pad.l + gi * gW + gW / 2, h - pad.b + 12);
-      ctx.textBaseline = "middle";
+      // group label (every Nth on narrow screens)
+      if (gi % labelStep === 0) {
+        ctx.fillStyle = "rgba(147,160,189,0.85)"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(grp.label, pad.l + gi * gW + gW / 2, h - pad.b + 12);
+        ctx.textBaseline = "middle";
+      }
     });
   }
 
