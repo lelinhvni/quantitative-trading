@@ -1133,3 +1133,56 @@ button { font: inherit; cursor: pointer; }
   .trade-card__summary { gap: 6px 14px; }
   .msg-bubble { max-width: 92%; }
 }
+
+/* ============================================================
+   ADMIN PORTAL — investors, capital, cash flow
+   ============================================================ */
+.status-pill {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.status-pill--active    { background: rgba(52,211,153,0.14); color: #34d399; }
+.status-pill--pending   { background: rgba(251,191,36,0.14); color: #fbbf24; }
+.status-pill--redeeming { background: rgba(129,140,248,0.14); color: #818cf8; }
+.status-pill--closed    { background: rgba(148,163,184,0.14); color: #94a3b8; }
+
+.inv-row { cursor: pointer; }
+.inv-row:hover td { background: rgba(94,234,212,0.04); }
+.inv-email { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+
+.inv-profile__head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+}
+.inv-profile__controls { display: flex; align-items: center; gap: 12px; }
+.inv-ctl-label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.inv-ctl-label select {
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border); color: var(--text);
+  border-radius: 8px; padding: 6px 10px; font-size: 0.85rem;
+}
+
+.fee-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.fee-item {
+  flex: 1; min-width: 160px; border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px;
+}
+.fee-item__l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.fee-item__v { font-size: 1.05rem; font-weight: 600; }
+
+.cap-preview {
+  background: rgba(94,234,212,0.05); border: 1px dashed rgba(94,234,212,0.25);
+  border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; color: var(--muted); line-height: 1.6;
+}
+.cap-preview b { color: var(--text); }
+
+.wd-request {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px;
+}
+.wd-request__info { font-size: 0.9rem; }
+.wd-request__actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* Panels: full-width charts (donuts/sparklines keep their fixed sizes) */
+.panel > canvas { width: 100%; }

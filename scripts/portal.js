@@ -131,6 +131,17 @@
       legs:[
         {symbol:"QQQ 460P", qty:-2, entry:1.45, current:0.50, close:null},
       ]},
+    { id:"t13", name:"SPY Iron Condor (Jul)",      returnPct: 0.0,  pnl:    0,
+      createdAt:"2026-06-23", expiration:"2026-07-10",
+      netCredit:540, chance:78, maxLoss:4460, maxProfit:540, high:585, low:535,
+      delta:-0.05, theta:44.0, gamma:0.003, vega:-11.2, rho:0.6, iv:16.9,
+      group:"Iron Condor", status:"open",
+      legs:[
+        {symbol:"SPY 538P", qty:-3, entry:1.70, current:1.20, close:null},
+        {symbol:"SPY 533P", qty: 3, entry:1.05, current:0.75, close:null},
+        {symbol:"SPY 582C", qty:-3, entry:1.55, current:1.10, close:null},
+        {symbol:"SPY 587C", qty: 3, entry:1.02, current:0.72, close:null},
+      ]},
   ];
 
   const DEMO_MSGS_KEY = "jss_msgs_v1";
@@ -373,7 +384,7 @@
     document.getElementById("greeting").textContent = "Welcome, " + user.name;
     document.getElementById("roleLine").textContent = user.role === "manager" ? "Fund manager (demo)" : "Investor account (demo)";
     const body = document.getElementById("portalBody");
-    if (user.role === "manager") { body.innerHTML = demoManagerBody(); revealAll(); }
+    if (user.role === "manager") { body.innerHTML = demoManagerBody(); revealAll(); switchAdminTab(_adminTab); }
     else { body.innerHTML = demoInvestorShell(user); revealAll(); switchDemoTab("overview", user); }
   }
 
@@ -407,7 +418,7 @@
     );
     const el = document.getElementById("tabContent");
     if (!el) return;
-    if      (tab === "overview")  { el.innerHTML = overviewHtml(user);    drawOverviewCharts(user); }
+    if      (tab === "overview")  { el.innerHTML = overviewHtml(user);    drawOverviewCharts(user); bindWithdrawRequest(); }
     else if (tab === "results")   { el.innerHTML = results2026Html();      drawResultsChart(); }
     else if (tab === "trades")    { el.innerHTML = tradesDetailHtml();     bindTradeToggles(); bindTradeFilter(); }
     else if (tab === "messages")  { el.innerHTML = messagesHtml("investor"); bindMsgForm("investor"); markMsgsRead(); }
@@ -453,6 +464,8 @@
       </div>
 
       ${riskPanelHtml(risk)}
+
+      ${withdrawPanelHtml()}
 
       <div class="panel reveal">
         <div class="panel__head"><h2>Portfolio holdings</h2><span class="panel__sub">Illustrative allocation</span></div>
@@ -547,6 +560,65 @@
       localStorage.setItem(DEMO_RISK_KEY, key);
       const opt = RISK_OPTIONS.find(r => r.key === key);
       riskNote.textContent = `Preference saved: ${opt.label} (${opt.target}). Manager notified.`;
+    });
+  }
+
+  /* ============================================================
+     WITHDRAWAL REQUEST (investor → manager approval queue)
+     ============================================================ */
+  const DEMO_INVESTOR_ID = "inv_a"; // demo investor maps to Alex Nguyen
+
+  function withdrawPanelHtml() {
+    const d = getAdminData();
+    const mine = d.withdrawals.filter(w => w.investorId === DEMO_INVESTOR_ID);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Request a withdrawal</h2><span class="panel__sub">Reviewed by the fund manager, usually within 1 business day</span></div>
+        <form class="mgr-form" id="wdReqForm">
+          <div class="field"><label>Amount ($)</label><input type="number" id="wdReqAmount" min="100" step="100" required placeholder="5000" /></div>
+          <div class="field field--full"><label>Note (optional)</label><input type="text" id="wdReqNote" placeholder="Reason or instructions" /></div>
+          <button type="submit" class="btn btn--ghost btn--sm">Submit request</button>
+          <p class="cta__note" id="wdReqMsg" role="status" aria-live="polite"></p>
+        </form>
+        ${mine.length ? `
+        <div class="table-wrap" style="margin-top:14px"><table class="ttable">
+          <thead><tr><th>Date</th><th>Amount</th><th>Note</th><th>Status</th></tr></thead>
+          <tbody>${mine.map(w => `
+            <tr>
+              <td class="mono">${w.date}</td>
+              <td class="mono">${F.fmtMoney(w.amount,0)}</td>
+              <td>${esc(w.note||"")}</td>
+              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "denied" ? "closed" : "pending"}">${w.status}</span></td>
+            </tr>`).join("")}</tbody></table></div>` : ""}
+      </div>`;
+  }
+
+  function bindWithdrawRequest() {
+    const form = document.getElementById("wdReqForm");
+    if (!form) return;
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const msg = document.getElementById("wdReqMsg");
+      const amount = parseFloat(document.getElementById("wdReqAmount").value);
+      if (!amount || amount <= 0) return;
+      const d = getAdminData();
+      const inv = d.investors.find(i => i.id === DEMO_INVESTOR_ID);
+      const value = inv ? inv.units * latestNavPU(d) : 0;
+      if (amount > value) {
+        msg.textContent = "Amount exceeds your account value of " + F.fmtMoney(value,0) + ".";
+        msg.classList.add("is-error");
+        return;
+      }
+      d.withdrawals.push({
+        id: "w" + Date.now(), investorId: DEMO_INVESTOR_ID,
+        date: new Date().toISOString().slice(0,10),
+        amount, note: (document.getElementById("wdReqNote").value||"").trim(),
+        status: "pending",
+      });
+      saveAdminData(d);
+      msg.classList.remove("is-error");
+      msg.textContent = "✓ Request submitted — the manager will review it shortly.";
+      form.reset();
     });
   }
 
@@ -827,46 +899,626 @@
   }
 
   /* ============================================================
-     DEMO MANAGER VIEW
+     ADMIN DATA STORE (demo — localStorage; mirrors Supabase schema)
      ============================================================ */
-  function demoManagerBody() {
-    const investors = [
-      {name:"Sample Investor A", units:25, val:25000*1.242},
-      {name:"Sample Investor B", units:50, val:50000*1.242},
-      {name:"Sample Investor C", units:12, val:12500*1.242},
-    ];
-    const aum  = investors.reduce((a,i) => a+i.val, 0);
-    const msgs = initDemoMsgs();
-    const invMsgs = msgs.filter(m => m.from==="investor");
-    return `
-      <div class="demo-banner">Demo data. Configure Supabase for real investor management.</div>
-      <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(aum,0)}</div><div class="metric__l">AUM (demo)</div></div>
-        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
-        <div class="metric"><div class="metric__v">1,242.00</div><div class="metric__l">NAV / unit</div></div>
-        <div class="metric"><div class="metric__v pos">+${F.fmtMoney(6050,0)}</div><div class="metric__l">2026 P&amp;L</div></div>
-        <div class="metric"><div class="metric__v">${invMsgs.length}</div><div class="metric__l">Investor messages</div></div>
-      </div>
+  const ADMIN_KEY = "jss_admin_v1";
 
+  function adminSeed() {
+    return {
+      navHistory: [
+        { date:"2026-01-01", nav:1000 },
+        { date:"2026-02-01", nav:1052 },
+        { date:"2026-03-01", nav:1060 },
+        { date:"2026-04-01", nav:1086 },
+        { date:"2026-05-01", nav:1142 },
+        { date:"2026-06-01", nav:1194 },
+        { date:"2026-06-28", nav:1242 },
+      ],
+      investors: [
+        { id:"inv_a", name:"Alex Nguyen", email:"alex@example.com", phone:"+1 555-0101",
+          status:"active", since:"2026-01-02", units:25, riskPref:"balanced",
+          notes:"Referred by family friend. Prefers annual summaries." },
+        { id:"inv_b", name:"Bao Tran", email:"bao@example.com", phone:"+1 555-0102",
+          status:"active", since:"2026-01-02", units:50, riskPref:"growth",
+          notes:"Largest account. Asked about performance fees in May." },
+        { id:"inv_c", name:"Chi Le", email:"chi@example.com", phone:"+1 555-0103",
+          status:"active", since:"2026-03-02", units:12.5, riskPref:"conservative",
+          notes:"Wants capital preservation. Check in quarterly." },
+        { id:"inv_d", name:"Dana Pham", email:"dana@example.com", phone:"+1 555-0104",
+          status:"pending", since:null, units:0, riskPref:"balanced",
+          notes:"Met at investor meetup — waiting on funding decision." },
+      ],
+      capitalEvents: [
+        { id:"e1", investorId:"inv_a", date:"2026-01-02", type:"deposit", amount:25000, nav:1000, units:25 },
+        { id:"e2", investorId:"inv_b", date:"2026-01-02", type:"deposit", amount:50000, nav:1000, units:50 },
+        { id:"e3", investorId:"inv_c", date:"2026-03-02", type:"deposit", amount:13250, nav:1060, units:12.5 },
+      ],
+      withdrawals: [
+        { id:"w1", investorId:"inv_b", date:"2026-06-25", amount:5000, note:"Partial — home renovation", status:"pending" },
+      ],
+    };
+  }
+
+  function getAdminData() {
+    try {
+      const d = JSON.parse(localStorage.getItem(ADMIN_KEY));
+      if (d && d.investors) return d;
+    } catch {}
+    const s = adminSeed();
+    saveAdminData(s);
+    return s;
+  }
+  function saveAdminData(d) { localStorage.setItem(ADMIN_KEY, JSON.stringify(d)); }
+
+  /* NAV as of a date (latest entry ≤ date; clamps to first/last) */
+  function navAt(d, dateStr) {
+    let nav = d.navHistory[0].nav;
+    for (const p of d.navHistory) { if (p.date <= dateStr) nav = p.nav; else break; }
+    return nav;
+  }
+  function latestNavPU(d) { return d.navHistory[d.navHistory.length - 1].nav; }
+
+  function invDerived(inv, d) {
+    const evs  = d.capitalEvents.filter(e => e.investorId === inv.id);
+    const dep  = evs.filter(e => e.type === "deposit").reduce((a,e) => a + e.amount, 0);
+    const wd   = evs.filter(e => e.type === "withdrawal").reduce((a,e) => a + e.amount, 0);
+    const invested = dep - wd;
+    const value = inv.units * latestNavPU(d);
+    const gain  = value - invested;
+    const retPct = invested > 0 ? (gain / invested) * 100 : null;
+    return { deposits:dep, withdrawals:wd, invested, value, gain, retPct, events:evs };
+  }
+
+  function fundTotals(d) {
+    const units = d.investors.reduce((a,i) => a + i.units, 0);
+    const aum   = units * latestNavPU(d);
+    const dep   = d.capitalEvents.filter(e => e.type === "deposit").reduce((a,e) => a + e.amount, 0);
+    const wd    = d.capitalEvents.filter(e => e.type === "withdrawal").reduce((a,e) => a + e.amount, 0);
+    return { units, aum, deposits:dep, withdrawals:wd, netInvested:dep - wd, pnl:aum - (dep - wd) };
+  }
+
+  /* Collateral tied up by an open trade (max loss, or CSP strike × 100 × qty) */
+  function openCollateral(t) {
+    if (t.maxLoss != null) return t.maxLoss;
+    const leg = t.legs[0];
+    const strike = parseFloat((leg.symbol.split(" ")[1] || "0"));
+    return strike * 100 * Math.abs(leg.qty);
+  }
+
+  /* Monthly cash-flow statement rows computed from NAV history + events */
+  function monthlyStatement(d) {
+    const months = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06"];
+    const names  = ["Jan","Feb","Mar","Apr","May","Jun"];
+    return months.map((m, i) => {
+      const mStart = m + "-01";
+      const nStart = navAt(d, mStart);
+      const nEnd   = i < 5 ? navAt(d, months[i+1] + "-01") : latestNavPU(d);
+      const inMonth = d.capitalEvents.filter(e => e.date.slice(0,7) === m);
+      const before  = d.capitalEvents.filter(e => e.date < mStart);
+      const unitsStart = before.reduce((a,e) => a + (e.type === "deposit" ? e.units : -e.units), 0);
+      let pnl = unitsStart * (nEnd - nStart);
+      inMonth.forEach(e => { pnl += (e.type === "deposit" ? e.units : -e.units) * (nEnd - e.nav); });
+      const dep = inMonth.filter(e => e.type === "deposit").reduce((a,e) => a + e.amount, 0);
+      const wd  = inMonth.filter(e => e.type === "withdrawal").reduce((a,e) => a + e.amount, 0);
+      const unitsEnd = unitsStart + inMonth.reduce((a,e) => a + (e.type === "deposit" ? e.units : -e.units), 0);
+      const mgmtFee = (0.02 / 12) * unitsEnd * nEnd;
+      return { name:names[i], deposits:dep, withdrawals:wd, pnl, mgmtFee, net:dep - wd + pnl };
+    });
+  }
+
+  /* ============================================================
+     ADMIN PORTAL SHELL + TABS
+     ============================================================ */
+  let _adminTab = "dashboard";
+
+  function demoManagerBody() {
+    return `
+      <div class="demo-banner">Demo data — stored locally in your browser. Configure Supabase for live accounts.</div>
+      <div class="portal-tabs" role="tablist">
+        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"]]
+          .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_adminTab?"is-active":""}" data-atab="${k}" role="tab">${l}</button>`).join("")}
+      </div>
+      <div id="adminTabContent"></div>`;
+  }
+
+  function switchAdminTab(tab) {
+    _adminTab = tab;
+    document.querySelectorAll(".admin-tab").forEach(b =>
+      b.classList.toggle("is-active", b.dataset.atab === tab)
+    );
+    const el = document.getElementById("adminTabContent");
+    if (!el) return;
+    if      (tab === "dashboard") { el.innerHTML = adminDashboardHtml(); drawAdminDashboard(); }
+    else if (tab === "investors") { el.innerHTML = adminInvestorsHtml(); bindInvestorsTab(); }
+    else if (tab === "capital")   { el.innerHTML = adminCapitalHtml();   bindCapitalTab(); }
+    else if (tab === "cashflow")  { el.innerHTML = adminCashflowHtml();  drawCashflow(); bindCsvExport(); }
+    else if (tab === "trading")   { el.innerHTML = adminTradingHtml();   bindTradeToggles(); }
+    else if (tab === "messages")  { el.innerHTML = adminMessagesHtml(); }
+    revealAll();
+  }
+
+  /* ---------- TAB: Dashboard ---------- */
+  function adminDashboardHtml() {
+    const d = getAdminData();
+    const t = fundTotals(d);
+    const active = d.investors.filter(i => i.status === "active").length;
+    const recent = [...d.capitalEvents].sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
+    const byId = Object.fromEntries(d.investors.map(i => [i.id, i]));
+    return `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(t.aum,0)}</div><div class="metric__l">AUM</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(t.netInvested,0)}</div><div class="metric__l">Net invested</div></div>
+        <div class="metric"><div class="metric__v ${t.pnl>=0?"pos":"neg"}">${t.pnl>=0?"+":""}${F.fmtMoney(t.pnl,0)}</div><div class="metric__l">Total P&amp;L</div></div>
+        <div class="metric"><div class="metric__v">${active}</div><div class="metric__l">Active investors</div></div>
+        <div class="metric"><div class="metric__v mono">${F.fmtNum(latestNavPU(d),2)}</div><div class="metric__l">NAV / unit</div></div>
+      </div>
       <div class="panel reveal">
-        <div class="panel__head"><h2>Investors (demo)</h2></div>
+        <div class="panel__head"><h2>Capital timeline — 2026</h2><span class="panel__sub">Fund value vs net invested; the gap is P&amp;L</span></div>
+        <canvas id="capTimeline" height="280" role="img" aria-label="Capital timeline"></canvas>
+        <p class="portal__note" style="margin-top:12px">
+          AUM ${F.fmtMoney(t.aum,0)} = deposits ${F.fmtMoney(t.deposits,0)}
+          − withdrawals ${F.fmtMoney(t.withdrawals,0)}
+          + P&amp;L <span class="pos">${t.pnl>=0?"+":""}${F.fmtMoney(t.pnl,0)}</span>
+        </p>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Recent capital activity</h2></div>
+        ${recent.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Investor</th><th>Type</th><th>Amount</th><th>NAV</th><th>Units</th></tr></thead>
+          <tbody>${recent.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><b>${esc(byId[e.investorId] ? byId[e.investorId].name : "—")}</b></td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(e.amount,0)}</td>
+              <td class="mono">${F.fmtNum(e.nav,0)}</td>
+              <td class="mono">${e.type==="deposit"?"+":"−"}${F.fmtNum(e.units,4)}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
+      </div>`;
+  }
+
+  function drawAdminDashboard() {
+    const c = document.getElementById("capTimeline");
+    if (!c) return;
+    const d = getAdminData();
+    const labels = [], invested = [], value = [];
+    d.navHistory.forEach(p => {
+      const evs = d.capitalEvents.filter(e => e.date <= p.date);
+      const inv = evs.reduce((a,e) => a + (e.type==="deposit" ? e.amount : -e.amount), 0);
+      const un  = evs.reduce((a,e) => a + (e.type==="deposit" ? e.units : -e.units), 0);
+      labels.push(p.date.slice(5));
+      invested.push(inv);
+      value.push(un * p.nav);
+    });
+    F.chart.lineChart(c, {
+      labels,
+      series: [
+        { values: value,    color:"#5eead4", fill:"rgba(94,234,212,0.14)", width:2.4 },
+        { values: invested, color:"#818cf8", width:2 },
+      ],
+      yFmt: v => "$" + (v/1000).toFixed(0) + "k",
+    });
+  }
+
+  /* ---------- TAB: Investors ---------- */
+  let _profileId = null;
+
+  function adminInvestorsHtml() {
+    if (_profileId) return investorProfileHtml(_profileId);
+    const d = getAdminData();
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor accounts</h2><span class="panel__sub">Click a row to open the full profile</span></div>
         <div class="table-wrap"><table class="ttable">
-          <thead><tr><th>Investor</th><th>Units</th><th>Est. value</th></tr></thead>
-          <tbody>${investors.map(i=>`<tr><td><b>${i.name}</b></td><td class="mono">${i.units}.0000</td><td class="mono">${F.fmtMoney(i.val,0)}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>Investor</th><th>Status</th><th>Units</th><th>Value</th><th>Invested</th><th>Return</th><th>Since</th></tr></thead>
+          <tbody>${d.investors.map(inv => {
+            const x = invDerived(inv, d);
+            return `<tr class="inv-row" data-id="${inv.id}">
+              <td><b>${esc(inv.name)}</b><div class="inv-email">${esc(inv.email)}</div></td>
+              <td><span class="status-pill status-pill--${inv.status}">${inv.status}</span></td>
+              <td class="mono">${F.fmtNum(inv.units,4)}</td>
+              <td class="mono">${F.fmtMoney(x.value,0)}</td>
+              <td class="mono">${F.fmtMoney(x.invested,0)}</td>
+              <td class="mono ${x.retPct!=null&&x.retPct>=0?"pos":x.retPct!=null?"neg":""}">${x.retPct!=null?(x.retPct>=0?"+":"")+x.retPct.toFixed(1)+"%":"—"}</td>
+              <td class="mono">${inv.since||"—"}</td>
+            </tr>`;
+          }).join("")}</tbody>
         </table></div>
       </div>
-
       <div class="panel reveal">
-        <div class="panel__head"><h2>2026 Trade Log</h2><span class="panel__sub">All 12 positions — Column C is final P&amp;L</span></div>
-        <div class="trade-cards">
-          ${DEMO_TRADES.map(tradeCardHtml).join("")}
+        <div class="panel__head"><h2>Add investor</h2><span class="panel__sub">Creates a profile with zero units — fund it from the Capital tab</span></div>
+        <form class="mgr-form" id="addInvForm">
+          <div class="field"><label>Name</label><input type="text" name="name" required placeholder="Full name" /></div>
+          <div class="field"><label>Email</label><input type="email" name="email" required placeholder="name@email.com" /></div>
+          <div class="field"><label>Phone</label><input type="text" name="phone" placeholder="+1 …" /></div>
+          <div class="field"><label>Status</label>
+            <select name="status"><option value="pending">Pending</option><option value="active">Active</option></select>
+          </div>
+          <button type="submit" class="btn btn--primary">Add investor</button>
+          <p class="cta__note" id="addInvNote" role="status" aria-live="polite"></p>
+        </form>
+      </div>`;
+  }
+
+  function investorProfileHtml(id) {
+    const d = getAdminData();
+    const inv = d.investors.find(i => i.id === id);
+    if (!inv) { _profileId = null; return adminInvestorsHtml(); }
+    const x = invDerived(inv, d);
+    const riskOpt = RISK_OPTIONS.find(r => r.key === inv.riskPref);
+    const hwm = Math.max(x.value, x.invested);
+    const mgmtFee = x.invested > 0 ? 0.02 * ((x.invested + x.value) / 2) * 0.5 : 0;
+    const perfFee = Math.max(0, x.gain) * 0.20;
+    return `
+      <button class="btn btn--ghost btn--sm reveal" id="backToInvestors">&larr; All investors</button>
+      <div class="panel reveal" style="margin-top:14px">
+        <div class="inv-profile__head">
+          <div>
+            <h2 style="margin-bottom:4px">${esc(inv.name)}</h2>
+            <p class="inv-email">${esc(inv.email)}${inv.phone ? " · " + esc(inv.phone) : ""}${inv.since ? " · investor since " + inv.since : ""}</p>
+          </div>
+          <div class="inv-profile__controls">
+            <label class="inv-ctl-label">Status
+              <select id="profStatus">
+                ${["pending","active","redeeming","closed"].map(s => `<option value="${s}" ${s===inv.status?"selected":""}>${s[0].toUpperCase()+s.slice(1)}</option>`).join("")}
+              </select>
+            </label>
+            <span class="status-pill status-pill--${inv.status}">${inv.status}</span>
+          </div>
+        </div>
+        <div class="metricrow" style="margin-top:18px">
+          <div class="metric"><div class="metric__v">${F.fmtMoney(x.value,0)}</div><div class="metric__l">Current value</div></div>
+          <div class="metric"><div class="metric__v">${F.fmtMoney(x.invested,0)}</div><div class="metric__l">Net invested</div></div>
+          <div class="metric"><div class="metric__v ${x.gain>=0?"pos":"neg"}">${x.gain>=0?"+":""}${F.fmtMoney(x.gain,0)}</div><div class="metric__l">Gain / loss</div></div>
+          <div class="metric"><div class="metric__v ${x.retPct!=null&&x.retPct>=0?"pos":"neg"}">${x.retPct!=null?(x.retPct>=0?"+":"")+x.retPct.toFixed(1)+"%":"—"}</div><div class="metric__l">Return</div></div>
+          <div class="metric"><div class="metric__v mono">${F.fmtNum(inv.units,4)}</div><div class="metric__l">Units</div></div>
+        </div>
+        <p class="portal__note" style="margin-top:10px">Risk preference: <b>${riskOpt ? riskOpt.label + " (" + riskOpt.target + ")" : inv.riskPref}</b></p>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Capital history</h2></div>
+        ${x.events.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>NAV at txn</th><th>Units</th></tr></thead>
+          <tbody>${x.events.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(e.amount,0)}</td>
+              <td class="mono">${F.fmtNum(e.nav,2)}</td>
+              <td class="mono">${e.type==="deposit"?"+":"−"}${F.fmtNum(e.units,4)}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet — add a deposit from the Capital tab.</p>`}
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Fees (accrued estimate — memo only)</h2><span class="panel__sub">2% management / 20% performance above high-water mark</span></div>
+        <div class="fee-grid">
+          <div class="fee-item"><span class="fee-item__l">Management fee YTD</span><span class="fee-item__v mono">${F.fmtMoney(mgmtFee,0)}</span></div>
+          <div class="fee-item"><span class="fee-item__l">Performance fee accrued</span><span class="fee-item__v mono">${F.fmtMoney(perfFee,0)}</span></div>
+          <div class="fee-item"><span class="fee-item__l">High-water mark</span><span class="fee-item__v mono">${F.fmtMoney(hwm,0)}</span></div>
         </div>
       </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Private notes</h2><span class="panel__sub">Only visible to you</span></div>
+        <textarea id="profNotes" class="csv-textarea" rows="3">${esc(inv.notes||"")}</textarea>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:12px">
+          <button class="btn btn--ghost btn--sm" id="saveNotesBtn">Save notes</button>
+          <span class="cta__note" id="notesNote" role="status" aria-live="polite"></span>
+        </div>
+      </div>`;
+  }
 
+  function bindInvestorsTab() {
+    document.querySelectorAll(".inv-row").forEach(r =>
+      r.addEventListener("click", () => { _profileId = r.dataset.id; switchAdminTab("investors"); })
+    );
+    const back = document.getElementById("backToInvestors");
+    if (back) back.addEventListener("click", () => { _profileId = null; switchAdminTab("investors"); });
+
+    const addForm = document.getElementById("addInvForm");
+    if (addForm) addForm.addEventListener("submit", e => {
+      e.preventDefault();
+      const d = getAdminData();
+      const t = addForm.elements;
+      d.investors.push({
+        id: "inv_" + Date.now(), name: t.name.value.trim(), email: t.email.value.trim(),
+        phone: t.phone.value.trim(), status: t.status.value,
+        since: t.status.value === "active" ? new Date().toISOString().slice(0,10) : null,
+        units: 0, riskPref: "balanced", notes: "",
+      });
+      saveAdminData(d);
+      switchAdminTab("investors");
+    });
+
+    const statusSel = document.getElementById("profStatus");
+    if (statusSel) statusSel.addEventListener("change", () => {
+      const d = getAdminData();
+      const inv = d.investors.find(i => i.id === _profileId);
+      if (!inv) return;
+      inv.status = statusSel.value;
+      if (statusSel.value === "active" && !inv.since) inv.since = new Date().toISOString().slice(0,10);
+      saveAdminData(d);
+      switchAdminTab("investors");
+    });
+
+    const saveNotes = document.getElementById("saveNotesBtn");
+    if (saveNotes) saveNotes.addEventListener("click", () => {
+      const d = getAdminData();
+      const inv = d.investors.find(i => i.id === _profileId);
+      if (!inv) return;
+      inv.notes = document.getElementById("profNotes").value;
+      saveAdminData(d);
+      document.getElementById("notesNote").textContent = "✓ Saved.";
+    });
+  }
+
+  /* ---------- TAB: Capital ---------- */
+  function adminCapitalHtml() {
+    const d = getAdminData();
+    const pending = d.withdrawals.filter(w => w.status === "pending");
+    const byId = Object.fromEntries(d.investors.map(i => [i.id, i]));
+    const today = new Date().toISOString().slice(0,10);
+    const history = [...d.capitalEvents].sort((a,b) => b.date.localeCompare(a.date));
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Record deposit / withdrawal</h2><span class="panel__sub">Units are computed automatically from NAV on the transaction date</span></div>
+        <form class="mgr-form" id="capForm">
+          <div class="field"><label>Investor</label>
+            <select name="investorId" id="capInv">
+              ${d.investors.filter(i => i.status !== "closed").map(i => `<option value="${i.id}">${esc(i.name)}</option>`).join("")}
+            </select>
+          </div>
+          <div class="field"><label>Type</label>
+            <select name="type" id="capType"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select>
+          </div>
+          <div class="field"><label>Amount ($)</label><input type="number" name="amount" id="capAmount" min="1" step="0.01" required placeholder="10000" /></div>
+          <div class="field"><label>Date</label><input type="date" name="date" id="capDate" value="${today}" required /></div>
+          <div class="field field--full">
+            <div class="cap-preview" id="capPreview">Enter an amount to preview the unit math.</div>
+          </div>
+          <button type="submit" class="btn btn--primary">Save transaction</button>
+          <p class="cta__note" id="capNote" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Withdrawal requests</h2><span class="panel__sub">Submitted by investors from their portal</span></div>
+        ${pending.length ? pending.map(w => {
+          const inv = byId[w.investorId];
+          const x = inv ? invDerived(inv, getAdminData()) : null;
+          return `
+          <div class="wd-request" data-wid="${w.id}">
+            <div class="wd-request__info">
+              <b>${inv ? esc(inv.name) : "—"}</b> requests <b class="mono">${F.fmtMoney(w.amount,0)}</b>
+              <div class="inv-email">${w.date}${w.note ? " · " + esc(w.note) : ""}${x ? " · account value " + F.fmtMoney(x.value,0) : ""}</div>
+            </div>
+            <div class="wd-request__actions">
+              <button class="btn btn--primary btn--sm wd-approve" data-wid="${w.id}">Approve</button>
+              <button class="btn btn--ghost btn--sm wd-deny" data-wid="${w.id}">Deny</button>
+            </div>
+          </div>`;
+        }).join("") : `<p class="portal__note">No pending requests.</p>`}
+        <p class="cta__note" id="wdActionNote" role="status" aria-live="polite"></p>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>All capital events</h2></div>
+        ${history.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Investor</th><th>Type</th><th>Amount</th><th>NAV</th><th>Units</th></tr></thead>
+          <tbody>${history.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><b>${byId[e.investorId] ? esc(byId[e.investorId].name) : "—"}</b></td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(e.amount,0)}</td>
+              <td class="mono">${F.fmtNum(e.nav,2)}</td>
+              <td class="mono">${e.type==="deposit"?"+":"−"}${F.fmtNum(e.units,4)}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
+      </div>`;
+  }
+
+  function bindCapitalTab() {
+    const form = document.getElementById("capForm");
+    if (!form) return;
+    const preview = document.getElementById("capPreview");
+
+    function updatePreview() {
+      const d = getAdminData();
+      const amount = parseFloat(document.getElementById("capAmount").value);
+      const date = document.getElementById("capDate").value;
+      const type = document.getElementById("capType").value;
+      const invId = document.getElementById("capInv").value;
+      if (!amount || amount <= 0 || !date) { preview.textContent = "Enter an amount to preview the unit math."; return; }
+      const nav = navAt(d, date);
+      const units = amount / nav;
+      const inv = d.investors.find(i => i.id === invId);
+      const after = inv ? (type === "deposit" ? inv.units + units : inv.units - units) : 0;
+      preview.innerHTML =
+        `NAV on ${date}: <b class="mono">${F.fmtNum(nav,2)}</b> / unit → ` +
+        `${type === "deposit" ? "issues" : "redeems"} <b class="mono">${F.fmtNum(units,4)}</b> units. ` +
+        `${inv ? esc(inv.name) + " will hold <b class='mono'>" + F.fmtNum(after,4) + "</b> units after." : ""}` +
+        (type === "withdrawal" && after < 0 ? ` <span class="neg"><b>Insufficient units!</b></span>` : "");
+    }
+    ["capAmount","capDate","capType","capInv"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.addEventListener("input", updatePreview); el.addEventListener("change", updatePreview); }
+    });
+
+    form.addEventListener("submit", e => {
+      e.preventDefault();
+      const note = document.getElementById("capNote");
+      const d = getAdminData();
+      const amount = parseFloat(document.getElementById("capAmount").value);
+      const date = document.getElementById("capDate").value;
+      const type = document.getElementById("capType").value;
+      const invId = document.getElementById("capInv").value;
+      const inv = d.investors.find(i => i.id === invId);
+      if (!inv || !amount || amount <= 0) return;
+      const nav = navAt(d, date);
+      const units = amount / nav;
+      if (type === "withdrawal" && units > inv.units + 1e-9) {
+        note.textContent = "Error: withdrawal exceeds " + inv.name + "'s " + F.fmtNum(inv.units,4) + " units.";
+        note.classList.add("is-error");
+        return;
+      }
+      d.capitalEvents.push({ id:"e" + Date.now(), investorId:invId, date, type, amount, nav, units:+units.toFixed(6) });
+      inv.units = +(type === "deposit" ? inv.units + units : inv.units - units).toFixed(6);
+      if (inv.status === "pending" && type === "deposit") { inv.status = "active"; inv.since = date; }
+      saveAdminData(d);
+      switchAdminTab("capital");
+    });
+
+    document.querySelectorAll(".wd-approve").forEach(btn =>
+      btn.addEventListener("click", () => {
+        const d = getAdminData();
+        const w = d.withdrawals.find(x => x.id === btn.dataset.wid);
+        if (!w) return;
+        const inv = d.investors.find(i => i.id === w.investorId);
+        const today = new Date().toISOString().slice(0,10);
+        const nav = navAt(d, today);
+        const units = w.amount / nav;
+        const note = document.getElementById("wdActionNote");
+        if (!inv || units > inv.units + 1e-9) {
+          if (note) { note.textContent = "Cannot approve: exceeds available units."; note.classList.add("is-error"); }
+          return;
+        }
+        d.capitalEvents.push({ id:"e" + Date.now(), investorId:inv.id, date:today, type:"withdrawal", amount:w.amount, nav, units:+units.toFixed(6) });
+        inv.units = +(inv.units - units).toFixed(6);
+        w.status = "approved";
+        saveAdminData(d);
+        switchAdminTab("capital");
+      })
+    );
+    document.querySelectorAll(".wd-deny").forEach(btn =>
+      btn.addEventListener("click", () => {
+        const d = getAdminData();
+        const w = d.withdrawals.find(x => x.id === btn.dataset.wid);
+        if (!w) return;
+        w.status = "denied";
+        saveAdminData(d);
+        switchAdminTab("capital");
+      })
+    );
+  }
+
+  /* ---------- TAB: Cash Flow ---------- */
+  function adminCashflowHtml() {
+    const d = getAdminData();
+    const t = fundTotals(d);
+    const openTrades = DEMO_TRADES.filter(x => x.status === "open");
+    const deployed = openTrades.reduce((a,x) => a + openCollateral(x), 0);
+    const reserved = d.withdrawals.filter(w => w.status === "pending").reduce((a,w) => a + w.amount, 0);
+    const cash = Math.max(0, t.aum - deployed);
+    const deployable = Math.max(0, cash - reserved);
+    const rows = monthlyStatement(d);
+    const tot = rows.reduce((a,r) => ({deposits:a.deposits+r.deposits, withdrawals:a.withdrawals+r.withdrawals, pnl:a.pnl+r.pnl, mgmtFee:a.mgmtFee+r.mgmtFee, net:a.net+r.net}), {deposits:0,withdrawals:0,pnl:0,mgmtFee:0,net:0});
+    return `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(cash,0)}</div><div class="metric__l">Cash on hand</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(deployed,0)}</div><div class="metric__l">Deployed (collateral)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(reserved,0)}</div><div class="metric__l">Reserved (withdrawals)</div></div>
+        <div class="metric"><div class="metric__v pos">${F.fmtMoney(deployable,0)}</div><div class="metric__l">Deployable capital</div></div>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Capital allocation</h2></div>
+        <div class="port-alloc">
+          <canvas id="cashDonut" width="180" height="180" style="flex-shrink:0"></canvas>
+          <div class="port-legend">
+            <div class="port-leg"><span class="port-leg__dot" style="background:#818cf8"></span><span>Deployed as option collateral</span><span class="mono">${F.fmtMoney(deployed,0)}</span></div>
+            <div class="port-leg"><span class="port-leg__dot" style="background:#fbbf24"></span><span>Reserved for withdrawals</span><span class="mono">${F.fmtMoney(reserved,0)}</span></div>
+            <div class="port-leg"><span class="port-leg__dot" style="background:#5eead4"></span><span>Free cash (deployable)</span><span class="mono">${F.fmtMoney(deployable,0)}</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Monthly cash-flow statement — 2026</h2>
+          <button class="btn btn--ghost btn--sm" id="csvExportBtn">Export CSV</button>
+        </div>
+        <div class="table-wrap"><table class="ttable" id="cfTable">
+          <thead><tr><th>Month</th><th>Deposits in</th><th>Withdrawals out</th><th>Trading P&amp;L</th><th>Mgmt fee (memo)</th><th>Net change</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td><b>${r.name}</b></td>
+              <td class="mono">${r.deposits ? F.fmtMoney(r.deposits,0) : "—"}</td>
+              <td class="mono">${r.withdrawals ? F.fmtMoney(r.withdrawals,0) : "—"}</td>
+              <td class="mono ${r.pnl>=0?"pos":"neg"}">${r.pnl>=0?"+":""}${F.fmtMoney(r.pnl,0)}</td>
+              <td class="mono">${F.fmtMoney(r.mgmtFee,0)}</td>
+              <td class="mono ${r.net>=0?"pos":"neg"}">${r.net>=0?"+":""}${F.fmtMoney(r.net,0)}</td>
+            </tr>`).join("")}</tbody>
+          <tfoot><tr>
+            <td><b>Total</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.deposits,0)}</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.withdrawals,0)}</b></td>
+            <td class="mono pos"><b>+${F.fmtMoney(tot.pnl,0)}</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.mgmtFee,0)}</b></td>
+            <td class="mono pos"><b>+${F.fmtMoney(tot.net,0)}</b></td>
+          </tr></tfoot>
+        </table></div>
+        <p class="portal__note" style="margin-top:10px">Trading P&amp;L is derived from NAV changes × units outstanding. Management fee is shown as an accrued memo — NAV is currently reported gross of fees.</p>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Projected obligations</h2><span class="panel__sub">Open positions — worst-case cash needs by expiry</span></div>
+        ${openTrades.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Position</th><th>Expires</th><th>Collateral / max loss</th><th>Credit held</th><th>Win chance</th></tr></thead>
+          <tbody>${openTrades.map(x => `
+            <tr>
+              <td><b>${esc(x.name)}</b></td>
+              <td class="mono">${x.expiration}</td>
+              <td class="mono neg">${F.fmtMoney(openCollateral(x),0)}</td>
+              <td class="mono pos">+${F.fmtMoney(x.netCredit,0)}</td>
+              <td class="mono">${x.chance}%</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
+      </div>`;
+  }
+
+  function drawCashflow() {
+    const c = document.getElementById("cashDonut");
+    if (!c) return;
+    const d = getAdminData();
+    const t = fundTotals(d);
+    const openTrades = DEMO_TRADES.filter(x => x.status === "open");
+    const deployed = openTrades.reduce((a,x) => a + openCollateral(x), 0);
+    const reserved = d.withdrawals.filter(w => w.status === "pending").reduce((a,w) => a + w.amount, 0);
+    const free = Math.max(0, t.aum - deployed - reserved);
+    F.chart.donut(c, [
+      { value: deployed, color:"#818cf8", label:"Deployed" },
+      { value: reserved, color:"#fbbf24", label:"Reserved" },
+      { value: free,     color:"#5eead4", label:"Free" },
+    ]);
+  }
+
+  function bindCsvExport() {
+    const btn = document.getElementById("csvExportBtn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const rows = monthlyStatement(getAdminData());
+      const lines = ["Month,Deposits,Withdrawals,Trading P&L,Mgmt fee (memo),Net change"];
+      rows.forEach(r => lines.push([r.name, r.deposits, r.withdrawals, r.pnl.toFixed(2), r.mgmtFee.toFixed(2), r.net.toFixed(2)].join(",")));
+      const blob = new Blob([lines.join("\n")], { type:"text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "jss-cashflow-2026.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
+  /* ---------- TAB: Trading ---------- */
+  function adminTradingHtml() {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>2026 Trade Log</h2><span class="panel__sub">All positions — Column C is final P&amp;L</span></div>
+        <div class="trade-cards">${DEMO_TRADES.map(tradeCardHtml).join("")}</div>
+      </div>
+      ${positionsPanel(demoPositions())}
+      ${tradesPanel(demoTradesRaw(), {title:"Recent executions (demo)", sub:"Sample broker fills"})}
+      <p class="portal__note">Trade logging and CSV upload are enabled in live mode (Supabase).</p>`;
+  }
+
+  /* ---------- TAB: Messages ---------- */
+  function adminMessagesHtml() {
+    const msgs = initDemoMsgs();
+    return `
       <div class="panel reveal">
         <div class="panel__head"><h2>Investor messages</h2></div>
         <div class="msg-thread" id="msgThreadMgr">
-          ${msgs.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(m=>msgBubbleHtml(m,"manager")).join("")}
+          ${[...msgs].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(m=>msgBubbleHtml(m,"manager")).join("")}
         </div>
         <div class="msg-compose" style="margin-top:16px">
           <div class="field"><label for="mgrMsgSubject">Reply subject</label><input id="mgrMsgSubject" type="text" placeholder="RE: …" /></div>
@@ -876,10 +1528,7 @@
             <span class="cta__note" id="mgrMsgNote" role="status"></span>
           </div>
         </div>
-      </div>
-
-      ${positionsPanel(demoPositions())}
-      ${tradesPanel(demoTradesRaw(), {title:"Recent executions (demo)", sub:"Sample broker fills"})}`;
+      </div>`;
   }
 
   /* ============================================================
@@ -1170,6 +1819,14 @@
     if (!btn || !btn.dataset.tab) return;
     const session = (() => { try { return JSON.parse(sessionStorage.getItem("jss_demo_session")); } catch { return null; } })();
     if (session && session.role === "investor") switchDemoTab(btn.dataset.tab, session);
+  });
+
+  /* admin tab clicks (manager role) */
+  document.addEventListener("click", e => {
+    const btn = e.target.closest(".admin-tab");
+    if (!btn || !btn.dataset.atab) return;
+    _profileId = null;
+    switchAdminTab(btn.dataset.atab);
   });
 
   /* bind risk panel via delegation */
