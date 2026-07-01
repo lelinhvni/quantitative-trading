@@ -1186,3 +1186,30 @@ button { font: inherit; cursor: pointer; }
 
 /* Panels: full-width charts (donuts/sparklines keep their fixed sizes) */
 .panel > canvas { width: 100%; }
+
+/* ============================================================
+   MARKETS — 7-session day picker inside ETF detail
+   ============================================================ */
+.day-picker { margin: 18px 0 4px; }
+.day-picker__label {
+  font-size: 0.72rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.06em; margin-bottom: 10px;
+}
+.day-picker__row {
+  display: flex; gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
+}
+.day-chip {
+  flex: 1; min-width: 86px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: rgba(255,255,255,0.03); border: 1.5px solid var(--border);
+  border-radius: 12px; padding: 10px 8px; cursor: pointer;
+  color: var(--text); transition: border-color .15s, background .15s;
+}
+.day-chip:hover { border-color: rgba(94,234,212,0.4); }
+.day-chip.is-active { border-color: var(--teal, #5eead4); background: rgba(94,234,212,0.08); }
+.day-chip__wd { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.day-chip__d  { font-size: 0.72rem; color: var(--faint); font-family: "JetBrains Mono", monospace; }
+.day-chip__c  { font-size: 0.88rem; font-weight: 600; }
+.day-chip__p  { font-size: 0.7rem; font-family: "JetBrains Mono", monospace; }
+.day-chip__p.is-up   { color: #34d399; }
+.day-chip__p.is-down { color: #f87171; }

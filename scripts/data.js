@@ -79,7 +79,7 @@
 
   /* ---------- Yahoo Finance v8 ---------- */
   async function fetchYahoo(symbol, days, proxy) {
-    const range = days <= 30 ? "1mo" : days <= 60 ? "3mo" : "6mo";
+    const range = days <= 30 ? "1mo" : days <= 60 ? "3mo" : days <= 130 ? "6mo" : "1y";
     const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
     const url = proxy ? proxy + encodeURIComponent(base) : base;
     const json = JSON.parse(await fetchText(url, 9000));
