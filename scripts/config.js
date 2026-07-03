@@ -91,7 +91,7 @@ window.JSS_CONFIG = {
      v1 uses local demo auth so you can show the portal. Replace with a
      real backend before handling actual investor data. See README.       */
   demoUsers: [
-    { email: "manager@jss.example",  password: "jss",      role: "manager", name: "Kevin (Fund Manager)" },
+    { email: "manager@jss.example",  password: "Kv7#mgr2026wheel", role: "manager", name: "Kevin (Fund Manager)" },
     { email: "investor@jss.example", password: "investor", role: "investor", name: "Sample Investor",
       invested: 25000, since: "2025-09-01" },
   ],

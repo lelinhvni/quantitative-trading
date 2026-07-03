@@ -347,7 +347,7 @@
 
     const banner = document.createElement("div");
     banner.className = "demo-banner";
-    banner.innerHTML = `<b>Demo mode</b> — Supabase not configured. <a href="README.md" class="inline-link">See setup guide.</a>`;
+    banner.innerHTML = `<b>Preview mode</b> — the portal below runs on sample data for demonstration.`;
     document.getElementById("loginView").prepend(banner);
 
     document.querySelectorAll(".demo-cred").forEach(b =>
@@ -395,7 +395,7 @@
     const msgs     = initDemoMsgs();
     const unread   = msgs.filter(m => !m.read && m.from === "manager").length;
     return `
-      <div class="demo-banner">Demo data — configure Supabase to show real investor balances.</div>
+      <div class="demo-banner">Sample account — all figures are illustrative demo data.</div>
       ${tabNav("overview", unread)}
       <div id="tabContent"></div>`;
   }
@@ -1013,7 +1013,7 @@
 
   function demoManagerBody() {
     return `
-      <div class="demo-banner">Demo data — stored locally in your browser. Configure Supabase for live accounts.</div>
+      <div class="demo-banner">Sample data — changes are stored locally in your browser.</div>
       <div class="portal-tabs" role="tablist">
         ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"]]
           .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_adminTab?"is-active":""}" data-atab="${k}" role="tab">${l}</button>`).join("")}
