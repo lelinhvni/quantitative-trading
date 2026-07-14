@@ -238,6 +238,140 @@
       if (error) throw error;
       return data || [];
     },
+
+    /* ============================================================
+       CAPITAL — atomic deposit/withdrawal with server-side unit math
+       (manager only; NAV lookup + event + balance update in one txn)
+       ============================================================ */
+    async recordCapitalEvent({ investorId, type, amount, date, note }) {
+      const { data, error } = await this._client.rpc("record_capital_event", {
+        p_investor: investorId, p_type: type, p_amount: amount,
+        p_date: date || new Date().toISOString().slice(0, 10), p_note: note || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    /* ============================================================
+       WITHDRAWAL REQUESTS
+       ============================================================ */
+    async requestWithdrawal({ amount, note }) {
+      const session = await this.getSession();
+      const { data, error } = await this._client
+        .from("withdrawal_requests")
+        .insert({ investor_id: session.user.id, amount, note: note || null })
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async getMyWithdrawals() {
+      const session = await this.getSession();
+      if (!session) return [];
+      const { data, error } = await this._client
+        .from("withdrawal_requests").select("*")
+        .eq("investor_id", session.user.id)
+        .order("requested_at", { ascending: false }).limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+
+    async getPendingWithdrawals() {
+      const { data, error } = await this._client
+        .from("withdrawal_requests")
+        .select("*, profiles(id, name)")
+        .eq("status", "pending")
+        .order("requested_at", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+
+    /* Approve executes the redemption at today's NAV atomically */
+    async resolveWithdrawal(requestId, approve) {
+      const { data, error } = await this._client.rpc("resolve_withdrawal", {
+        p_request: requestId, p_approve: approve,
+      });
+      if (error) throw error;
+      return data;
+    },
+
+    /* ============================================================
+       RISK PREFERENCE
+       ============================================================ */
+    async setMyRiskPref(pref) {
+      const { error } = await this._client.rpc("set_my_risk_pref", { p_pref: pref });
+      if (error) throw error;
+    },
+
+    /* ============================================================
+       INVESTOR META (manager: status, phone, private notes)
+       ============================================================ */
+    async updateInvestorMeta({ investorId, status, riskPref, phone, mgrNotes }) {
+      const patch = { updated_at: new Date().toISOString() };
+      if (status   != null) patch.status    = status;
+      if (riskPref != null) patch.risk_pref = riskPref;
+      if (phone    != null) patch.phone     = phone;
+      if (mgrNotes != null) patch.mgr_notes = mgrNotes;
+      const { data, error } = await this._client
+        .from("investor_accounts").update(patch)
+        .eq("investor_id", investorId).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    /* ============================================================
+       MESSAGES — investor ↔ manager threads (realtime-capable)
+       ============================================================ */
+    async getMyMessages() {
+      const session = await this.getSession();
+      if (!session) return [];
+      const { data, error } = await this._client
+        .from("messages").select("*")
+        .eq("investor_id", session.user.id)
+        .order("created_at", { ascending: true }).limit(200);
+      if (error) throw error;
+      return data || [];
+    },
+
+    /* Manager: every thread's messages, newest threads first */
+    async getAllMessages(limit = 300) {
+      const { data, error } = await this._client
+        .from("messages").select("*, profiles(id, name)")
+        .order("created_at", { ascending: true }).limit(limit);
+      if (error) throw error;
+      return data || [];
+    },
+
+    /* investorId: for managers, the thread to post into;
+       investors always post into their own thread */
+    async sendMessage({ investorId, senderRole, subject, body }) {
+      const session = await this.getSession();
+      const thread = senderRole === "manager" ? investorId : session.user.id;
+      const { data, error } = await this._client
+        .from("messages")
+        .insert({ investor_id: thread, sender_role: senderRole, subject: subject || null, body })
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async markMessagesRead() {
+      const session = await this.getSession();
+      const { error } = await this._client
+        .from("messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("investor_id", session.user.id)
+        .eq("sender_role", "manager")
+        .is("read_at", null);
+      if (error) throw error;
+    },
+
+    subscribeMessages(onInsert) {
+      return this._client
+        .channel("messages-realtime")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) => onInsert(p.new))
+        .subscribe();
+    },
   };
 
   global.JSSDB = DB;

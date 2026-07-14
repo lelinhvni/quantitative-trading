@@ -1,5 +1,5 @@
 -- ============================================================
--- JSS Capital — seed data for testing
+-- BPSQuant — seed data for testing
 -- ============================================================
 -- IMPORTANT: Run AFTER schema.sql.
 -- Step 1: Create the manager user and investor users in the

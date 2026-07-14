@@ -1,5 +1,5 @@
 -- ============================================================
--- JSS Capital — Supabase database schema
+-- BPSQuant — Supabase database schema
 -- Run this in: Supabase dashboard → SQL editor → New query → Run
 -- ============================================================
 
@@ -194,3 +194,176 @@ SELECT
 FROM public.profiles   p
 LEFT JOIN public.investor_accounts ia ON ia.investor_id = p.id
 WHERE p.role = 'investor';
+
+-- ============================================================
+-- v2 MIGRATIONS — investor management, capital automation,
+-- withdrawal queue, message center, realtime.
+-- Safe to run on an existing v1 database (idempotent).
+-- ============================================================
+
+-- ============================================================
+-- 10. investor_accounts — lifecycle, risk preference, admin fields
+-- ============================================================
+ALTER TABLE public.investor_accounts
+  ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active'
+    CHECK (status IN ('pending','active','redeeming','closed')),
+  ADD COLUMN IF NOT EXISTS risk_pref TEXT NOT NULL DEFAULT 'balanced'
+    CHECK (risk_pref IN ('conservative','balanced','growth','aggressive')),
+  ADD COLUMN IF NOT EXISTS phone     TEXT,
+  ADD COLUMN IF NOT EXISTS mgr_notes TEXT;   -- private manager notes (RLS: manager writes; investors can read own row — keep sensitive remarks out)
+
+-- Investors set their own risk preference through this function only
+-- (they have no UPDATE policy on investor_accounts).
+CREATE OR REPLACE FUNCTION public.set_my_risk_pref(p_pref TEXT)
+RETURNS VOID SECURITY DEFINER LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  IF p_pref NOT IN ('conservative','balanced','growth','aggressive') THEN
+    RAISE EXCEPTION 'invalid risk preference %', p_pref;
+  END IF;
+  INSERT INTO public.investor_accounts (investor_id, units, risk_pref)
+  VALUES (auth.uid(), 0, p_pref)
+  ON CONFLICT (investor_id) DO UPDATE SET risk_pref = p_pref, updated_at = now();
+END; $$;
+GRANT EXECUTE ON FUNCTION public.set_my_risk_pref(TEXT) TO authenticated;
+
+-- ============================================================
+-- 11. messages — investor ↔ manager message center
+--     Each row belongs to one investor's thread.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.messages (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  investor_id UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  sender_role TEXT        NOT NULL CHECK (sender_role IN ('manager','investor')),
+  subject     TEXT,
+  body        TEXT        NOT NULL,
+  read_at     TIMESTAMPTZ,            -- set when the recipient reads it
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS messages_thread_idx ON public.messages (investor_id, created_at);
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "self_read"    ON public.messages;
+DROP POLICY IF EXISTS "self_insert"  ON public.messages;
+DROP POLICY IF EXISTS "self_mark"    ON public.messages;
+DROP POLICY IF EXISTS "manager_all"  ON public.messages;
+CREATE POLICY "self_read"   ON public.messages FOR SELECT USING (investor_id = auth.uid());
+CREATE POLICY "self_insert" ON public.messages FOR INSERT
+  WITH CHECK (investor_id = auth.uid() AND sender_role = 'investor');
+-- investors may only flip read_at on manager messages in their own thread
+CREATE POLICY "self_mark"   ON public.messages FOR UPDATE
+  USING (investor_id = auth.uid() AND sender_role = 'manager');
+CREATE POLICY "manager_all" ON public.messages FOR ALL USING (is_manager());
+
+-- ============================================================
+-- 12. withdrawal_requests — investor-initiated, manager-approved
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
+  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  investor_id  UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  amount       NUMERIC(18,2) NOT NULL CHECK (amount > 0),
+  note         TEXT,
+  status       TEXT        NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','approved','denied','cancelled')),
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at  TIMESTAMPTZ
+);
+ALTER TABLE public.withdrawal_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "self_read"   ON public.withdrawal_requests;
+DROP POLICY IF EXISTS "self_insert" ON public.withdrawal_requests;
+DROP POLICY IF EXISTS "manager_all" ON public.withdrawal_requests;
+CREATE POLICY "self_read"   ON public.withdrawal_requests FOR SELECT USING (investor_id = auth.uid());
+CREATE POLICY "self_insert" ON public.withdrawal_requests FOR INSERT
+  WITH CHECK (investor_id = auth.uid() AND status = 'pending');
+CREATE POLICY "manager_all" ON public.withdrawal_requests FOR ALL USING (is_manager());
+
+-- ============================================================
+-- 13. record_capital_event — ATOMIC deposit/withdrawal with unit math
+--     Looks up NAV on the date, computes units, writes the event and
+--     updates the investor's balance in one transaction. Manager only.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.record_capital_event(
+  p_investor UUID,
+  p_type     TEXT,
+  p_amount   NUMERIC,
+  p_date     DATE DEFAULT CURRENT_DATE,
+  p_note     TEXT DEFAULT NULL
+) RETURNS public.capital_events SECURITY DEFINER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_nav   NUMERIC;
+  v_units NUMERIC;
+  v_have  NUMERIC;
+  v_row   public.capital_events;
+BEGIN
+  IF NOT public.is_manager() THEN RAISE EXCEPTION 'manager only'; END IF;
+  IF p_type NOT IN ('deposit','withdrawal') THEN RAISE EXCEPTION 'type must be deposit or withdrawal'; END IF;
+  IF p_amount <= 0 THEN RAISE EXCEPTION 'amount must be positive'; END IF;
+
+  SELECT nav_per_unit INTO v_nav FROM public.nav_history
+   WHERE date <= p_date ORDER BY date DESC LIMIT 1;
+  IF v_nav IS NULL THEN RAISE EXCEPTION 'no NAV recorded on or before %', p_date; END IF;
+
+  v_units := round(p_amount / v_nav, 6);
+
+  IF p_type = 'withdrawal' THEN
+    SELECT units INTO v_have FROM public.investor_accounts
+     WHERE investor_id = p_investor FOR UPDATE;
+    IF COALESCE(v_have, 0) < v_units THEN
+      RAISE EXCEPTION 'withdrawal of % units exceeds balance of % units', v_units, COALESCE(v_have, 0);
+    END IF;
+  END IF;
+
+  INSERT INTO public.capital_events (investor_id, type, amount, units, nav_at_txn, date, note)
+  VALUES (p_investor, p_type, p_amount, v_units, v_nav, p_date, p_note)
+  RETURNING * INTO v_row;
+
+  INSERT INTO public.investor_accounts (investor_id, units, since, status)
+  VALUES (p_investor, v_units, p_date, 'active')
+  ON CONFLICT (investor_id) DO UPDATE SET
+    units      = investor_accounts.units + CASE WHEN p_type = 'deposit' THEN v_units ELSE -v_units END,
+    status     = CASE WHEN investor_accounts.status = 'pending' AND p_type = 'deposit'
+                      THEN 'active' ELSE investor_accounts.status END,
+    updated_at = now();
+
+  RETURN v_row;
+END; $$;
+GRANT EXECUTE ON FUNCTION public.record_capital_event(UUID, TEXT, NUMERIC, DATE, TEXT) TO authenticated;
+
+-- ============================================================
+-- 14. resolve_withdrawal — approve (executes the redemption
+--     atomically at today's NAV) or deny. Manager only.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.resolve_withdrawal(p_request UUID, p_approve BOOLEAN)
+RETURNS public.withdrawal_requests SECURITY DEFINER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_req public.withdrawal_requests;
+BEGIN
+  IF NOT public.is_manager() THEN RAISE EXCEPTION 'manager only'; END IF;
+
+  SELECT * INTO v_req FROM public.withdrawal_requests
+   WHERE id = p_request FOR UPDATE;
+  IF v_req IS NULL THEN RAISE EXCEPTION 'request not found'; END IF;
+  IF v_req.status <> 'pending' THEN RAISE EXCEPTION 'request already %', v_req.status; END IF;
+
+  IF p_approve THEN
+    PERFORM public.record_capital_event(v_req.investor_id, 'withdrawal', v_req.amount,
+                                        CURRENT_DATE, 'Approved withdrawal request');
+    UPDATE public.withdrawal_requests
+       SET status = 'approved', resolved_at = now() WHERE id = p_request
+       RETURNING * INTO v_req;
+  ELSE
+    UPDATE public.withdrawal_requests
+       SET status = 'denied', resolved_at = now() WHERE id = p_request
+       RETURNING * INTO v_req;
+  END IF;
+
+  RETURN v_req;
+END; $$;
+GRANT EXECUTE ON FUNCTION public.resolve_withdrawal(UUID, BOOLEAN) TO authenticated;
+
+-- ============================================================
+-- 15. Realtime — live updates for trades, messages, NAV and
+--     withdrawal queue (idempotent; ignores already-added tables)
+-- ============================================================
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;              EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.nav_history;         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.withdrawal_requests; EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -1,7 +1,7 @@
-# Supabase setup guide for BPSQuant
+# BPSQuant — Go-live guide (real database + public launch)
 
-Follow these steps once to connect the web app to a real backend.
-Total time: about 15 minutes.
+Follow these steps once to connect the website to a real backend with live
+auth, database, and realtime updates. Total time: about 20 minutes.
 
 ---
 
@@ -9,7 +9,8 @@ Total time: about 15 minutes.
 
 1. Go to [supabase.com](https://supabase.com) and sign up (free).
 2. Click **New project**.
-3. Give it a name (e.g. `bpsquant`), choose a region close to you, and set a strong database password. Save the password — you'll need it for the SQL editor.
+3. Name it (e.g. `bpsquant`), choose a region close to your investors, and set
+   a strong database password. Save that password.
 4. Wait ~2 minutes for the project to provision.
 
 ---
@@ -18,70 +19,71 @@ Total time: about 15 minutes.
 
 1. In your Supabase project, go to **SQL Editor** (left sidebar).
 2. Click **New query**.
-3. Open `supabase/schema.sql` from this repo and paste the entire contents.
-4. Click **Run** (or press `Ctrl+Enter`).
-5. You should see "Success. No rows returned." — the tables, RLS policies, and trigger are all set up.
+3. Open `supabase/schema.sql` from this repo and paste the **entire** contents.
+4. Click **Run**.
+5. Expect "Success. No rows returned."
+
+This creates everything in one shot:
+
+| Table | Purpose |
+|---|---|
+| `profiles` | one row per user, auto-created at signup; `role` = manager / investor |
+| `nav_history` | daily NAV per unit (drives every balance on the site) |
+| `investor_accounts` | units, lifecycle status, risk preference, phone, private notes |
+| `capital_events` | every deposit / withdrawal with NAV + units at transaction |
+| `trades` | execution log investors can see |
+| `positions` | current open positions |
+| `contact_leads` | homepage contact form |
+| `messages` | investor ↔ manager message threads |
+| `withdrawal_requests` | investor-initiated queue with approve/deny |
+
+Plus server-side functions that keep the books consistent:
+
+- **`record_capital_event(investor, type, amount, date, note)`** — the atomic
+  deposit/withdrawal: looks up NAV on that date, computes units, writes the
+  event, and updates the balance in a single transaction. Rejects overdrafts.
+- **`resolve_withdrawal(request, approve)`** — approves (executing the
+  redemption at today's NAV) or denies a request.
+- **`set_my_risk_pref(pref)`** — lets investors save their risk preference.
+
+Realtime is enabled by the schema for `trades`, `messages`, `nav_history`,
+and `withdrawal_requests` — no dashboard toggles needed.
 
 ---
 
-## 3. Enable Realtime on the trades table (for live feed)
+## 3. Create your manager account
 
-1. In Supabase, go to **Database → Replication**.
-2. Under "supabase_realtime", toggle ON the **trades** table.
+1. Go to **Authentication → Users → Add user → Create new user**.
+2. Enter your real email and a strong password. Check **Auto Confirm User**.
+3. Copy the new user's UUID from the list.
+4. In the SQL editor, run:
 
----
-
-## 4. Create user accounts
-
-### Create your manager account (Kevin)
-
-1. Go to **Authentication → Users → Add user**.
-2. Enter your own email and a strong password. Click **Create user**.
-3. Note the UUID shown for your account (it looks like `xxxxxxxx-xxxx-...`).
-
-### Set your role to manager
-
-In the SQL editor, run:
 ```sql
-UPDATE public.profiles SET role = 'manager', name = 'Kevin' WHERE id = 'YOUR-MANAGER-UUID-HERE';
+UPDATE public.profiles SET role = 'manager', name = 'Kevin' WHERE id = 'PASTE-YOUR-UUID';
 ```
 
-### Create investor accounts
+---
+
+## 4. Invite investors
 
 For each investor:
-1. Go to **Authentication → Users → Invite user**.
-2. Enter their email. Supabase will send them a sign-up link.
-3. Once they sign up, note their UUID from the Users list.
-4. In the investor portal (after you log in as manager), use the "Update investor units" form to assign their units.
 
-Or you can create investors directly in SQL — see `supabase/seed.sql` for the pattern.
+1. **Authentication → Users → Invite user** — enter their email. They receive
+   a link to set their password. (Their profile row is created automatically
+   with role `investor`.)
+2. When their first deposit arrives, record it from the manager portal's
+   Capital tab — units are computed automatically from that day's NAV, and a
+   pending investor is activated by their first deposit.
 
----
-
-## 5. Add seed / test data (optional)
-
-If you want to populate the app with realistic test data:
-
-1. First complete Step 4 and collect the UUIDs for your test users.
-2. Open `supabase/seed.sql` and replace the placeholder UUIDs at the top.
-3. Run it in the SQL editor.
+No SQL needed for day-to-day operation.
 
 ---
 
-## 6. Get your API keys
+## 5. Connect the website
 
-1. Go to **Settings → API** in your Supabase project.
-2. Copy the **Project URL** (e.g. `https://xxxx.supabase.co`).
-3. Copy the **anon (public)** key — the long `eyJhbGci...` string.
-
-> **Never use the `service_role` key in the web app.** The anon key is safe to
-> put in client-side code because Row Level Security (RLS) controls everything.
-
----
-
-## 7. Configure the web app
-
-Open `scripts/config.js` and paste your keys:
+1. **Settings → API** in Supabase: copy the **Project URL** and the
+   **anon (public)** key.
+2. Open `scripts/config.js` and paste them:
 
 ```javascript
 supabase: {
@@ -90,52 +92,80 @@ supabase: {
 },
 ```
 
-Save and push to GitHub. Done — the web app will now use real auth and your database.
+3. Commit and push to `main`. GitHub Pages redeploys automatically.
+
+> **Never put the `service_role` key in the website.** The anon key is safe to
+> commit because Row Level Security decides what every request can touch.
 
 ---
 
-## 8. Daily operation as fund manager
+## 6. First-day data
 
-### After each trading day:
+In the manager portal (or SQL editor), set your opening NAV — everything else
+derives from it:
 
-1. Log in to the **Investor Portal** at `yourdomain.com/portal.html`.
-2. In the **Update NAV** panel: enter today's date, NAV per unit (total fund value ÷ total units), and optionally the AUM.
-3. If you want to record trades, use the **Log a trade** form.
+```sql
+INSERT INTO public.nav_history (date, nav_per_unit, note)
+VALUES (CURRENT_DATE, 1000.0000, 'Fund inception');
+```
 
-### When an investor deposits:
+Then record each investor's opening deposit from the portal's Capital tab.
 
-1. Receive their funds.
-2. Calculate the units they receive: `amount ÷ current NAV per unit`.
-3. In the portal's "Update investor units" form: enter their Supabase User ID and their new total units.
-4. In Supabase SQL editor, add a capital event:
-   ```sql
-   INSERT INTO public.capital_events (investor_id, type, amount, units, nav_at_txn, date, note)
-   VALUES ('INVESTOR-UUID', 'deposit', 10000.00, 8.2507, 1212.00, CURRENT_DATE, 'Initial deposit');
-   ```
+`supabase/seed.sql` has optional test data if you want a dry run first.
 
-### What investors see
+---
 
-Investors log in at `/portal.html` with their email/password and see:
-- Current value (their units × latest NAV)
-- Net invested, total gain/loss, total return
-- Capital events (deposit/withdrawal history)
-- Account value chart over time
+## 7. Daily operation
+
+**After each trading day** — log in to the portal as manager:
+- **Update NAV**: today's date + NAV per unit (fund value ÷ total units).
+- Log trades manually or via CSV upload.
+
+**Deposits** — Capital tab → Record deposit: pick investor, amount, date.
+Units are computed and booked atomically.
+
+**Withdrawals** — investors request from their portal; you approve/deny in
+the Capital tab. Approval executes the redemption at today's NAV.
+
+**Messages** — investor questions arrive in the Messages tab; replies appear
+in their portal instantly (realtime).
+
+---
+
+## 8. Going public — launch checklist
+
+- [ ] Supabase project created, schema run, manager account set (steps 1–3)
+- [ ] Keys pasted into `scripts/config.js`, pushed, Pages deploy green
+- [ ] Opening NAV inserted; test investor invited; test deposit recorded
+- [ ] Log in as the test investor: balance, chart, messages all correct
+- [ ] Demo credentials removed from the login page (done) and `demoUsers`
+      cleared from `config.js` once real auth is confirmed working
+- [ ] Optional: custom domain — GitHub repo → Settings → Pages → Custom
+      domain (e.g. `www.bpsquant.com`), plus a `CNAME` DNS record pointing
+      to `lelinhvni.github.io`; HTTPS is automatic
+- [ ] Optional: replace `corsproxy.io` with your own proxy for market data
+      if traffic grows
 
 ---
 
 ## Security notes
 
-- **RLS is the security boundary** — every table has Row Level Security enabled. Investors can only see their own data; the manager can see everything.
-- **The anon key is safe to commit** to this repo. It can only do what RLS allows.
-- **Supabase Auth** handles password hashing, sessions, and JWTs. You never store passwords yourself.
-- **Investor data** (amounts, units, returns) is never visible to other investors — enforced by `investor_id = auth.uid()` policies.
+- **RLS is the security boundary.** Investors see only their own rows
+  (`investor_id = auth.uid()`); the manager role sees everything. The anon
+  key cannot bypass this.
+- **Money math happens server-side.** Unit issuance/redemption runs inside
+  Postgres functions — the browser never computes balances, so a tampered
+  client can't corrupt the books.
+- **Supabase Auth** handles password hashing, sessions, JWTs, and reset
+  emails. No passwords are stored in this repo (delete `demoUsers` from
+  `config.js` at launch).
 
 ---
 
 ## What comes next (v3+)
 
-- Automated NAV update from broker API (instead of manual entry)
-- Trade import from broker execution reports
-- Email statements to investors (Supabase Edge Functions + Resend)
-- Two-factor authentication
-- Compliance / KYC documents storage
+- Automated NAV update from broker API
+- Email notifications (Supabase Edge Functions + Resend)
+- Two-factor authentication for the manager account
+- Monthly PDF statements
+- KYC document storage (Supabase Storage)
