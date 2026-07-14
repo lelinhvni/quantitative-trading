@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS Capital — Supabase data layer
+   BPSQuant — Supabase data layer
    window.JSSDB is safe to use from any page that loads db.js.
    If Supabase isn't configured, isReady() returns false and
    every page falls back to demo data automatically.

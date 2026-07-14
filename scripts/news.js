@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Market news page (CNBC / Yahoo Finance via RSS->JSON)
+   BPSQuant — Market news page (CNBC / Yahoo Finance via RSS->JSON)
    Featured lead story + grid; each item opens the full article
    on the source site in a new browser tab.
    ============================================================ */

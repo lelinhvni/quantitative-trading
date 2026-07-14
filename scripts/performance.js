@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS Capital — Quant Finance page
+   BPSQuant — Quant Finance page
    Educational charts + performance dashboard.
    Uses real NAV history from Supabase when configured,
    otherwise falls back to a deterministic demo curve.
@@ -18,7 +18,7 @@
         const session = await DB.getSession();
         if (session) navData = await DB.getAllNavHistory();
       } catch (e) {
-        console.warn("[JSS] Could not load NAV history:", e.message);
+        console.warn("[BPSQuant] Could not load NAV history:", e.message);
       }
     }
 

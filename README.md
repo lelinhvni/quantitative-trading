@@ -1,6 +1,6 @@
-# JSS Capital — Fund Web App
+# BPSQuant — Fund Web App
 
-The web app for **JSS**, a systematic quantitative fund trading liquid ETFs
+The web app for **BPSQuant**, a systematic quantitative fund trading liquid ETFs
 (SPY, QQQ, DIA). It introduces the fund to prospective investors, publishes
 performance, streams a live trade feed, shows live market data, surfaces market
 news, and gives investors a portal to track their capital.
@@ -40,8 +40,8 @@ python3 -m http.server 8000
 
 Demo portal logins (front-end only):
 
-- **Investor:** `investor@jss.example` / `investor`
-- **Manager:** `manager@jss.example` / `jss`
+- **Investor:** `investor@bpsquant.example` / `investor`
+- **Manager:** `manager@bpsquant.example` — password is set privately in `scripts/config.js`
 
 ## Configuration
 

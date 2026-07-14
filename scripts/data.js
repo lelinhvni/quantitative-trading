@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Data layer
+   BPSQuant — Data layer
    Fetches market quotes / history and news, with a robust demo
    fallback so every page renders even with no network or keys.
    Also provides lightweight canvas charting (no dependencies).
@@ -136,7 +136,7 @@
           }
         }
       } catch (e) {
-        console.warn(`[JSS] ${provider} data for ${symbol} failed:`, e.message);
+        console.warn(`[BPSQuant] ${provider} data for ${symbol} failed:`, e.message);
       }
     }
     return { symbol, source: "Demo data", rows: demoSeries(symbol, days, DEMO_BASE[symbol] || 450) };
@@ -182,7 +182,7 @@
         }
       }
     } catch (e) {
-      console.warn("[JSS] news fetch failed, using sample:", e.message);
+      console.warn("[BPSQuant] news fetch failed, using sample:", e.message);
     }
     return demoNews(feed.label);
   }

@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS Capital — Investor portal
+   BPSQuant — Investor portal
    LIVE: Supabase configured → real auth + DB
    DEMO: Supabase not configured → demo login + local data
    ============================================================ */
@@ -155,16 +155,16 @@
     const existing = getDemoMsgs();
     if (existing) return existing;
     const msgs = [
-      { id:"m1", from:"manager", fromName:"JSS Capital", subject:"Welcome to JSS Capital",
+      { id:"m1", from:"manager", fromName:"BPSQuant", subject:"Welcome to BPSQuant",
         body:"Dear Investor, your account is now active. Your initial deposit is on record. Log in any time to track performance, view trades and message us with questions.",
         date:"2026-01-05T09:00:00Z", read:true },
       { id:"m2", from:"investor", fromName:"You", subject:"Question about The Wheel",
         body:"Hi, I see a lot of Wheel strategy trades. Can you explain how it reduces risk compared to just buying shares outright?",
         date:"2026-02-10T14:30:00Z", read:true },
-      { id:"m3", from:"manager", fromName:"JSS Capital", subject:"RE: Question about The Wheel",
+      { id:"m3", from:"manager", fromName:"BPSQuant", subject:"RE: Question about The Wheel",
         body:"Great question! With The Wheel we sell a cash-secured put first — collecting premium and agreeing to buy at a lower price only if the market drops. If assigned, we then sell covered calls to generate income while holding. Both steps pay us premium. It's lower risk than buying shares outright because we either never buy (premium profit) or buy at a discount with ongoing income.",
         date:"2026-02-11T10:15:00Z", read:true },
-      { id:"m4", from:"manager", fromName:"JSS Capital", subject:"Q1 2026 Performance Update",
+      { id:"m4", from:"manager", fromName:"BPSQuant", subject:"Q1 2026 Performance Update",
         body:"Q1 2026 summary: Net P&L +$2,090 across 5 closed positions. Win rate 80%. The DIA cash-secured put in March resulted in a small loss as DIA briefly declined — within normal risk parameters. Q2 is off to a strong start with two Wheel positions and an iron condor open.",
         date:"2026-04-02T08:00:00Z", read:false },
     ];
@@ -833,7 +833,7 @@
     return `
       <div class="msg-center reveal">
         <div class="panel">
-          <div class="panel__head"><h2>Messages</h2><span class="panel__sub">Your conversation with JSS Capital</span></div>
+          <div class="panel__head"><h2>Messages</h2><span class="panel__sub">Your conversation with BPSQuant</span></div>
           <div class="msg-thread" id="msgThread">
             ${sorted.map(m => msgBubbleHtml(m, role)).join("")}
           </div>
@@ -885,7 +885,7 @@
       document.getElementById("msgSubject").value = "";
       document.getElementById("msgBody").value    = "";
       note.classList.remove("is-error");
-      note.textContent = "Message sent — JSS Capital will reply within 1 business day.";
+      note.textContent = "Message sent — BPSQuant will reply within 1 business day.";
     });
   }
 
@@ -1493,7 +1493,7 @@
       const blob = new Blob([lines.join("\n")], { type:"text/csv" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "jss-cashflow-2026.csv";
+      a.download = "bpsquant-cashflow-2026.csv";
       a.click();
       URL.revokeObjectURL(a.href);
     });
@@ -1854,7 +1854,7 @@
     const note = document.getElementById("mgrMsgNote");
     if (!body) { if(note){note.textContent="Enter a reply.";note.classList.add("is-error");} return; }
     const msgs = initDemoMsgs();
-    msgs.push({id:"m"+Date.now(),from:"manager",fromName:"JSS Capital",subject:subj,body,date:new Date().toISOString(),read:false});
+    msgs.push({id:"m"+Date.now(),from:"manager",fromName:"BPSQuant",subject:subj,body,date:new Date().toISOString(),read:false});
     saveDemoMsgs(msgs);
     const thread = document.getElementById("msgThreadMgr");
     if (thread) {

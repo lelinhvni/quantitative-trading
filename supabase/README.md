@@ -1,4 +1,4 @@
-# Supabase setup guide for JSS Capital
+# Supabase setup guide for BPSQuant
 
 Follow these steps once to connect the web app to a real backend.
 Total time: about 15 minutes.
@@ -9,7 +9,7 @@ Total time: about 15 minutes.
 
 1. Go to [supabase.com](https://supabase.com) and sign up (free).
 2. Click **New project**.
-3. Give it a name (e.g. `jss-capital`), choose a region close to you, and set a strong database password. Save the password — you'll need it for the SQL editor.
+3. Give it a name (e.g. `bpsquant`), choose a region close to you, and set a strong database password. Save the password — you'll need it for the SQL editor.
 4. Wait ~2 minutes for the project to provision.
 
 ---

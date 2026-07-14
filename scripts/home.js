@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Home page interactions
+   BPSQuant — Home page interactions
    ============================================================ */
 (function () {
   "use strict";
@@ -52,7 +52,7 @@
     const cap = document.getElementById("growthCaption");
     if (cap) {
       const savEnd = sav[years], fndEnd = fnd[years];
-      cap.textContent = `In this illustration, the savings balance grows to about ${F.fmtMoney(savEnd, 0)}, while the JSS-style path reaches about ${F.fmtMoney(fndEnd, 0)} — roughly ${F.fmtMoney(fndEnd - savEnd, 0)} more, purely from compounding a higher rate. Actual returns will differ and are not guaranteed.`;
+      cap.textContent = `In this illustration, the savings balance grows to about ${F.fmtMoney(savEnd, 0)}, while the BPSQuant-style path reaches about ${F.fmtMoney(fndEnd, 0)} — roughly ${F.fmtMoney(fndEnd - savEnd, 0)} more, purely from compounding a higher rate. Actual returns will differ and are not guaranteed.`;
     }
   }
 
@@ -401,7 +401,7 @@
         try {
           await DB.submitLead({ name, email, message });
         } catch (err) {
-          console.warn("[JSS] Lead save to DB failed, falling back to localStorage:", err.message);
+          console.warn("[BPSQuant] Lead save to DB failed, falling back to localStorage:", err.message);
           saveLeadLocally(name, email, message);
         }
       } else {

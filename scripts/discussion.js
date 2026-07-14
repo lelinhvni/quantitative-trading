@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Discussion board
+   BPSQuant — Discussion board
    Topics + threaded replies stored in localStorage.
    ============================================================ */
 (function () {
@@ -14,7 +14,7 @@
       id: "seed-1",
       title: "📌 Market outlook — where are we headed?",
       body: "The Fed held rates again last week. Volatility is compressing. Good time to be selling premium? Share your read on the macro backdrop.",
-      author: "JSS Capital",
+      author: "BPSQuant",
       createdAt: "2026-06-20T08:00:00Z",
       pinned: true,
       color: "sticky--teal",
@@ -27,13 +27,13 @@
       id: "seed-2",
       title: "📌 Options 101 — beginners ask anything here",
       body: "New to options? Drop your questions in this thread. No silly questions — we were all beginners once. Our team monitors this thread weekly.",
-      author: "JSS Capital",
+      author: "BPSQuant",
       createdAt: "2026-06-18T09:00:00Z",
       pinned: true,
       color: "sticky--indigo",
       replies: [
         { id: "r-2-1", author: "Emma L.", body: "What's the difference between a put and a call? Still getting my head around it.", createdAt: "2026-06-19T14:30:00Z" },
-        { id: "r-2-2", author: "JSS Capital", body: "Great question Emma! A call gives you the right to BUY a stock at a set price. A put gives you the right to SELL. When we SELL a put, we're agreeing to buy the stock if it falls — and we get paid a premium for that promise.", createdAt: "2026-06-19T16:00:00Z" },
+        { id: "r-2-2", author: "BPSQuant", body: "Great question Emma! A call gives you the right to BUY a stock at a set price. A put gives you the right to SELL. When we SELL a put, we're agreeing to buy the stock if it falls — and we get paid a premium for that promise.", createdAt: "2026-06-19T16:00:00Z" },
       ],
     },
     {

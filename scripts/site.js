@@ -1,10 +1,10 @@
 /* ============================================================
-   JSS — Shared site chrome: nav, footer, scroll effects,
+   BPSQuant — Shared site chrome: nav, footer, scroll effects,
    reveal-on-scroll, animated counters.
    ============================================================ */
 (function () {
   "use strict";
-  const CFG = window.JSS_CONFIG || { brand: { name: "JSS" } };
+  const CFG = window.JSS_CONFIG || { brand: { name: "BPSQuant" } };
   const page = document.body.dataset.page || "";
 
   const NAV = [
@@ -23,7 +23,7 @@
     return `
     <header class="nav" id="nav">
       <div class="container nav__inner">
-        <a class="brand" href="index.html" aria-label="${CFG.brand.full || "JSS"} home">
+        <a class="brand" href="index.html" aria-label="${CFG.brand.full || "BPSQuant"} home">
           <svg class="brand__mark" width="30" height="30" viewBox="0 0 32 32" fill="none" aria-hidden="true">
             <path d="M16 2 2 9v14l14 7 14-7V9L16 2Z" stroke="url(#bg)" stroke-width="2" stroke-linejoin="round"/>
             <path d="M9 19l4-5 4 3 6-8" stroke="url(#bg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Site configuration & fund profile
+   BPSQuant — Site configuration & fund profile
    Edit this file to change content without touching markup.
    ============================================================ */
 window.JSS_CONFIG = {
@@ -21,10 +21,10 @@ window.JSS_CONFIG = {
   },
 
   brand: {
-    name: "JSS",
-    full: "JSS Capital",
+    name: "BPSQuant",
+    full: "BPSQuant",
     tagline: "Systematic ETF trading, driven by quantitative theory.",
-    email: "invest@jsscapital.com",
+    email: "invest@bpsquant.com",
   },
 
   /* ----- Market data providers -----------------------------------------
@@ -91,8 +91,8 @@ window.JSS_CONFIG = {
      v1 uses local demo auth so you can show the portal. Replace with a
      real backend before handling actual investor data. See README.       */
   demoUsers: [
-    { email: "manager@jss.example",  password: "Kv7#mgr2026wheel", role: "manager", name: "Kevin (Fund Manager)" },
-    { email: "investor@jss.example", password: "investor", role: "investor", name: "Sample Investor",
+    { email: "manager@bpsquant.example",  password: "Kv7#mgr2026wheel", role: "manager", name: "Kevin (Fund Manager)" },
+    { email: "investor@bpsquant.example", password: "investor", role: "investor", name: "Sample Investor",
       invested: 25000, since: "2025-09-01" },
   ],
 };

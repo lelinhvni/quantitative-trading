@@ -530,7 +530,7 @@ button { font: inherit; cursor: pointer; }
 .portal__note { color: var(--faint); font-size: 0.82rem; margin-top: 8px; }
 
 /* ============================================================
-   Home — Why JSS grid
+   Home — Why BPSQuant grid
    ============================================================ */
 .why__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
 @media (max-width: 680px) { .why__grid { grid-template-columns: 1fr; } }

@@ -1,5 +1,5 @@
 /* ============================================================
-   JSS — Markets page: Google Finance-style ETF row + S&P 500
+   BPSQuant — Markets page: Google Finance-style ETF row + S&P 500
    ============================================================ */
 (function () {
   "use strict";
