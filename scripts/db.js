@@ -223,6 +223,27 @@
       return data;
     },
 
+    /* Manager: full capital ledger across all investors */
+    async getAllCapitalEvents(limit = 500) {
+      const { data, error } = await this._client
+        .from("capital_events")
+        .select("*, profiles(id, name)")
+        .order("date", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data || [];
+    },
+
+    /* Manager: one investor's capital history */
+    async getInvestorCapitalEvents(investorId) {
+      const { data, error } = await this._client
+        .from("capital_events").select("*")
+        .eq("investor_id", investorId)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+
     async addCapitalEvent({ investorId, type, amount, units, navAtTxn, date, note }) {
       const { data, error } = await this._client
         .from("capital_events")
@@ -317,14 +338,16 @@
        INVESTOR META (manager: status, phone, private notes)
        ============================================================ */
     async updateInvestorMeta({ investorId, status, riskPref, phone, mgrNotes }) {
-      const patch = { updated_at: new Date().toISOString() };
+      const patch = { investor_id: investorId, updated_at: new Date().toISOString() };
       if (status   != null) patch.status    = status;
       if (riskPref != null) patch.risk_pref = riskPref;
       if (phone    != null) patch.phone     = phone;
       if (mgrNotes != null) patch.mgr_notes = mgrNotes;
+      // Upsert so metadata can be set before the first deposit creates the row
       const { data, error } = await this._client
-        .from("investor_accounts").update(patch)
-        .eq("investor_id", investorId).select().single();
+        .from("investor_accounts")
+        .upsert(patch, { onConflict: "investor_id" })
+        .select().single();
       if (error) throw error;
       return data;
     },

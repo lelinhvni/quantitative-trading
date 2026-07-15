@@ -419,42 +419,398 @@
   /* ============================================================
      LIVE MODE — MANAGER VIEW
      ============================================================ */
+  let _liveTab = "dashboard";
+  let _liveProfileId = null;
+
   async function renderManager() {
     const body = document.getElementById("portalBody");
-    body.innerHTML = `<div class="snap__loading">Loading manager dashboard…</div>`;
-    const [investors, latestNav, positions, leads, navHistory, recentTrades, profiles, pendingWd, allMsgs] = await Promise.all([
-      DB.getAllInvestors().catch(()=>[]), DB.getLatestNav().catch(()=>null),
-      DB.getPositions().catch(()=>[]), DB.getLeads().catch(()=>[]),
-      DB.getAllNavHistory().catch(()=>[]), DB.getTrades(80).catch(()=>[]),
-      DB.getInvestorProfiles().catch(()=>[]),
-      DB.getPendingWithdrawals().catch(()=>[]),
-      DB.getAllMessages().catch(()=>[]),
-    ]);
-    const navPU = latestNav ? +latestNav.nav_per_unit : 1000;
-    const aum   = investors.reduce((a,inv) => a + +inv.units * navPU, 0);
-
     body.innerHTML = `
-      <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(aum,0)}</div><div class="metric__l">AUM (est.)</div></div>
-        <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
-        <div class="metric"><div class="metric__v">${navPU?F.fmtNum(navPU,2):"—"}</div><div class="metric__l">NAV / unit</div></div>
-        <div class="metric"><div class="metric__v">${latestNav?latestNav.date:"None"}</div><div class="metric__l">Last NAV date</div></div>
-        <div class="metric"><div class="metric__v">${pendingWd.length}</div><div class="metric__l">Pending withdrawals</div></div>
+      <div class="portal-tabs" role="tablist">
+        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"]]
+          .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_liveTab?"is-active":""}" data-atab="${k}" role="tab">${l}</button>`).join("")}
       </div>
-      ${mgrNavPanel(navPU, navHistory)}
+      <div id="adminTabContent"></div>`;
+    revealAll();
+    await switchLiveTab(_liveTab);
+  }
+
+  async function switchLiveTab(tab) {
+    _liveTab = tab;
+    document.querySelectorAll(".admin-tab").forEach(b =>
+      b.classList.toggle("is-active", b.dataset.atab === tab)
+    );
+    const el = document.getElementById("adminTabContent");
+    if (!el) return;
+    el.innerHTML = `<div class="snap__loading">Loading…</div>`;
+    try {
+      if      (tab === "dashboard") await liveDashboardTab(el);
+      else if (tab === "investors") await liveInvestorsTab(el);
+      else if (tab === "capital")   await liveCapitalTab(el);
+      else if (tab === "cashflow")  await liveCashflowTab(el);
+      else if (tab === "trading")   await liveTradingTab(el);
+      else if (tab === "messages")  await liveMessagesTab(el);
+    } catch (err) {
+      el.innerHTML = `<div class="snap__loading">Could not load this tab: ${esc(err.message)}</div>`;
+    }
+    revealAll();
+  }
+
+  /* NAV as of a date from live nav_history rows (latest ≤ date) */
+  function liveNavAt(navHistory, ds) {
+    let v = null;
+    for (const p of navHistory) { if (p.date <= ds) v = +p.nav_per_unit; else break; }
+    return v != null ? v : (navHistory.length ? +navHistory[0].nav_per_unit : null);
+  }
+
+  const signedUnits = e => (e.units != null ? (e.type === "deposit" ? +e.units : -+e.units) : 0);
+
+  /* ---------- LIVE TAB: Dashboard ---------- */
+  async function liveDashboardTab(el) {
+    const [investors, latestNav, navHistory, events] = await Promise.all([
+      DB.getAllInvestors().catch(()=>[]), DB.getLatestNav().catch(()=>null),
+      DB.getAllNavHistory().catch(()=>[]), DB.getAllCapitalEvents().catch(()=>[]),
+    ]);
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const totalUnits = investors.reduce((a,i) => a + +i.units, 0);
+    const aum = navPU != null ? totalUnits * navPU : 0;
+    const dep = events.filter(e=>e.type==="deposit").reduce((a,e)=>a + +e.amount, 0);
+    const wd  = events.filter(e=>e.type==="withdrawal").reduce((a,e)=>a + +e.amount, 0);
+    const netInv = dep - wd;
+    const pnl = aum - netInv;
+    const active = investors.filter(i => (i.status||"active") === "active").length;
+    const recent = events.slice(0, 6);
+
+    el.innerHTML = `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(aum,0)}</div><div class="metric__l">AUM</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(netInv,0)}</div><div class="metric__l">Net invested</div></div>
+        <div class="metric"><div class="metric__v ${pnl>=0?"pos":"neg"}">${pnl>=0?"+":""}${F.fmtMoney(pnl,0)}</div><div class="metric__l">Total P&amp;L</div></div>
+        <div class="metric"><div class="metric__v">${active}</div><div class="metric__l">Active investors</div></div>
+        <div class="metric"><div class="metric__v mono">${navPU!=null?F.fmtNum(navPU,4):"—"}</div><div class="metric__l">NAV / unit</div></div>
+      </div>
+      ${mgrNavPanel(navPU != null ? navPU : "", navHistory)}
+      ${navHistory.length > 1 ? `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Capital timeline</h2><span class="panel__sub">Fund value vs net invested; the gap is P&amp;L</span></div>
+        <canvas id="capTimelineLive" height="280" role="img" aria-label="Capital timeline"></canvas>
+        <p class="portal__note" style="margin-top:12px">
+          AUM ${F.fmtMoney(aum,0)} = deposits ${F.fmtMoney(dep,0)} − withdrawals ${F.fmtMoney(wd,0)}
+          + P&amp;L <span class="${pnl>=0?"pos":"neg"}">${pnl>=0?"+":""}${F.fmtMoney(pnl,0)}</span>
+        </p>
+      </div>` : `<p class="portal__note">The capital timeline chart appears once there are two or more NAV entries.</p>`}
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Recent capital activity</h2></div>
+        ${recent.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Investor</th><th>Type</th><th>Amount</th><th>NAV</th><th>Units</th></tr></thead>
+          <tbody>${recent.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><b>${esc(e.profiles ? e.profiles.name : "—")}</b></td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(+e.amount,0)}</td>
+              <td class="mono">${e.nav_at_txn!=null?F.fmtNum(+e.nav_at_txn,4):"—"}</td>
+              <td class="mono">${e.units!=null?(e.type==="deposit"?"+":"−")+F.fmtNum(+e.units,4):"—"}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet — record the first deposit from the Capital tab.</p>`}
+      </div>`;
+
+    bindManagerForms(navPU);
+
+    const c = document.getElementById("capTimelineLive");
+    if (c && navHistory.length > 1) {
+      const asc = [...events].sort((a,b) => a.date.localeCompare(b.date));
+      const labels = [], invested = [], value = [];
+      navHistory.forEach(p => {
+        const upTo = asc.filter(e => e.date <= p.date);
+        invested.push(upTo.reduce((a,e) => a + (e.type==="deposit" ? +e.amount : -+e.amount), 0));
+        value.push(upTo.reduce((a,e) => a + signedUnits(e), 0) * +p.nav_per_unit);
+        labels.push(p.date.slice(5));
+      });
+      F.chart.lineChart(c, {
+        labels,
+        series: [
+          { values: value,    color:"#5eead4", fill:"rgba(94,234,212,0.14)", width:2.4 },
+          { values: invested, color:"#818cf8", width:2 },
+        ],
+        yFmt: v => "$" + (v/1000).toFixed(1) + "k",
+      });
+    }
+  }
+
+  /* ---------- LIVE TAB: Investors ---------- */
+  async function liveInvestorsTab(el) {
+    if (_liveProfileId) return liveInvestorProfile(el, _liveProfileId);
+    const [profiles, accounts, latestNav, events, leads] = await Promise.all([
+      DB.getInvestorProfiles().catch(()=>[]), DB.getAllInvestors().catch(()=>[]),
+      DB.getLatestNav().catch(()=>null), DB.getAllCapitalEvents().catch(()=>[]), DB.getLeads().catch(()=>[]),
+    ]);
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const acctOf = id => accounts.find(a => a.investor_id === id);
+    const investedOf = id => events.filter(e => e.investor_id === id)
+      .reduce((a,e) => a + (e.type==="deposit" ? +e.amount : -+e.amount), 0);
+
+    el.innerHTML = `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor accounts</h2><span class="panel__sub">Click a row for the full profile</span></div>
+        ${profiles.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Investor</th><th>Status</th><th>Units</th><th>Value</th><th>Invested</th><th>Return</th><th>Since</th></tr></thead>
+          <tbody>${profiles.map(p => {
+            const a = acctOf(p.id);
+            const units = a ? +a.units : 0;
+            const value = navPU != null ? units * navPU : null;
+            const inv = investedOf(p.id);
+            const ret = value != null && inv > 0 ? ((value - inv) / inv) * 100 : null;
+            return `<tr class="inv-row" data-id="${p.id}">
+              <td><b>${esc(p.name)}</b></td>
+              <td><span class="status-pill status-pill--${a ? a.status || "active" : "pending"}">${a ? a.status || "active" : "pending"}</span></td>
+              <td class="mono">${F.fmtNum(units,4)}</td>
+              <td class="mono">${value!=null?F.fmtMoney(value,0):"—"}</td>
+              <td class="mono">${F.fmtMoney(inv,0)}</td>
+              <td class="mono ${ret!=null&&ret>=0?"pos":ret!=null?"neg":""}">${ret!=null?(ret>=0?"+":"")+ret.toFixed(1)+"%":"—"}</td>
+              <td class="mono">${a && a.since ? a.since : "—"}</td>
+            </tr>`;
+          }).join("")}</tbody></table></div>` : `<p class="portal__note">No investors yet — invite them below.</p>`}
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Add investor</h2></div>
+        <p class="portal__note">Invite investors from the Supabase dashboard: <b>Authentication → Users → Invite user</b>. They set their own password from the emailed link and appear here automatically. Record their first deposit from the Capital tab to activate them.</p>
+      </div>
+      ${mgrLeadsPanel(leads)}`;
+
+    el.querySelectorAll(".inv-row").forEach(r =>
+      r.addEventListener("click", () => { _liveProfileId = r.dataset.id; switchLiveTab("investors"); })
+    );
+  }
+
+  async function liveInvestorProfile(el, id) {
+    const [profiles, accounts, latestNav, events] = await Promise.all([
+      DB.getInvestorProfiles().catch(()=>[]), DB.getAllInvestors().catch(()=>[]),
+      DB.getLatestNav().catch(()=>null), DB.getInvestorCapitalEvents(id).catch(()=>[]),
+    ]);
+    const p = profiles.find(x => x.id === id);
+    const a = accounts.find(x => x.investor_id === id);
+    if (!p) { _liveProfileId = null; return liveInvestorsTab(el); }
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const units = a ? +a.units : 0;
+    const value = navPU != null ? units * navPU : null;
+    const inv = events.reduce((acc,e) => acc + (e.type==="deposit" ? +e.amount : -+e.amount), 0);
+    const gain = value != null ? value - inv : null;
+    const ret = value != null && inv > 0 ? (gain / inv) * 100 : null;
+    const status = a ? a.status || "active" : "pending";
+    const riskOpt = RISK_OPTIONS.find(r => r.key === (a && a.risk_pref)) || RISK_OPTIONS[1];
+    const yearFrac = (Date.now() - new Date(new Date().getFullYear(), 0, 1)) / (365 * 864e5);
+    const mgmtFee = inv > 0 && value != null ? 0.02 * ((inv + value) / 2) * yearFrac : 0;
+    const perfFee = gain != null ? Math.max(0, gain) * 0.20 : 0;
+
+    el.innerHTML = `
+      <button class="btn btn--ghost btn--sm reveal" id="liveBackBtn">&larr; All investors</button>
+      <div class="panel reveal" style="margin-top:14px">
+        <div class="inv-profile__head">
+          <div>
+            <h2 style="margin-bottom:4px">${esc(p.name)}</h2>
+            <p class="inv-email">${a && a.phone ? esc(a.phone) + " · " : ""}${a && a.since ? "investor since " + a.since : "no deposits yet"} · email in Supabase Auth dashboard</p>
+          </div>
+          <div class="inv-profile__controls">
+            <label class="inv-ctl-label">Status
+              <select id="liveProfStatus">
+                ${["pending","active","redeeming","closed"].map(s => `<option value="${s}" ${s===status?"selected":""}>${s[0].toUpperCase()+s.slice(1)}</option>`).join("")}
+              </select>
+            </label>
+            <span class="status-pill status-pill--${status}">${status}</span>
+          </div>
+        </div>
+        <div class="metricrow" style="margin-top:18px">
+          <div class="metric"><div class="metric__v">${value!=null?F.fmtMoney(value,0):"—"}</div><div class="metric__l">Current value</div></div>
+          <div class="metric"><div class="metric__v">${F.fmtMoney(inv,0)}</div><div class="metric__l">Net invested</div></div>
+          <div class="metric"><div class="metric__v ${gain!=null&&gain>=0?"pos":"neg"}">${gain!=null?(gain>=0?"+":"")+F.fmtMoney(gain,0):"—"}</div><div class="metric__l">Gain / loss</div></div>
+          <div class="metric"><div class="metric__v ${ret!=null&&ret>=0?"pos":"neg"}">${ret!=null?(ret>=0?"+":"")+ret.toFixed(1)+"%":"—"}</div><div class="metric__l">Return</div></div>
+          <div class="metric"><div class="metric__v mono">${F.fmtNum(units,4)}</div><div class="metric__l">Units</div></div>
+        </div>
+        <p class="portal__note" style="margin-top:10px">Risk preference (set by the investor): <b>${riskOpt.label} (${riskOpt.target})</b></p>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Capital history</h2></div>
+        ${events.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>NAV at txn</th><th>Units</th><th>Note</th></tr></thead>
+          <tbody>${events.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(+e.amount,0)}</td>
+              <td class="mono">${e.nav_at_txn!=null?F.fmtNum(+e.nav_at_txn,4):"—"}</td>
+              <td class="mono">${e.units!=null?(e.type==="deposit"?"+":"−")+F.fmtNum(+e.units,4):"—"}</td>
+              <td>${esc(e.note||"")}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet — record their first deposit from the Capital tab.</p>`}
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Fees (accrued estimate — memo only)</h2><span class="panel__sub">2% management / 20% performance</span></div>
+        <div class="fee-grid">
+          <div class="fee-item"><span class="fee-item__l">Management fee YTD</span><span class="fee-item__v mono">${F.fmtMoney(mgmtFee,0)}</span></div>
+          <div class="fee-item"><span class="fee-item__l">Performance fee accrued</span><span class="fee-item__v mono">${F.fmtMoney(perfFee,0)}</span></div>
+          <div class="fee-item"><span class="fee-item__l">High-water mark</span><span class="fee-item__v mono">${value!=null?F.fmtMoney(Math.max(value, inv),0):"—"}</span></div>
+        </div>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Private notes</h2><span class="panel__sub">Only visible to you</span></div>
+        <textarea id="liveProfNotes" class="csv-textarea" rows="3">${esc(a && a.mgr_notes || "")}</textarea>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:12px">
+          <button class="btn btn--ghost btn--sm" id="liveSaveNotesBtn">Save notes</button>
+          <span class="cta__note" id="liveNotesNote" role="status" aria-live="polite"></span>
+        </div>
+      </div>`;
+
+    document.getElementById("liveBackBtn").addEventListener("click", () => {
+      _liveProfileId = null; switchLiveTab("investors");
+    });
+    document.getElementById("liveProfStatus").addEventListener("change", async (e) => {
+      try { await DB.updateInvestorMeta({ investorId: id, status: e.target.value }); switchLiveTab("investors"); }
+      catch (err) { alert("Could not update status: " + err.message); }
+    });
+    document.getElementById("liveSaveNotesBtn").addEventListener("click", async () => {
+      const note = document.getElementById("liveNotesNote");
+      try {
+        await DB.updateInvestorMeta({ investorId: id, mgrNotes: document.getElementById("liveProfNotes").value });
+        note.classList.remove("is-error"); note.textContent = "✓ Saved.";
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+  }
+
+  /* ---------- LIVE TAB: Capital ---------- */
+  async function liveCapitalTab(el) {
+    const [profiles, pending, events] = await Promise.all([
+      DB.getInvestorProfiles().catch(()=>[]), DB.getPendingWithdrawals().catch(()=>[]),
+      DB.getAllCapitalEvents().catch(()=>[]),
+    ]);
+    el.innerHTML = `
       ${mgrLiveCapitalPanel(profiles)}
-      ${mgrLiveQueuePanel(pendingWd)}
+      ${mgrLiveQueuePanel(pending)}
+      <div class="panel reveal">
+        <div class="panel__head"><h2>All capital events</h2></div>
+        ${events.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Date</th><th>Investor</th><th>Type</th><th>Amount</th><th>NAV</th><th>Units</th><th>Note</th></tr></thead>
+          <tbody>${events.map(e => `
+            <tr>
+              <td class="mono">${e.date}</td>
+              <td><b>${esc(e.profiles ? e.profiles.name : "—")}</b></td>
+              <td><span class="pill ${e.type==="deposit"?"pill--buy":"pill--sell"}">${e.type}</span></td>
+              <td class="mono">${F.fmtMoney(+e.amount,0)}</td>
+              <td class="mono">${e.nav_at_txn!=null?F.fmtNum(+e.nav_at_txn,4):"—"}</td>
+              <td class="mono">${e.units!=null?(e.type==="deposit"?"+":"−")+F.fmtNum(+e.units,4):"—"}</td>
+              <td>${esc(e.note||"")}</td>
+            </tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
+      </div>`;
+    bindMgrLiveExtras();
+  }
+
+  /* ---------- LIVE TAB: Cash Flow ---------- */
+  async function liveCashflowTab(el) {
+    const [investors, latestNav, navHistory, events, pending, positions] = await Promise.all([
+      DB.getAllInvestors().catch(()=>[]), DB.getLatestNav().catch(()=>null),
+      DB.getAllNavHistory().catch(()=>[]), DB.getAllCapitalEvents().catch(()=>[]),
+      DB.getPendingWithdrawals().catch(()=>[]), DB.getPositions().catch(()=>[]),
+    ]);
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const aum = navPU != null ? investors.reduce((a,i) => a + +i.units, 0) * navPU : 0;
+    const deployed = positions.reduce((a,pos) => a + +pos.qty * +pos.avg_cost, 0);
+    const reserved = pending.reduce((a,w) => a + +w.amount, 0);
+    const cash = Math.max(0, aum - deployed);
+    const deployable = Math.max(0, cash - reserved);
+    const rows = liveMonthlyStatement(navHistory, events);
+    const tot = rows.reduce((a,r) => ({dep:a.dep+r.dep, wd:a.wd+r.wd, pnl:a.pnl+r.pnl, fee:a.fee+r.fee, net:a.net+r.net}), {dep:0,wd:0,pnl:0,fee:0,net:0});
+
+    el.innerHTML = `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v">${F.fmtMoney(cash,0)}</div><div class="metric__l">Cash (est.)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(deployed,0)}</div><div class="metric__l">Deployed (positions)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(reserved,0)}</div><div class="metric__l">Reserved (withdrawals)</div></div>
+        <div class="metric"><div class="metric__v pos">${F.fmtMoney(deployable,0)}</div><div class="metric__l">Deployable</div></div>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Monthly cash-flow statement — ${new Date().getFullYear()}</h2>
+          <button class="btn btn--ghost btn--sm" id="liveCsvExportBtn">Export CSV</button>
+        </div>
+        ${rows.length ? `<div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Month</th><th>Deposits in</th><th>Withdrawals out</th><th>Trading P&amp;L</th><th>Mgmt fee (memo)</th><th>Net change</th></tr></thead>
+          <tbody>${rows.map(r => `
+            <tr>
+              <td><b>${r.name}</b></td>
+              <td class="mono">${r.dep ? F.fmtMoney(r.dep,0) : "—"}</td>
+              <td class="mono">${r.wd ? F.fmtMoney(r.wd,0) : "—"}</td>
+              <td class="mono ${r.pnl>=0?"pos":"neg"}">${r.pnl>=0?"+":""}${F.fmtMoney(r.pnl,0)}</td>
+              <td class="mono">${F.fmtMoney(r.fee,0)}</td>
+              <td class="mono ${r.net>=0?"pos":"neg"}">${r.net>=0?"+":""}${F.fmtMoney(r.net,0)}</td>
+            </tr>`).join("")}</tbody>
+          <tfoot><tr>
+            <td><b>Total</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.dep,0)}</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.wd,0)}</b></td>
+            <td class="mono ${tot.pnl>=0?"pos":"neg"}"><b>${tot.pnl>=0?"+":""}${F.fmtMoney(tot.pnl,0)}</b></td>
+            <td class="mono"><b>${F.fmtMoney(tot.fee,0)}</b></td>
+            <td class="mono ${tot.net>=0?"pos":"neg"}"><b>${tot.net>=0?"+":""}${F.fmtMoney(tot.net,0)}</b></td>
+          </tr></tfoot>
+        </table></div>` : `<p class="portal__note">The statement appears once there is NAV history for this year.</p>`}
+        <p class="portal__note" style="margin-top:10px">Trading P&amp;L is derived from NAV changes × units outstanding. Management fee is an accrued memo — NAV is reported gross of fees. "Deployed" uses position cost basis; cash figures are estimates until brokerage cash is tracked directly.</p>
+      </div>`;
+
+    const btn = document.getElementById("liveCsvExportBtn");
+    if (btn) btn.addEventListener("click", () => {
+      const lines = ["Month,Deposits,Withdrawals,Trading P&L,Mgmt fee (memo),Net change"];
+      rows.forEach(r => lines.push([r.name, r.dep, r.wd, r.pnl.toFixed(2), r.fee.toFixed(2), r.net.toFixed(2)].join(",")));
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "bpsquant-cashflow-" + new Date().getFullYear() + ".csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
+  function liveMonthlyStatement(navHistory, events) {
+    if (!navHistory.length) return [];
+    const now = new Date();
+    const year = now.getFullYear();
+    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const latest = +navHistory[navHistory.length - 1].nav_per_unit;
+    const asc = [...events].sort((a,b) => a.date.localeCompare(b.date));
+    const out = [];
+    for (let m = 0; m <= now.getMonth(); m++) {
+      const mm = String(m + 1).padStart(2, "0");
+      const mStart = `${year}-${mm}-01`;
+      const nStart = liveNavAt(navHistory, mStart);
+      const nEnd = m < now.getMonth()
+        ? liveNavAt(navHistory, `${year}-${String(m + 2).padStart(2, "0")}-01`)
+        : latest;
+      if (nStart == null || nEnd == null) continue;
+      const inMonth = asc.filter(e => e.date.slice(0, 7) === `${year}-${mm}`);
+      const unitsStart = asc.filter(e => e.date < mStart).reduce((a,e) => a + signedUnits(e), 0);
+      let pnl = unitsStart * (nEnd - nStart);
+      inMonth.forEach(e => { pnl += signedUnits(e) * (nEnd - (e.nav_at_txn != null ? +e.nav_at_txn : nStart)); });
+      const dep = inMonth.filter(e=>e.type==="deposit").reduce((a,e)=>a + +e.amount, 0);
+      const wd  = inMonth.filter(e=>e.type==="withdrawal").reduce((a,e)=>a + +e.amount, 0);
+      const unitsEnd = unitsStart + inMonth.reduce((a,e) => a + signedUnits(e), 0);
+      out.push({ name: names[m], dep, wd, pnl, fee: (0.02/12) * unitsEnd * nEnd, net: dep - wd + pnl });
+    }
+    return out;
+  }
+
+  /* ---------- LIVE TAB: Trading ---------- */
+  async function liveTradingTab(el) {
+    const [recentTrades, positions] = await Promise.all([
+      DB.getTrades(80).catch(()=>[]), DB.getPositions().catch(()=>[]),
+    ]);
+    el.innerHTML = `
       ${mgrTradePanel()}
       ${mgrCsvPanel()}
       ${tradesPanel(recentTrades, {title:"Recent trades", sub:"Most recent executions"})}
-      ${mgrPositionsPanel(positions)}
-      ${mgrInvestorsPanel(investors, navPU)}
-      ${mgrLiveThreadsPanel(allMsgs, profiles)}
-      ${mgrLeadsPanel(leads)}
-      <p class="portal__note">Live data from Supabase.</p>`;
+      ${mgrPositionsPanel(positions)}`;
+    bindManagerForms(null);
+  }
 
-    revealAll();
-    bindManagerForms(navPU);
+  /* ---------- LIVE TAB: Messages ---------- */
+  async function liveMessagesTab(el) {
+    const [allMsgs, profiles] = await Promise.all([
+      DB.getAllMessages().catch(()=>[]), DB.getInvestorProfiles().catch(()=>[]),
+    ]);
+    el.innerHTML = mgrLiveThreadsPanel(allMsgs, profiles);
     bindMgrLiveExtras();
   }
 
@@ -557,7 +913,7 @@
         btn.disabled = true;
         try {
           await DB.resolveWithdrawal(btn.dataset.wid, approve);
-          await renderManager();
+          await switchLiveTab(_liveTab);
         } catch (err) {
           btn.disabled = false;
           if (note) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
@@ -1852,24 +2208,6 @@
       </div>`;
   }
 
-  function mgrInvestorsPanel(investors, navPU) {
-    return `
-      <div class="panel reveal">
-        <div class="panel__head"><h2>Investor accounts</h2></div>
-        ${investors.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Investor</th><th>Units</th><th>Est. value</th><th>Since</th></tr></thead><tbody>${investors.map(inv=>{const val=+inv.units*navPU;return`<tr><td><b>${inv.profiles?inv.profiles.name:"—"}</b></td><td class="mono">${F.fmtNum(inv.units,4)}</td><td class="mono">${F.fmtMoney(val,0)}</td><td class="mono">${inv.since||"—"}</td></tr>`;}).join("")}</tbody></table></div>` : `<p class="portal__note">No investor accounts yet.</p>`}
-        <details class="mgr-details"><summary>Update investor units</summary>
-          <form class="mgr-form mgr-form--sm" id="unitsForm">
-            <div class="field"><label>Investor ID (UUID)</label><input type="text" name="investorId" /></div>
-            <div class="field"><label>Units</label><input type="number" name="units" step="0.000001" min="0" required /></div>
-            <div class="field"><label>Since</label><input type="date" name="since" /></div>
-            <div class="field field--full"><label>Note</label><input type="text" name="note" /></div>
-            <button type="submit" class="btn btn--ghost btn--sm">Save</button>
-            <p class="cta__note" id="unitsNote" role="status" aria-live="polite"></p>
-          </form>
-        </details>
-      </div>`;
-  }
-
   function mgrLeadsPanel(leads) {
     return `
       <div class="panel reveal">
@@ -1954,17 +2292,6 @@
         document.getElementById("csvActions").hidden=true;
       } catch(err) { note.textContent="Error: "+err.message; note.classList.add("is-error"); }
       finally { csvConfirmBtn.disabled=false; }
-    });
-
-    const unitsForm = document.getElementById("unitsForm");
-    if (unitsForm) unitsForm.addEventListener("submit", async e => {
-      e.preventDefault();
-      const note = document.getElementById("unitsNote");
-      try {
-        const t = unitsForm.elements;
-        await DB.upsertInvestorAccount({investorId:t.investorId.value.trim(), units:parseFloat(t.units.value), since:t.since.value||new Date().toISOString().slice(0,10), note:t.note.value.trim()||null});
-        note.textContent = "✓ Investor account updated."; note.classList.remove("is-error");
-      } catch(err) { note.textContent="Error: "+err.message; note.classList.add("is-error"); }
     });
   }
 
@@ -2070,12 +2397,12 @@
     if (session && session.role === "investor") switchDemoTab(btn.dataset.tab, session);
   });
 
-  /* admin tab clicks (manager role) */
+  /* admin tab clicks (manager role) — live vs demo routing */
   document.addEventListener("click", e => {
     const btn = e.target.closest(".admin-tab");
     if (!btn || !btn.dataset.atab) return;
-    _profileId = null;
-    switchAdminTab(btn.dataset.atab);
+    if (liveMode) { _liveProfileId = null; switchLiveTab(btn.dataset.atab); }
+    else { _profileId = null; switchAdminTab(btn.dataset.atab); }
   });
 
   /* bind risk panel via delegation */
