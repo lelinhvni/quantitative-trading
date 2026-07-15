@@ -255,6 +255,58 @@
     },
 
     /* ============================================================
+       ADMIN EDIT TOOLS — direct writes, manager-only via RLS.
+       These bypass the atomic bookkeeping; the profile page's
+       ledger-reconciliation check catches any resulting drift.
+       ============================================================ */
+    async updateProfileName(userId, name) {
+      const { error } = await this._client
+        .from("profiles").update({ name }).eq("id", userId);
+      if (error) throw error;
+    },
+
+    async updateCapitalEvent(id, { date, type, amount, units, navAtTxn, note }) {
+      const patch = {};
+      if (date     != null) patch.date       = date;
+      if (type     != null) patch.type       = type;
+      if (amount   != null) patch.amount     = amount;
+      if (units    != null) patch.units      = units;
+      if (navAtTxn != null) patch.nav_at_txn = navAtTxn;
+      if (note     !== undefined) patch.note = note;
+      const { data, error } = await this._client
+        .from("capital_events").update(patch).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async deleteCapitalEvent(id) {
+      const { error } = await this._client
+        .from("capital_events").delete().eq("id", id);
+      if (error) throw error;
+    },
+
+    /* Repair tool: set stored units directly (e.g. to the ledger total) */
+    async setInvestorUnits(investorId, units) {
+      const { error } = await this._client
+        .from("investor_accounts")
+        .upsert({ investor_id: investorId, units, updated_at: new Date().toISOString() },
+                { onConflict: "investor_id" });
+      if (error) throw error;
+    },
+
+    async deleteTrade(id) {
+      const { error } = await this._client
+        .from("trades").delete().eq("id", id);
+      if (error) throw error;
+    },
+
+    async deletePosition(symbol) {
+      const { error } = await this._client
+        .from("positions").delete().eq("symbol", symbol);
+      if (error) throw error;
+    },
+
+    /* ============================================================
        CONTACT LEADS
        ============================================================ */
     async submitLead({ name, email, message }) {

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#070a14" />
+  <title>Operations Console</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css?v=20260716a" />
+</head>
+<body data-page="ops" style="padding-top:32px">
+  <main id="main">
+    <section class="section section--tight">
+      <div class="container">
+
+        <!-- Step 1: manager sign-in (the real security boundary) -->
+        <div id="opsLogin" class="portal__login" hidden>
+          <div class="login-card">
+            <span class="kicker">Operations console</span>
+            <h1 class="login-card__title">Manager sign-in</h1>
+            <p class="login-card__lede">This console requires the fund manager account. All changes are enforced by database security — no other account can write here.</p>
+            <form id="opsLoginForm" novalidate>
+              <div class="field"><label for="opsEmail">Email</label><input id="opsEmail" type="email" autocomplete="username" required /></div>
+              <div class="field"><label for="opsPass">Password</label><input id="opsPass" type="password" autocomplete="current-password" required /></div>
+              <button type="submit" class="btn btn--primary" style="width:100%">Sign in</button>
+              <p class="cta__note" id="opsLoginNote" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+
+        <!-- Step 2: master passcode gate -->
+        <div id="opsGate" class="portal__login" hidden>
+          <div class="login-card">
+            <span class="kicker">Operations console</span>
+            <h1 class="login-card__title">Master passcode</h1>
+            <p class="login-card__lede">Signed in as manager. Enter the master passcode to open the console.</p>
+            <form id="opsGateForm" novalidate>
+              <div class="field"><label for="opsCode">Passcode</label><input id="opsCode" type="password" autocomplete="off" required /></div>
+              <button type="submit" class="btn btn--primary" style="width:100%">Unlock</button>
+              <p class="cta__note" id="opsGateNote" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+
+        <!-- Console -->
+        <div id="opsConsole" hidden>
+          <div class="portal__topbar">
+            <div>
+              <h1 class="portal__hi">Operations console</h1>
+              <p class="portal__role">Direct data editing — changes are immediate and unaudited. The investor portal's atomic forms remain the preferred path.</p>
+            </div>
+            <button class="btn btn--ghost btn--sm" id="opsLockBtn">Lock console</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head"><h2>Investor</h2><span class="panel__sub">Select an investor to edit their data</span></div>
+            <div class="mgr-form">
+              <div class="field"><label>Investor</label><select id="opsInvestorSel"><option value="">— choose —</option></select></div>
+            </div>
+          </div>
+
+          <div id="opsInvestorSections" hidden>
+            <div class="panel">
+              <div class="panel__head"><h2>Profile &amp; account</h2></div>
+              <form class="mgr-form" id="opsProfileForm">
+                <div class="field"><label>Name</label><input type="text" name="name" required /></div>
+                <div class="field"><label>Phone</label><input type="text" name="phone" /></div>
+                <div class="field"><label>Status</label>
+                  <select name="status">
+                    <option value="pending">Pending</option><option value="active">Active</option>
+                    <option value="redeeming">Redeeming</option><option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div class="field"><label>Risk preference</label>
+                  <select name="risk">
+                    <option value="conservative">Conservative</option><option value="balanced">Balanced</option>
+                    <option value="growth">Growth</option><option value="aggressive">Aggressive</option>
+                  </select>
+                </div>
+                <div class="field field--full"><label>Private notes</label><input type="text" name="notes" /></div>
+                <button type="submit" class="btn btn--primary btn--sm">Save profile</button>
+                <p class="cta__note" id="opsProfileNote" role="status" aria-live="polite"></p>
+              </form>
+            </div>
+
+            <div class="panel">
+              <div class="panel__head"><h2>Units (assets)</h2><span class="panel__sub">Stored balance vs what the capital ledger adds up to</span></div>
+              <div id="opsUnitsBox"></div>
+            </div>
+
+            <div class="panel">
+              <div class="panel__head"><h2>Capital events</h2><span class="panel__sub">Edit any field, then Save on that row. Deleting does not adjust units — use the reconcile button above.</span></div>
+              <div id="opsEventsBox"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head"><h2>Trades</h2><span class="panel__sub">Delete a mistaken trade, then re-log it correctly from the portal</span></div>
+            <div id="opsTradesBox"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head"><h2>Positions (assets)</h2></div>
+            <div id="opsPositionsBox"></div>
+          </div>
+        </div>
+
+        <p class="cta__note" id="opsFatal" role="status" aria-live="polite" style="text-align:center;margin-top:20px"></p>
+      </div>
+    </section>
+  </main>
+
+  <script src="scripts/config.js?v=20260716a"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="scripts/data.js?v=20260716a"></script>
+  <script src="scripts/db.js?v=20260716a"></script>
+  <script src="scripts/ops.js?v=20260716a" defer></script>
+</body>
+</html>
