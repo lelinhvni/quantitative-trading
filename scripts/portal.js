@@ -187,14 +187,19 @@
   async function initLive() {
     document.getElementById("loginView").hidden = false;
     document.getElementById("appView").hidden   = true;
+    // Real auth is active — demo accounts don't exist in live mode
+    const demoBlock = document.getElementById("demoCredsBlock");
+    if (demoBlock) demoBlock.remove();
 
     DB.onAuthChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) await showLiveApp();
       else if (event === "SIGNED_OUT") showLogin();
     });
 
-    const session = await DB.getSession();
-    if (session) await showLiveApp(); else showLogin();
+    try {
+      const session = await DB.getSession();
+      if (session) await showLiveApp(); else showLogin();
+    } catch { showLogin(); }
     bindLiveLogin(); bindLogout(); bindForgot();
   }
 
@@ -257,9 +262,10 @@
   async function renderInvestor(profile) {
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
-    const [account, latestNav, events, allNav, trades, positions] = await Promise.all([
+    const [account, latestNav, events, allNav, trades, positions, withdrawals, messages] = await Promise.all([
       DB.getMyAccount(), DB.getLatestNav(), DB.getMyCapitalEvents(),
       DB.getAllNavHistory(), DB.getTrades(60).catch(() => []), DB.getPositions().catch(() => []),
+      DB.getMyWithdrawals().catch(() => []), DB.getMyMessages().catch(() => []),
     ]);
     const navPU  = latestNav ? +latestNav.nav_per_unit : null;
     const units  = account ? +account.units : 0;
@@ -272,8 +278,7 @@
     const navSeries = allNav.length ? allNav : null;
 
     body.innerHTML = `
-      ${tabNav("overview", 0)}
-      <div id="tabContent">
+      <div>
         <div class="metricrow reveal">
           <div class="metric"><div class="metric__v">${curVal != null ? F.fmtMoney(curVal,0) : "—"}</div><div class="metric__l">Current value</div></div>
           <div class="metric"><div class="metric__v">${F.fmtMoney(netInv,0)}</div><div class="metric__l">Net invested</div></div>
@@ -282,13 +287,15 @@
           <div class="metric"><div class="metric__v mono">${units.toFixed(4)}</div><div class="metric__l">Fund units</div></div>
         </div>
         ${navSeries ? `<div class="panel reveal"><div class="panel__head"><h2>Account value over time</h2></div><canvas id="acctChart" height="280"></canvas></div>` : ""}
-        ${riskPanelHtml(localStorage.getItem(DEMO_RISK_KEY)||"balanced")}
+        ${riskPanelHtml(account && account.risk_pref ? account.risk_pref : "balanced")}
+        ${liveWithdrawPanelHtml(withdrawals)}
         <div class="panel reveal"><div class="panel__head"><h2>Capital events</h2></div>
           ${events.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Units</th><th>NAV at txn</th><th>Note</th></tr></thead><tbody>${events.map(ev=>`<tr><td class="mono">${ev.date}</td><td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${ev.type}</span></td><td class="mono">${F.fmtMoney(ev.amount,0)}</td><td class="mono">${ev.units!=null?F.fmtNum(ev.units,4):"—"}</td><td class="mono">${ev.nav_at_txn!=null?F.fmtNum(ev.nav_at_txn,2):"—"}</td><td>${ev.note||""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
         </div>
         ${positionsPanel(positions)}
         ${tradesPanel(trades, {title:"Trade activity", sub:"Executions logged"})}
-        ${liveMode ? "" : `<p class="portal__note">NAV as of ${latestNav?latestNav.date:"—"}: ${navPU?F.fmtNum(navPU,2):"—"} per unit.</p>`}
+        ${liveMessagesPanelHtml(messages, "investor")}
+        <p class="portal__note">NAV as of ${latestNav?latestNav.date:"—"}: ${navPU?F.fmtNum(navPU,2):"—"} per unit.</p>
       </div>`;
 
     revealAll();
@@ -301,6 +308,112 @@
       });
     }
     bindRiskPanel();
+    bindLiveWithdraw();
+    bindLiveMessages("investor", null);
+    DB.markMessagesRead().catch(() => {});
+  }
+
+  /* ---------- live withdrawal request panel (investor) ---------- */
+  function liveWithdrawPanelHtml(withdrawals) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Request a withdrawal</h2><span class="panel__sub">Reviewed by the fund manager</span></div>
+        <form class="mgr-form" id="liveWdForm">
+          <div class="field"><label>Amount ($)</label><input type="number" id="liveWdAmount" min="1" step="0.01" required placeholder="5000" /></div>
+          <div class="field field--full"><label>Note (optional)</label><input type="text" id="liveWdNote" placeholder="Reason or instructions" /></div>
+          <button type="submit" class="btn btn--ghost btn--sm">Submit request</button>
+          <p class="cta__note" id="liveWdMsg" role="status" aria-live="polite"></p>
+        </form>
+        ${withdrawals.length ? `
+        <div class="table-wrap" style="margin-top:14px"><table class="ttable">
+          <thead><tr><th>Requested</th><th>Amount</th><th>Note</th><th>Status</th></tr></thead>
+          <tbody>${withdrawals.map(w => `
+            <tr>
+              <td class="mono">${(w.requested_at||"").slice(0,10)}</td>
+              <td class="mono">${F.fmtMoney(w.amount,0)}</td>
+              <td>${esc(w.note||"")}</td>
+              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "pending" ? "pending" : "closed"}">${w.status}</span></td>
+            </tr>`).join("")}</tbody></table></div>` : ""}
+      </div>`;
+  }
+
+  function bindLiveWithdraw() {
+    const form = document.getElementById("liveWdForm");
+    if (!form) return;
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const msg = document.getElementById("liveWdMsg");
+      const amount = parseFloat(document.getElementById("liveWdAmount").value);
+      if (!amount || amount <= 0) return;
+      try {
+        await DB.requestWithdrawal({ amount, note: (document.getElementById("liveWdNote").value||"").trim() });
+        msg.classList.remove("is-error");
+        msg.textContent = "✓ Request submitted — the manager will review it shortly.";
+        form.reset();
+      } catch (err) {
+        msg.textContent = "Error: " + err.message;
+        msg.classList.add("is-error");
+      }
+    });
+  }
+
+  /* ---------- live message center (investor + manager reply) ---------- */
+  function dbMsgToBubble(row) {
+    return {
+      from: row.sender_role === "manager" ? "manager" : "investor",
+      fromName: row.sender_role === "manager" ? (CFG.brand.full || "Manager") : (row.profiles && row.profiles.name) || "You",
+      subject: row.subject, body: row.body, date: row.created_at,
+    };
+  }
+
+  function liveMessagesPanelHtml(messages, viewerRole, threadInvestorId) {
+    const rows = [...messages].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Messages</h2><span class="panel__sub">${viewerRole === "investor" ? "Your conversation with " + esc(CFG.brand.full || "the fund") : "Investor thread"}</span></div>
+        <div class="msg-thread" id="liveMsgThread">
+          ${rows.length ? rows.map(r => msgBubbleHtml(dbMsgToBubble(r), viewerRole)).join("") : `<p class="portal__note">No messages yet — send the first one below.</p>`}
+        </div>
+        <div class="msg-compose">
+          <div class="field"><label for="liveMsgSubject">Subject</label><input id="liveMsgSubject" type="text" placeholder="Question about my account…" /></div>
+          <div class="field"><label for="liveMsgBody">Message</label><textarea id="liveMsgBody" rows="3" placeholder="Write your message…"></textarea></div>
+          <div class="msg-compose__actions">
+            <button class="btn btn--primary btn--sm" id="liveSendBtn" data-thread="${threadInvestorId || ""}">Send</button>
+            <span class="cta__note" id="liveMsgNote" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function bindLiveMessages(viewerRole, threadInvestorId) {
+    const btn = document.getElementById("liveSendBtn");
+    if (!btn) return;
+    btn.addEventListener("click", async () => {
+      const note = document.getElementById("liveMsgNote");
+      const subject = (document.getElementById("liveMsgSubject").value||"").trim();
+      const bodyTxt = (document.getElementById("liveMsgBody").value||"").trim();
+      if (!bodyTxt) { note.textContent = "Please enter a message."; note.classList.add("is-error"); return; }
+      try {
+        const row = await DB.sendMessage({
+          investorId: threadInvestorId, senderRole: viewerRole,
+          subject, body: bodyTxt,
+        });
+        const thread = document.getElementById("liveMsgThread");
+        if (thread) {
+          const d = document.createElement("div");
+          d.innerHTML = msgBubbleHtml(dbMsgToBubble(row), viewerRole);
+          thread.appendChild(d.firstElementChild);
+          thread.scrollTop = thread.scrollHeight;
+        }
+        document.getElementById("liveMsgSubject").value = "";
+        document.getElementById("liveMsgBody").value = "";
+        note.classList.remove("is-error");
+        note.textContent = "✓ Sent.";
+      } catch (err) {
+        note.textContent = "Error: " + err.message;
+        note.classList.add("is-error");
+      }
+    });
   }
 
   /* ============================================================
@@ -309,10 +422,13 @@
   async function renderManager() {
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading manager dashboard…</div>`;
-    const [investors, latestNav, positions, leads, navHistory, recentTrades] = await Promise.all([
+    const [investors, latestNav, positions, leads, navHistory, recentTrades, profiles, pendingWd, allMsgs] = await Promise.all([
       DB.getAllInvestors().catch(()=>[]), DB.getLatestNav().catch(()=>null),
       DB.getPositions().catch(()=>[]), DB.getLeads().catch(()=>[]),
       DB.getAllNavHistory().catch(()=>[]), DB.getTrades(80).catch(()=>[]),
+      DB.getInvestorProfiles().catch(()=>[]),
+      DB.getPendingWithdrawals().catch(()=>[]),
+      DB.getAllMessages().catch(()=>[]),
     ]);
     const navPU = latestNav ? +latestNav.nav_per_unit : 1000;
     const aum   = investors.reduce((a,inv) => a + +inv.units * navPU, 0);
@@ -323,19 +439,152 @@
         <div class="metric"><div class="metric__v">${investors.length}</div><div class="metric__l">Investors</div></div>
         <div class="metric"><div class="metric__v">${navPU?F.fmtNum(navPU,2):"—"}</div><div class="metric__l">NAV / unit</div></div>
         <div class="metric"><div class="metric__v">${latestNav?latestNav.date:"None"}</div><div class="metric__l">Last NAV date</div></div>
-        <div class="metric"><div class="metric__v">${leads.length}</div><div class="metric__l">Leads</div></div>
+        <div class="metric"><div class="metric__v">${pendingWd.length}</div><div class="metric__l">Pending withdrawals</div></div>
       </div>
       ${mgrNavPanel(navPU, navHistory)}
+      ${mgrLiveCapitalPanel(profiles)}
+      ${mgrLiveQueuePanel(pendingWd)}
       ${mgrTradePanel()}
       ${mgrCsvPanel()}
       ${tradesPanel(recentTrades, {title:"Recent trades", sub:"Most recent executions"})}
       ${mgrPositionsPanel(positions)}
       ${mgrInvestorsPanel(investors, navPU)}
+      ${mgrLiveThreadsPanel(allMsgs, profiles)}
       ${mgrLeadsPanel(leads)}
       <p class="portal__note">Live data from Supabase.</p>`;
 
     revealAll();
     bindManagerForms(navPU);
+    bindMgrLiveExtras();
+  }
+
+  /* ---------- live: record deposit/withdrawal (atomic, server-side) ---------- */
+  function mgrLiveCapitalPanel(profiles) {
+    const today = new Date().toISOString().slice(0,10);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Record deposit / withdrawal</h2><span class="panel__sub">Units computed automatically from NAV on the date — one atomic transaction</span></div>
+        ${profiles.length ? `
+        <form class="mgr-form" id="liveCapForm">
+          <div class="field"><label>Investor</label>
+            <select name="investorId">${profiles.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>
+          </div>
+          <div class="field"><label>Type</label>
+            <select name="type"><option value="deposit">Deposit</option><option value="withdrawal">Withdrawal</option></select>
+          </div>
+          <div class="field"><label>Amount ($)</label><input type="number" name="amount" min="1" step="0.01" required placeholder="10000" /></div>
+          <div class="field"><label>Date</label><input type="date" name="date" value="${today}" required /></div>
+          <div class="field field--full"><label>Note</label><input type="text" name="note" placeholder="Optional" /></div>
+          <button type="submit" class="btn btn--primary">Save transaction</button>
+          <p class="cta__note" id="liveCapNote" role="status" aria-live="polite"></p>
+        </form>` : `<p class="portal__note">No investor profiles yet — invite investors from the Supabase dashboard (Authentication → Invite user).</p>`}
+      </div>`;
+  }
+
+  /* ---------- live: pending withdrawal queue ---------- */
+  function mgrLiveQueuePanel(pending) {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Withdrawal requests</h2><span class="panel__sub">Approve executes the redemption at today's NAV</span></div>
+        ${pending.length ? pending.map(w => `
+          <div class="wd-request">
+            <div class="wd-request__info">
+              <b>${esc(w.profiles ? w.profiles.name : "—")}</b> requests <b class="mono">${F.fmtMoney(w.amount,0)}</b>
+              <div class="inv-email">${(w.requested_at||"").slice(0,10)}${w.note ? " · " + esc(w.note) : ""}</div>
+            </div>
+            <div class="wd-request__actions">
+              <button class="btn btn--primary btn--sm live-wd-approve" data-wid="${w.id}">Approve</button>
+              <button class="btn btn--ghost btn--sm live-wd-deny" data-wid="${w.id}">Deny</button>
+            </div>
+          </div>`).join("") : `<p class="portal__note">No pending requests.</p>`}
+        <p class="cta__note" id="liveWdActionNote" role="status" aria-live="polite"></p>
+      </div>`;
+  }
+
+  /* ---------- live: message threads grouped per investor ---------- */
+  function mgrLiveThreadsPanel(allMsgs, profiles) {
+    const byInvestor = {};
+    allMsgs.forEach(m => { (byInvestor[m.investor_id] = byInvestor[m.investor_id] || []).push(m); });
+    const nameOf = id => {
+      const p = profiles.find(x => x.id === id);
+      if (p) return p.name;
+      const m = (byInvestor[id] || []).find(x => x.profiles && x.profiles.name);
+      return m ? m.profiles.name : id.slice(0, 8);
+    };
+    const ids = Object.keys(byInvestor);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Investor messages</h2><span class="panel__sub">One thread per investor</span></div>
+        ${ids.length ? ids.map(id => `
+          <details class="mgr-details" ${ids.length === 1 ? "open" : ""}>
+            <summary>${esc(nameOf(id))} — ${byInvestor[id].length} message${byInvestor[id].length !== 1 ? "s" : ""}</summary>
+            <div class="msg-thread" style="margin-top:10px">
+              ${byInvestor[id].map(r => msgBubbleHtml(dbMsgToBubble(r), "manager")).join("")}
+            </div>
+            <div class="msg-compose" style="margin-top:12px">
+              <div class="field"><label>Reply</label><textarea class="live-reply-body" rows="2" placeholder="Reply to ${esc(nameOf(id))}…"></textarea></div>
+              <div class="msg-compose__actions">
+                <button class="btn btn--ghost btn--sm live-reply-btn" data-investor="${id}">Send reply</button>
+                <span class="cta__note live-reply-note" role="status"></span>
+              </div>
+            </div>
+          </details>`).join("") : `<p class="portal__note">No investor messages yet.</p>`}
+      </div>`;
+  }
+
+  function bindMgrLiveExtras() {
+    const capForm = document.getElementById("liveCapForm");
+    if (capForm) capForm.addEventListener("submit", async e => {
+      e.preventDefault();
+      const note = document.getElementById("liveCapNote");
+      const t = capForm.elements;
+      try {
+        note.classList.remove("is-error"); note.textContent = "Saving…";
+        const row = await DB.recordCapitalEvent({
+          investorId: t.investorId.value, type: t.type.value,
+          amount: parseFloat(t.amount.value), date: t.date.value,
+          note: t.note.value.trim() || null,
+        });
+        note.textContent = `✓ Booked ${row.type} of ${F.fmtMoney(+row.amount,0)} = ${F.fmtNum(+row.units,4)} units at NAV ${F.fmtNum(+row.nav_at_txn,2)}.`;
+        capForm.reset();
+      } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+    });
+
+    document.querySelectorAll(".live-wd-approve, .live-wd-deny").forEach(btn =>
+      btn.addEventListener("click", async () => {
+        const note = document.getElementById("liveWdActionNote");
+        const approve = btn.classList.contains("live-wd-approve");
+        btn.disabled = true;
+        try {
+          await DB.resolveWithdrawal(btn.dataset.wid, approve);
+          await renderManager();
+        } catch (err) {
+          btn.disabled = false;
+          if (note) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+        }
+      })
+    );
+
+    document.querySelectorAll(".live-reply-btn").forEach(btn =>
+      btn.addEventListener("click", async () => {
+        const wrap = btn.closest(".msg-compose");
+        const body = wrap.querySelector(".live-reply-body").value.trim();
+        const note = wrap.querySelector(".live-reply-note");
+        if (!body) { note.textContent = "Enter a reply."; note.classList.add("is-error"); return; }
+        try {
+          await DB.sendMessage({ investorId: btn.dataset.investor, senderRole: "manager", subject: null, body });
+          note.classList.remove("is-error"); note.textContent = "✓ Sent.";
+          wrap.querySelector(".live-reply-body").value = "";
+          const thread = btn.closest("details").querySelector(".msg-thread");
+          if (thread) {
+            const d = document.createElement("div");
+            d.innerHTML = msgBubbleHtml({ from:"manager", fromName: CFG.brand.full || "Manager", subject:null, body, date: new Date().toISOString() }, "manager");
+            thread.appendChild(d.firstElementChild);
+            thread.scrollTop = thread.scrollHeight;
+          }
+        } catch (err) { note.textContent = "Error: " + err.message; note.classList.add("is-error"); }
+      })
+    );
   }
 
   /* ============================================================
@@ -1841,9 +2090,16 @@
     const sel  = document.querySelector(".risk-card.is-selected");
     const note = document.getElementById("riskNote");
     if (!sel||!note) return;
-    localStorage.setItem(DEMO_RISK_KEY, sel.dataset.risk);
     const opt = RISK_OPTIONS.find(r=>r.key===sel.dataset.risk);
-    note.textContent = `Saved: ${opt.label} (${opt.target}) — manager notified.`;
+    if (liveMode) {
+      note.textContent = "Saving…";
+      DB.setMyRiskPref(sel.dataset.risk)
+        .then(() => { note.classList.remove("is-error"); note.textContent = `Saved: ${opt.label} (${opt.target}) — manager notified.`; })
+        .catch(err => { note.textContent = "Error: " + err.message; note.classList.add("is-error"); });
+    } else {
+      localStorage.setItem(DEMO_RISK_KEY, sel.dataset.risk);
+      note.textContent = `Saved: ${opt.label} (${opt.target}) — manager notified.`;
+    }
   });
 
   /* Manager reply button */

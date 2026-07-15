@@ -16,8 +16,8 @@ window.JSS_CONFIG = {
      Leave as-is to use demo mode (no real auth, no DB required).
   --------------------------------------------------------------------- */
   supabase: {
-    url:     "YOUR_SUPABASE_PROJECT_URL",   // e.g. "https://xxxx.supabase.co"
-    anonKey: "YOUR_SUPABASE_ANON_KEY",      // eyJhbGci...
+    url:     "https://iwwogjrnoacjnrpukzdb.supabase.co",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml3d29nanJub2Fjam5ycHVremRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODQyMDksImV4cCI6MjA5OTY2MDIwOX0.rFIpsjh0xTUaareu_JYqa1gDa9k5qmLtROSjLWZvPHA",
   },
 
   brand: {

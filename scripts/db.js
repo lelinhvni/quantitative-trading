@@ -203,6 +203,16 @@
       return data || [];
     },
 
+    /* All investor profiles, including ones with no account row yet
+       (needed to record a brand-new investor's first deposit) */
+    async getInvestorProfiles() {
+      const { data, error } = await this._client
+        .from("profiles").select("id, name")
+        .eq("role", "investor").order("name");
+      if (error) throw error;
+      return data || [];
+    },
+
     async upsertInvestorAccount({ investorId, units, since, note }) {
       const { data, error } = await this._client
         .from("investor_accounts")
