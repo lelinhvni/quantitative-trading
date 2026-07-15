@@ -3,8 +3,24 @@
 -- Run this in: Supabase dashboard → SQL editor → New query → Run
 -- ============================================================
 
+-- Don't validate function bodies at creation time (they may reference
+-- tables defined later in this file, like pg_dump output does).
+SET check_function_bodies = off;
+
 -- ============================================================
--- 1. Helper: check if current user is a fund manager
+-- 1. profiles — one row per auth user (auto-created by trigger)
+--    Created first: is_manager() below depends on it.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT NOT NULL DEFAULT '',
+  role       TEXT NOT NULL DEFAULT 'investor' CHECK (role IN ('manager', 'investor')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- 2. Helper: check if current user is a fund manager
 --    SECURITY DEFINER bypasses RLS on profiles so we don't get
 --    circular policy dependencies.
 -- ============================================================
@@ -17,17 +33,7 @@ RETURNS BOOLEAN SECURITY DEFINER STABLE LANGUAGE SQL AS $$
 $$;
 GRANT EXECUTE ON FUNCTION public.is_manager() TO authenticated;
 
--- ============================================================
--- 2. profiles — one row per auth user (auto-created by trigger)
--- ============================================================
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  name       TEXT NOT NULL DEFAULT '',
-  role       TEXT NOT NULL DEFAULT 'investor' CHECK (role IN ('manager', 'investor')),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
+-- profiles policies (need is_manager, so they come after it)
 -- All authenticated users can see names/roles (not sensitive)
 DROP POLICY IF EXISTS "auth_read"    ON public.profiles;
 DROP POLICY IF EXISTS "self_update"  ON public.profiles;
