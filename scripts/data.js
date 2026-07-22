@@ -70,8 +70,17 @@
   async function fetchText(url, ms = 9000) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), ms);
+    // Calls to our own Supabase Edge Function proxy carry the anon key,
+    // so the function works with default JWT verification left ON.
+    const headers = {};
+    const sb = CFG.supabase;
+    if (sb && sb.anonKey && !String(sb.anonKey).startsWith("YOUR_") &&
+        url.includes(".supabase.co/functions/")) {
+      headers.apikey = sb.anonKey;
+      headers.Authorization = "Bearer " + sb.anonKey;
+    }
     try {
-      const res = await fetch(url, { signal: ctrl.signal });
+      const res = await fetch(url, { signal: ctrl.signal, headers });
       if (!res.ok) throw new Error("HTTP " + res.status);
       return await res.text();
     } finally { clearTimeout(t); }
