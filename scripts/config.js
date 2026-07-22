@@ -42,7 +42,12 @@ window.JSS_CONFIG = {
   --------------------------------------------------------------------- */
   data: {
     providers: ["yahoo", "stooq"],          // tried left-to-right until one works
-    corsProxy: "https://corsproxy.io/?url=",
+    // Public CORS proxies, tried in order until one works — never depend on one
+    corsProxies: [
+      "https://corsproxy.io/?url=",
+      "https://api.allorigins.win/raw?url=",
+      "https://api.codetabs.com/v1/proxy?quest=",
+    ],
     twelveDataKey: "",                       // optional: twelvedata.com free key
     refreshMs: 60000,
   },

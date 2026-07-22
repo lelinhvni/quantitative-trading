@@ -72,7 +72,13 @@
       etfQuotes = await Promise.all((CFG.tickers || []).map((t) => F.getQuote(t, 260)));
       const src = etfQuotes[0] && etfQuotes[0].source;
       const sourceEl = document.getElementById("dataSource");
-      if (sourceEl) sourceEl.textContent = src ? `Source: ${src}.` : "";
+      if (sourceEl) {
+        if (src && /demo/i.test(src)) {
+          sourceEl.innerHTML = `<span style="color:#fbbf24">⚠ Live feed temporarily unavailable — prices below are simulated placeholders, not market data.</span>`;
+        } else {
+          sourceEl.textContent = src ? `Source: ${src}.` : "";
+        }
+      }
       const upd = document.getElementById("updated");
       if (upd) upd.textContent = "Updated " + new Date().toLocaleTimeString();
       renderEtfRow();

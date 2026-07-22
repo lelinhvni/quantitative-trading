@@ -82,7 +82,7 @@
     const range = days <= 30 ? "1mo" : days <= 60 ? "3mo" : days <= 130 ? "6mo" : "1y";
     const base = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
     const url = proxy ? proxy + encodeURIComponent(base) : base;
-    const json = JSON.parse(await fetchText(url, 9000));
+    const json = JSON.parse(await fetchText(url, 6000));
     const result = json && json.chart && json.chart.result && json.chart.result[0];
     if (!result) return null;
     const timestamps = result.timestamp || [];
@@ -110,22 +110,38 @@
     const providers = (CFG.data && Array.isArray(CFG.data.providers))
       ? CFG.data.providers
       : [(CFG.data && CFG.data.provider) || "demo"];
-    const proxy = (CFG.data && CFG.data.corsProxy) || "";
+    // Failover proxy chain — a single free proxy going down must not
+    // silently degrade the whole site to demo data.
+    const proxies = (CFG.data && (CFG.data.corsProxies ||
+      (CFG.data.corsProxy ? [CFG.data.corsProxy] : []))) || [];
+    if (!proxies.length) proxies.push("");
 
     for (const provider of providers) {
-      try {
-        if (provider === "yahoo") {
-          const rows = await fetchYahoo(symbol, days, proxy);
-          if (rows) return { symbol, source: "Yahoo Finance (live)", rows };
+      if (provider === "yahoo") {
+        for (const proxy of proxies) {
+          try {
+            const rows = await fetchYahoo(symbol, days, proxy);
+            if (rows) return { symbol, source: "Yahoo Finance (live)", rows };
+          } catch (e) {
+            console.warn(`[BPSQuant] yahoo via ${proxy || "direct"} for ${symbol} failed:`, e.message);
+          }
         }
-        if (provider === "stooq" && meta.stooq) {
-          const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
-          const url = proxy ? proxy + encodeURIComponent(base) : base;
-          const csv = await fetchText(url);
-          const rows = parseStooqCsv(csv);
-          if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
+      }
+      if (provider === "stooq" && meta.stooq) {
+        for (const proxy of proxies) {
+          try {
+            const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
+            const url = proxy ? proxy + encodeURIComponent(base) : base;
+            const csv = await fetchText(url);
+            const rows = parseStooqCsv(csv);
+            if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
+          } catch (e) {
+            console.warn(`[BPSQuant] stooq via ${proxy || "direct"} for ${symbol} failed:`, e.message);
+          }
         }
-        if (provider === "twelvedata" && CFG.data && CFG.data.twelveDataKey) {
+      }
+      if (provider === "twelvedata" && CFG.data && CFG.data.twelveDataKey) {
+        try {
           const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&apikey=${CFG.data.twelveDataKey}`;
           const json = JSON.parse(await fetchText(url));
           if (json && json.values) {
@@ -134,9 +150,9 @@
             })).reverse();
             return { symbol, source: "Twelve Data (live)", rows: rows.slice(-days) };
           }
+        } catch (e) {
+          console.warn(`[BPSQuant] twelvedata for ${symbol} failed:`, e.message);
         }
-      } catch (e) {
-        console.warn(`[BPSQuant] ${provider} data for ${symbol} failed:`, e.message);
       }
     }
     return { symbol, source: "Demo data", rows: demoSeries(symbol, days, DEMO_BASE[symbol] || 450) };
