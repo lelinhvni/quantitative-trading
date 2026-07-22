@@ -116,45 +116,60 @@
       (CFG.data.corsProxy ? [CFG.data.corsProxy] : []))) || [];
     if (!proxies.length) proxies.push("");
 
-    for (const provider of providers) {
-      if (provider === "yahoo") {
-        for (const proxy of proxies) {
+    const attemptLive = async () => {
+      for (const provider of providers) {
+        if (provider === "yahoo") {
+          for (const proxy of proxies) {
+            try {
+              const rows = await fetchYahoo(symbol, days, proxy);
+              if (rows) return { symbol, source: "Yahoo Finance (live)", rows };
+            } catch (e) {
+              console.warn(`[BPSQuant] yahoo via ${proxy || "direct"} for ${symbol} failed:`, e.message);
+            }
+          }
+        }
+        if (provider === "stooq" && meta.stooq) {
+          for (const proxy of proxies) {
+            try {
+              const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
+              const url = proxy ? proxy + encodeURIComponent(base) : base;
+              const csv = await fetchText(url, 6000);
+              const rows = parseStooqCsv(csv);
+              if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
+            } catch (e) {
+              console.warn(`[BPSQuant] stooq via ${proxy || "direct"} for ${symbol} failed:`, e.message);
+            }
+          }
+        }
+        if (provider === "twelvedata" && CFG.data && CFG.data.twelveDataKey) {
           try {
-            const rows = await fetchYahoo(symbol, days, proxy);
-            if (rows) return { symbol, source: "Yahoo Finance (live)", rows };
+            const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&apikey=${CFG.data.twelveDataKey}`;
+            const json = JSON.parse(await fetchText(url));
+            if (json && json.values) {
+              const rows = json.values.map((v) => ({
+                date: v.datetime, open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +v.volume,
+              })).reverse();
+              return { symbol, source: "Twelve Data (live)", rows: rows.slice(-days) };
+            }
           } catch (e) {
-            console.warn(`[BPSQuant] yahoo via ${proxy || "direct"} for ${symbol} failed:`, e.message);
+            console.warn(`[BPSQuant] twelvedata for ${symbol} failed:`, e.message);
           }
         }
       }
-      if (provider === "stooq" && meta.stooq) {
-        for (const proxy of proxies) {
-          try {
-            const base = `https://stooq.com/q/d/l/?s=${meta.stooq}&i=d`;
-            const url = proxy ? proxy + encodeURIComponent(base) : base;
-            const csv = await fetchText(url);
-            const rows = parseStooqCsv(csv);
-            if (rows) return { symbol, source: "Stooq (live)", rows: rows.slice(-days) };
-          } catch (e) {
-            console.warn(`[BPSQuant] stooq via ${proxy || "direct"} for ${symbol} failed:`, e.message);
-          }
-        }
-      }
-      if (provider === "twelvedata" && CFG.data && CFG.data.twelveDataKey) {
-        try {
-          const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=${days}&apikey=${CFG.data.twelveDataKey}`;
-          const json = JSON.parse(await fetchText(url));
-          if (json && json.values) {
-            const rows = json.values.map((v) => ({
-              date: v.datetime, open: +v.open, high: +v.high, low: +v.low, close: +v.close, volume: +v.volume,
-            })).reverse();
-            return { symbol, source: "Twelve Data (live)", rows: rows.slice(-days) };
-          }
-        } catch (e) {
-          console.warn(`[BPSQuant] twelvedata for ${symbol} failed:`, e.message);
-        }
-      }
-    }
+      return null;
+    };
+
+    // Hard time budget: the page must render within ~12s even if every
+    // proxy is dead — pages re-fetch on their refresh interval, so live
+    // data replaces the fallback as soon as a route recovers.
+    const budget = (CFG.data && CFG.data.maxWaitMs) || 12000;
+    let timer;
+    const result = await Promise.race([
+      attemptLive(),
+      new Promise((res) => { timer = setTimeout(() => res(null), budget); }),
+    ]);
+    clearTimeout(timer);
+    if (result) return result;
     return { symbol, source: "Demo data", rows: demoSeries(symbol, days, DEMO_BASE[symbol] || 450) };
   }
 

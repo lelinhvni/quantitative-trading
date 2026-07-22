@@ -42,8 +42,11 @@ window.JSS_CONFIG = {
   --------------------------------------------------------------------- */
   data: {
     providers: ["yahoo", "stooq"],          // tried left-to-right until one works
-    // Public CORS proxies, tried in order until one works — never depend on one
+    // Proxies tried in order until one works. First is OUR OWN proxy on
+    // Supabase Edge Functions (see supabase/functions/market-proxy/) —
+    // deploy it once and the site stops depending on public proxies.
     corsProxies: [
+      "https://iwwogjrnoacjnrpukzdb.supabase.co/functions/v1/market-proxy?url=",
       "https://corsproxy.io/?url=",
       "https://api.allorigins.win/raw?url=",
       "https://api.codetabs.com/v1/proxy?quest=",
