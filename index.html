@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#070a14" />
   <title>BPSQuant — Grow Your Savings the Systematic Way</title>
-  <meta name="description" content="BPSQuant is a quantitative fund that earns steady income from the market using rules-based options strategies — explained in plain English for everyday investors. See how we aim to grow your savings faster than a bank account, with safety first." />
+  <meta name="description" content="BPSQuant is a quantitative fund that earns steady income from the market using rules-based options strategies — explained in plain English for everyday investors." />
   <meta property="og:type" content="website" />
   <meta property="og:title" content="BPSQuant — Grow Your Savings the Systematic Way" />
   <meta property="og:description" content="A beginner-friendly quantitative fund. Earn steady income from the market, with risk controls first. See how it works." />
@@ -13,8 +13,8 @@
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css?v=20260722c" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles/main.css?v=20260723a" />
 </head>
 <body data-page="home">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -27,20 +27,19 @@
       <div class="hero__glow" aria-hidden="true"></div>
       <div class="container hero__inner">
         <p class="hero__eyebrow reveal">For everyday investors · No jargon · Safety first</p>
-        <h1 class="hero__title reveal">
-          Put your savings to work —<br />
-          the <span class="grad">calm, systematic</span> way.
+        <h1 class="hero__title hero__title--serif reveal">
+          Put your savings<br />to <em>work.</em>
         </h1>
         <p class="hero__lede reveal">
-          BPSQuant is a quantitative fund that earns steady income from the market using
-          clear, rules-based strategies. New to investing? Good — this page explains exactly
-          how it works, in plain English, and how we aim to grow your money faster than a
-          bank account while keeping risk on a tight leash.
+          BPSQuant is a quantitative fund that earns steady income from the market with
+          clear, rules-based strategies — built for people who want their money growing
+          without watching a screen all day.
         </p>
         <div class="hero__actions reveal">
-          <a href="#how" class="btn btn--primary">See how it works</a>
-          <a href="#growth" class="btn btn--ghost">Savings vs. BPSQuant</a>
+          <a href="#contact" class="btn btn--primary">Get started →</a>
+          <a href="#trackrecord" class="btn btn--ghost">View track record ↗</a>
         </div>
+        <p class="trust-line reveal">We publish what we trade — every position, visible in your investor portal.</p>
         <div class="ticker reveal" aria-hidden="true">
           <div class="ticker__track" id="tickerTrack"><span class="tick">Loading live markets…</span></div>
         </div>
@@ -48,287 +47,147 @@
       <div class="hero__scroll" aria-hidden="true"><span></span></div>
     </section>
 
-    <!-- Stats -->
-    <section class="stats" aria-label="Key fund metrics">
-      <div class="container stats__grid" id="statsGrid"></div>
-    </section>
-
-    <!-- Start here / what we do -->
-    <section class="section" id="start">
+    <!-- § 01 Our objective -->
+    <section class="section" id="objective">
       <div class="container">
-        <div class="section__head reveal" style="max-width:780px">
-          <span class="kicker">New here? Start with this</span>
-          <h2>What BPSQuant actually does — in one minute</h2>
-          <p>Most people leave savings in a bank earning a few percent, or buy stocks and hope they go up. BPSQuant takes a third path: we act like a small, disciplined insurance company for the stock market. Investors who are nervous about big swings pay a premium for protection — and we collect those premiums using strict mathematical rules. We don't try to predict the market. We get paid for patience, and we cap our risk on every single trade.</p>
-        </div>
-        <div class="lead-points">
-          <div class="lead-point reveal"><span class="lead-point__k">You keep control</span><p>Your capital is tracked in your name and you can see every trade we make in your portal.</p></div>
-          <div class="lead-point reveal"><span class="lead-point__k">Income, not guesswork</span><p>We aim for steady returns from market "insurance" premiums — not from lucky one-off bets.</p></div>
-          <div class="lead-point reveal"><span class="lead-point__k">Risk on a leash</span><p>Every position has a maximum loss that is fixed before we ever enter the trade.</p></div>
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 01</span><span class="chapter-head__title">Our objective</span></div>
+        <h2 class="slogan reveal"><em>Steady income,</em> not lottery tickets.</h2>
+        <div class="editorial reveal">
+          <p>Most people leave savings in a bank earning a few percent, or buy stocks and hope they go up. BPSQuant takes a third path: we act like a small, disciplined insurance company for the stock market. Nervous investors pay a premium for protection against big swings — and we collect those premiums using strict mathematical rules.</p>
+          <p>We don't try to predict the market. We get paid for patience, we cap the risk on every single trade before we enter it, and we aim for small, repeatable wins that compound — not one lucky jackpot.</p>
         </div>
       </div>
     </section>
 
-    <!-- Market snapshot -->
-    <section class="section" id="snapshot">
+    <!-- § 02 The method -->
+    <section class="section section--alt" id="method">
       <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Markets we trade</span>
-          <h2>Live snapshot</h2>
-          <p>We focus on three deep, liquid ETFs. Below is a live look — full detail, including daily open/close and 60-day ranges, lives on the <a href="markets.html" class="inline-link">Markets</a> page.</p>
-        </div>
-        <div class="snap__grid" id="snapGrid">
-          <div class="snap__loading">Loading market data…</div>
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 02</span><span class="chapter-head__title">The method</span></div>
+        <h2 class="slogan reveal"><em>We sell insurance</em> — and time pays us.</h2>
+        <div class="method-duo">
+          <div class="editorial reveal">
+            <p>The moment we take a trade, we collect cash up front — exactly like an insurer collecting a premium. That money lands in the fund before the market moves an inch.</p>
+            <p>Our positions are balanced, not directional. They're built to profit whether the market drifts up a little, down a little, or sideways — so we never need a crystal ball.</p>
+            <p>Then time does the quiet work: the protection we sold loses a little value every day it isn't needed. If the market behaves, that premium melts in our favor — and becomes return for you. <strong>Deposit, and let the system work.</strong></p>
+          </div>
+          <div class="check-box reveal">
+            <div class="check-box__title">Every trade must pass the 4-point check</div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>High-probability setup</b><p>Multiple signals must line up before we act — never one indicator in isolation.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Maximum loss fixed first</b><p>The worst case is known and capped before a dollar is committed.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Balanced, not directional</b><p>The position can win across a wide range of outcomes, not just one.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Time on our side</b><p>Every day that passes should work for the position, not against it.</p></div></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- How it works (3 steps) -->
-    <section class="section section--alt" id="how">
+    <!-- § 03 The strategies -->
+    <section class="section" id="strategies">
       <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">How it works</span>
-          <h2>How we turn market "insurance" into your income</h2>
-          <p>Three simple ideas power everything we do. No finance degree required.</p>
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 03</span><span class="chapter-head__title">The strategies</span></div>
+        <h2 class="slogan reveal"><em>Income generation:</em> we sell premium.</h2>
+        <div class="editorial reveal">
+          <p>A curated set of premium-selling strategies — each chosen because it earns in a different market condition. One unified philosophy: collect premium, manage risk, repeat.</p>
         </div>
+        <div class="svc-grid">
+          <article class="svc-card reveal">
+            <div class="svc-card__icon">🛡️</div>
+            <h3 class="svc-card__name">Cash-Secured Puts</h3>
+            <div class="svc-card__tag">Income</div>
+            <p>Get paid a premium for agreeing to buy quality ETFs at a discount.</p>
+            <ul class="svc-ticks">
+              <li>Cash collected up front</li>
+              <li>Only on names we'd happily own</li>
+              <li>Either keep the premium, or buy cheap</li>
+            </ul>
+          </article>
+          <article class="svc-card reveal">
+            <div class="svc-card__icon">💰</div>
+            <h3 class="svc-card__name">Covered Calls</h3>
+            <div class="svc-card__tag">Steady yield</div>
+            <p>Holdings earn rent: we sell the right to buy our shares at higher prices.</p>
+            <ul class="svc-ticks">
+              <li>Extra income on what we own</li>
+              <li>Paid to wait for higher prices</li>
+              <li>Repeats month after month</li>
+            </ul>
+          </article>
+          <article class="svc-card reveal">
+            <div class="svc-card__icon">🎯</div>
+            <h3 class="svc-card__name">Iron Condors</h3>
+            <div class="svc-card__tag">Defined risk</div>
+            <p>Profit when the market stays inside a range — with loss capped by design.</p>
+            <ul class="svc-ticks">
+              <li>Earns in calm, sideways markets</li>
+              <li>Maximum loss fixed at entry</li>
+              <li>High probability of success</li>
+            </ul>
+          </article>
+          <article class="svc-card reveal">
+            <div class="svc-card__icon">🔄</div>
+            <h3 class="svc-card__name">The Wheel</h3>
+            <div class="svc-card__tag">Systematic cycle</div>
+            <p>A self-renewing loop that collects premium at every turn: put, own, call, repeat.</p>
+            <ul class="svc-ticks">
+              <li>Paid at every step of the cycle</li>
+              <li>Buys dips at a discount</li>
+              <li>Sells rallies at a profit</li>
+            </ul>
+          </article>
+          <article class="svc-card reveal">
+            <div class="svc-card__icon">↔️</div>
+            <h3 class="svc-card__name">Pair Trading</h3>
+            <div class="svc-card__tag">Market neutral</div>
+            <p>We trade the gap between two linked assets — direction doesn't matter.</p>
+            <ul class="svc-ticks">
+              <li>Works in up, down and flat markets</li>
+              <li>Statistically tested relationships</li>
+              <li>Profit from convergence, not luck</li>
+            </ul>
+          </article>
+          <article class="svc-card svc-card--more reveal">
+            <div class="svc-card__icon">📖</div>
+            <h3 class="svc-card__name">How it all works</h3>
+            <div class="svc-card__tag">Learn more</div>
+            <p>Every strategy above, explained step by step in plain English — with worked examples.</p>
+            <p style="margin-top:14px"><a class="btn btn--ghost btn--sm" href="performance.html">Read the Quant Finance guide →</a></p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- § 04 How to join -->
+    <section class="section section--alt" id="join">
+      <div class="container">
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 04</span><span class="chapter-head__title">How to join</span></div>
+        <h2 class="slogan reveal"><em>Three steps,</em> one afternoon.</h2>
         <ol class="steps">
           <li class="step reveal">
             <span class="step__num">1</span>
-            <h3>We collect a premium up front</h3>
-            <p>Like a car-insurance company, we get paid cash the moment we take on a risk. That money lands in the fund immediately — before we know how the market will move.</p>
+            <h3>Say hello</h3>
+            <p>Use the form below to tell us a little about yourself and what you're considering. We'll answer your questions — no pressure, no obligation.</p>
           </li>
           <li class="step reveal">
             <span class="step__num">2</span>
-            <h3>We stay balanced, not directional</h3>
-            <p>We build positions that can win across a wide range of outcomes — market up a little, down a little, or flat. We're not betting on a direction, so we don't need a crystal ball.</p>
+            <h3>Fund your account</h3>
+            <p>Once you're comfortable, you make your deposit and receive fund units at that day's price. Your capital is tracked in your name from day one.</p>
           </li>
           <li class="step reveal">
             <span class="step__num">3</span>
-            <h3>Time quietly pays us</h3>
-            <p>The protection we sold loses value a little every day it isn't needed. If the market behaves, that premium melts in our favor — and becomes return for you.</p>
+            <h3>Watch it work</h3>
+            <p>Log in to your investor portal anytime: your balance, every trade we make, monthly results, and a message line straight to the manager.</p>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- Strategy pillars -->
-    <section class="section" id="strategies">
+    <!-- § 05 Track record -->
+    <section class="section" id="trackrecord">
       <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Our four principles</span>
-          <h2>What makes the approach tick</h2>
-          <p>The same four ideas, a little deeper — these are the rules the whole strategy is built on.</p>
-        </div>
-        <div class="cards" id="stratCards"></div>
-      </div>
-    </section>
-
-    <!-- Savings vs BPSQuant growth -->
-    <section class="section section--alt" id="growth">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Your money over time</span>
-          <h2>Why a few percent extra changes everything</h2>
-          <p>A bank savings account is safe but slow. Over years, even a modest extra return compounds into a very different outcome. Below: a $10,000 starting balance left in a typical high-yield savings account, versus the same amount on an illustrative BPSQuant-style return path.</p>
-        </div>
-        <div class="panel chart-panel reveal">
-          <div class="panel__head"><h2>$10,000 over 15 years</h2><span class="panel__sub">Illustrative — not a forecast or guarantee</span></div>
-          <canvas id="growthChart" height="340" role="img" aria-label="Growth comparison: savings account versus BPSQuant illustrative path"></canvas>
-          <div class="chart-legend">
-            <span class="legend-key"><i style="background:#5d6b8a"></i> High-yield savings (~4%/yr)</span>
-            <span class="legend-key"><i style="background:#5eead4"></i> BPSQuant illustrative (~12%/yr)</span>
-          </div>
-          <p class="chart-caption" id="growthCaption"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Any market -->
-    <section class="section" id="anymarket">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Any weather</span>
-          <h2>How we aim to perform when the market zigs and zags</h2>
-          <p>Buy-and-hold investing depends on prices rising. Our approach is designed to also earn in calm and choppy markets, and to lose far less when things turn ugly. Here's the idea, side by side.</p>
-        </div>
-        <div class="panel chart-panel reveal">
-          <div class="panel__head"><h2>Designed behavior by market type</h2><span class="panel__sub">Illustrative design targets, not actual results</span></div>
-          <canvas id="regimeChart" height="320" role="img" aria-label="Illustrative performance by market regime"></canvas>
-          <div class="chart-legend">
-            <span class="legend-key"><i style="background:#5d6b8a"></i> Traditional buy &amp; hold</span>
-            <span class="legend-key"><i style="background:#818cf8"></i> BPSQuant systematic income</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- The two engines -->
-    <section class="section section--alt" id="edge">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">The two engines</span>
-          <h2>The quiet forces working for you</h2>
-          <p>Our returns come from two well-documented patterns in markets — not from predictions.</p>
-        </div>
-        <div class="chart-duo">
-          <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Time decay is our friend</h2><span class="panel__sub">Why we hold ~30–45 days</span></div>
-            <canvas id="thetaChart" height="260" role="img" aria-label="Option time-value decay curve"></canvas>
-            <p class="chart-caption">The "insurance" we sell loses value faster as it nears its expiry date. We focus on the steepest part of that slide, so each day that passes tends to work in our favor.</p>
-          </div>
-          <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Fear is usually overpriced</h2><span class="panel__sub">The volatility premium</span></div>
-            <canvas id="vrpChart" height="260" role="img" aria-label="Expected versus actual market volatility"></canvas>
-            <p class="chart-caption">Investors routinely pay more for protection than the market ends up needing. We collect that gap — the space between expected fear (blue) and what actually happens (teal).</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- The Wheel Strategy -->
-    <section class="section section--alt" id="wheel">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Income strategy</span>
-          <h2>The Wheel — rinse and repeat income</h2>
-          <p>One of our favourite tools: a self-renewing cycle that collects premium at every turn. Instead of hoping a stock goes up, we get paid just for being willing to own it — and then paid again while we do.</p>
-        </div>
-        <div class="wheel-intro">
-          <div class="wheel-steps">
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">🎯</div>
-              <div class="wheel-step__body">
-                <h4>Step 1 — Sell a cash-secured put</h4>
-                <p>We pick a stock at a price we'd happily own. Someone pays us a premium for the right to make us buy at that price. Cash in hand, immediately.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">📉</div>
-              <div class="wheel-step__body">
-                <h4>Step 2 — If assigned, we own it</h4>
-                <p>If the stock drops to our strike price, we buy it — but at a discount (we already collected the put premium). We're not upset; this was always an option we priced in.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">📞</div>
-              <div class="wheel-step__body">
-                <h4>Step 3 — Sell a covered call</h4>
-                <p>Now we own the stock, we sell someone the right to buy it from us at a higher price. More premium collected. We're getting paid to wait.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">🔄</div>
-              <div class="wheel-step__body">
-                <h4>Step 4 — Called away or repeat</h4>
-                <p>If the stock rises above our call strike, it's sold at a profit — plus we keep all premiums. Then we start the Wheel again on the next candidate.</p>
-              </div>
-            </div>
-          </div>
-          <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Illustrative Wheel income cycle</h2><span class="panel__sub">Example pattern — not actual results</span></div>
-            <canvas id="wheelChart" height="260" role="img" aria-label="Wheel strategy income cycle"></canvas>
-            <div class="chart-legend">
-              <span class="legend-key"><i style="background:#5eead4"></i> Put premium</span>
-              <span class="legend-key"><i style="background:#818cf8"></i> Call premium</span>
-              <span class="legend-key"><i style="background:#34d399"></i> Assignment gain</span>
-            </div>
-            <p class="chart-caption">Each bar shows income collected in that phase. The Wheel keeps turning — put, own, call, repeat.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Pair Trading -->
-    <section class="section" id="pairtrade">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Income strategy</span>
-          <h2>Pair Trading — profit from the relationship, not the direction</h2>
-          <p>Most investors bet on whether a stock goes up or down. Pair trading ignores direction entirely — we bet on the <em>relationship between two assets</em> returning to normal. It works in rising markets, falling markets, and flat ones.</p>
-        </div>
-        <div class="wheel-intro">
-          <div class="wheel-steps">
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">🔗</div>
-              <div class="wheel-step__body">
-                <h4>Step 1 — Find a historically linked pair</h4>
-                <p>We identify two assets that move together over time — think SPY vs. QQQ, or two competing companies in the same sector. The link is tested statistically (cointegration), not just eyeballed.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">📐</div>
-              <div class="wheel-step__body">
-                <h4>Step 2 — Measure the spread</h4>
-                <p>We track the price difference between the two assets as a Z-score. When they drift more than ~2 standard deviations apart, history says they're overdue to reconnect.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">↔️</div>
-              <div class="wheel-step__body">
-                <h4>Step 3 — Buy the laggard, short the leader</h4>
-                <p>When the spread widens, we buy the underperformer and short-sell the overperformer in equal dollar amounts. If the pair reconnects, both legs profit — regardless of whether the market moves up or down.</p>
-              </div>
-            </div>
-            <div class="wheel-step reveal">
-              <div class="wheel-step__icon">✅</div>
-              <div class="wheel-step__body">
-                <h4>Step 4 — Close when the spread converges</h4>
-                <p>Once the gap closes back to normal (Z-score near 0), both positions are closed. Profit comes from the convergence, not from predicting market direction. We then watch for the next divergence.</p>
-              </div>
-            </div>
-          </div>
-          <div class="panel chart-panel reveal">
-            <div class="panel__head"><h2>Illustrative spread Z-score</h2><span class="panel__sub">Entry / exit signals — not actual results</span></div>
-            <canvas id="pairChart" height="260" role="img" aria-label="Pair trading spread Z-score chart"></canvas>
-            <div class="chart-legend">
-              <span class="legend-key"><i style="background:#818cf8"></i> Spread Z-score</span>
-              <span class="legend-key"><i style="background:rgba(248,113,113,0.5)"></i> Entry zone (|Z| &gt; 2)</span>
-            </div>
-            <p class="chart-caption">When the Z-score crosses the dashed lines, we enter a trade. When it returns to zero, we exit. The strategy is market-neutral — direction doesn't matter, only the gap between the two assets.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Protect your money -->
-    <section class="section" id="protect">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Safety first</span>
-          <h2>How we protect your money</h2>
-          <p>Growing savings only matters if you keep them. Three automatic layers of defense run at all times.</p>
-        </div>
-        <div class="cards">
-          <article class="card reveal"><div class="card__icon">📉</div><h3>Smaller in storms</h3><p>When markets get wild, the system automatically shrinks position sizes — so a rough patch stays a scrape, not a wound.</p></article>
-          <article class="card reveal"><div class="card__icon">🤖</div><h3>Always-on safeguards</h3><p>Rules watch the portfolio around the clock and adjust or close positions before small losses can grow into big ones.</p></article>
-          <article class="card reveal"><div class="card__icon">🌪️</div><h3>Crash-tested</h3><p>The strategy is stress-tested against history's volatile periods — including 2019–2022 — to make sure it can take a punch and keep generating income.</p></article>
-        </div>
-      </div>
-    </section>
-
-    <!-- Steady cash flow -->
-    <section class="section section--alt" id="cashflow">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Steady by design</span>
-          <h2>Cash flow that keeps compounding</h2>
-          <p>Because we collect premiums regularly, the fund aims to generate a steady stream of income rather than relying on one big win. Reinvested month after month, that's the engine of long-run growth.</p>
-        </div>
-        <div class="panel chart-panel reveal">
-          <div class="panel__head"><h2>Illustrative monthly premium income</h2><span class="panel__sub">Example pattern — not actual results</span></div>
-          <canvas id="cashChart" height="280" role="img" aria-label="Illustrative monthly income pattern"></canvas>
-          <p class="chart-caption">Small, regular premiums add up. The goal isn't a jackpot — it's consistency that compounds.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Track record -->
-    <section class="section section--alt" id="trackrecord">
-      <div class="container">
-        <div class="section__head reveal">
-          <span class="kicker">Track record</span>
-          <h2>How the strategy has tracked over time</h2>
-          <p>A rules-based approach produces measurable results. Below is our composite equity curve against a simple buy-and-hold benchmark. <span class="data-source">Simulated for illustration — real NAV data populates automatically once connected.</span></p>
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 05</span><span class="chapter-head__title">Track record</span></div>
+        <h2 class="slogan reveal"><em>The numbers,</em> in the open.</h2>
+        <div class="editorial reveal">
+          <p>Every trade — wins and losses — is published to the investor portal. No cherry-picking, no survivorship bias. <span class="data-source">Chart below is simulated for illustration; live NAV data flows in automatically as the fund operates.</span></p>
         </div>
         <div class="track-metrics reveal" id="trackMetrics"></div>
         <div class="panel chart-panel reveal">
@@ -341,36 +200,81 @@
           </div>
           <canvas id="trackChart" height="300" role="img" aria-label="Equity curve vs benchmark"></canvas>
         </div>
-        <p style="text-align:center;margin-top:20px"><a href="performance.html" class="btn btn--ghost">Learn how we build strategies →</a></p>
+        <p style="text-align:center;margin-top:22px">
+          <a href="portal.html" class="btn btn--ghost">View the live portal ↗</a>
+        </p>
       </div>
     </section>
 
-    <!-- Why BPSQuant -->
-    <section class="section" id="why">
-      <div class="container why">
-        <div class="section__head reveal">
-          <span class="kicker">Why BPSQuant</span>
-          <h2>A fund you can actually see inside</h2>
-        </div>
-        <div class="why__grid">
-          <div class="why__item reveal"><h3>Full transparency</h3><p>Every trade and signal is published to your portal. No black boxes — you see what we do, when we do it.</p></div>
-          <div class="why__item reveal"><h3>Rules over feelings</h3><p>Entries and exits follow validated, cost-aware rules. Discipline is the strategy.</p></div>
-          <div class="why__item reveal"><h3>Risk first</h3><p>Position sizing is volatility-targeted and drawdown-capped. We optimize for surviving, then compounding.</p></div>
-          <div class="why__item reveal"><h3>Aligned interests</h3><p>The manager invests alongside you. We grow when you grow.</p></div>
+    <!-- § 06 The manager -->
+    <section class="section section--alt" id="manager">
+      <div class="container">
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 06</span><span class="chapter-head__title">The manager</span></div>
+        <h2 class="slogan reveal"><em>Real trades,</em> real accountability.</h2>
+        <div class="method-duo">
+          <div class="team-card reveal">
+            <div class="team-card__avatar">K</div>
+            <h3 class="team-card__name">Kevin</h3>
+            <div class="team-card__nick">"Systematic first"</div>
+            <div class="team-card__role">Founder &amp; Fund Manager</div>
+            <p class="team-card__spec">Specialty: premium-selling systems, The Wheel, defined-risk spreads on SPY / QQQ / DIA.</p>
+          </div>
+          <div class="check-box reveal">
+            <div class="check-box__title">Why investors trust the process</div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Full transparency</b><p>Every trade and balance visible in your portal — no black boxes.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Rules over feelings</b><p>Entries and exits follow tested rules. Discipline is the strategy.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Risk first</b><p>Sized to survive rough markets first, compound second.</p></div></div>
+            <div class="check-item"><span class="check-item__tick">✓</span><div><b>Aligned interests</b><p>The manager's own money is invested right alongside yours.</p></div></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- CTA -->
+    <!-- § 07 FAQ -->
+    <section class="section" id="faq">
+      <div class="container">
+        <div class="chapter-head reveal"><span class="chapter-head__num">§ 07</span><span class="chapter-head__title">Common questions</span></div>
+        <h2 class="slogan reveal"><em>Questions?</em> Straight answers.</h2>
+        <div class="faq reveal">
+          <details class="faq__item">
+            <summary>How do I see what's happening with my money?</summary>
+            <p>You get a personal login to the investor portal: your balance, total return, every deposit and withdrawal, every trade the fund makes, and monthly results — updated live.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Can I withdraw my money?</summary>
+            <p>Yes. You request a withdrawal from your portal in one tap; it's reviewed by the manager and paid out at the fund's current unit price — typically within a few business days. No lock-ups.</p>
+          </details>
+          <details class="faq__item">
+            <summary>What are the fees?</summary>
+            <p>2% per year management fee, plus 20% of profits above your account's previous high point (the "high-water mark" — we only earn a performance fee when you make new gains).</p>
+          </details>
+          <details class="faq__item">
+            <summary>Can I lose money?</summary>
+            <p>Yes — all investing carries risk, and we won't pretend otherwise. What we promise is that every trade has a maximum loss fixed before entry, position sizes shrink automatically in stormy markets, and you can see everything we do.</p>
+          </details>
+          <details class="faq__item">
+            <summary>What's the minimum investment?</summary>
+            <p>We're flexible while the fund is growing. Tell us what you're considering in the form below and we'll talk it through.</p>
+          </details>
+          <details class="faq__item">
+            <summary>What exactly do you trade?</summary>
+            <p>Options strategies on three of the world's most liquid ETFs — SPY (S&amp;P 500), QQQ (Nasdaq-100) and DIA (Dow Jones). The full mechanics are explained on our <a class="inline-link" href="performance.html">Quant Finance page</a>.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- § 08 Get started -->
     <section class="cta" id="contact">
       <div class="container cta__inner reveal">
-        <h2>Interested in investing with BPSQuant?</h2>
-        <p>Tell us a little about yourself and we'll get in touch. Existing investors can head straight to the portal.</p>
+        <div class="chapter-head" style="justify-content:center"><span class="chapter-head__num">§ 08</span><span class="chapter-head__title">Get started</span></div>
+        <h2 class="slogan" style="text-align:center"><em>Ready?</em> Say hello.</h2>
+        <p>Tell us a little about yourself and we'll get in touch. Existing investors can head straight to the <a class="inline-link" href="portal.html">portal</a>.</p>
         <form class="cta__form" id="contactForm" novalidate>
           <div class="field"><label for="name">Name</label><input id="name" name="name" type="text" autocomplete="name" required placeholder="Your name" /></div>
           <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" /></div>
           <div class="field field--full"><label for="message">Message</label><textarea id="message" name="message" rows="3" placeholder="How much are you considering, and what would you like to know?"></textarea></div>
-          <button type="submit" class="btn btn--primary">Request information</button>
+          <button type="submit" class="btn btn--primary">Get started →</button>
           <p class="cta__note" id="formNote" role="status" aria-live="polite"></p>
         </form>
       </div>
@@ -379,11 +283,11 @@
 
   <div data-slot="footer"></div>
 
-  <script src="scripts/config.js?v=20260722c"></script>
+  <script src="scripts/config.js?v=20260723a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="scripts/data.js?v=20260722c"></script>
-  <script src="scripts/db.js?v=20260722c"></script>
-  <script src="scripts/site.js?v=20260722c"></script>
-  <script src="scripts/home.js?v=20260722c" defer></script>
+  <script src="scripts/data.js?v=20260723a"></script>
+  <script src="scripts/db.js?v=20260723a"></script>
+  <script src="scripts/site.js?v=20260723a"></script>
+  <script src="scripts/home.js?v=20260723a" defer></script>
 </body>
 </html>
