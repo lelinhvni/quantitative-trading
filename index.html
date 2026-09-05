@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css?v=20260723a" />
+  <link rel="stylesheet" href="styles/main.css?v=20260723b" />
 </head>
 <body data-page="home">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -37,7 +37,7 @@
         </p>
         <div class="hero__actions reveal">
           <a href="#contact" class="btn btn--primary">Get started →</a>
-          <a href="#trackrecord" class="btn btn--ghost">View track record ↗</a>
+          <a href="#trackrecord" class="btn btn--gold">View track record ↗</a>
         </div>
         <p class="trust-line reveal">We publish what we trade — every position, visible in your investor portal.</p>
         <div class="ticker reveal" aria-hidden="true">
@@ -100,6 +100,7 @@
               <li>Only on names we'd happily own</li>
               <li>Either keep the premium, or buy cheap</li>
             </ul>
+            <div class="svc-included">✓ Included in every account</div>
           </article>
           <article class="svc-card reveal">
             <div class="svc-card__icon">💰</div>
@@ -111,6 +112,7 @@
               <li>Paid to wait for higher prices</li>
               <li>Repeats month after month</li>
             </ul>
+            <div class="svc-included">✓ Included in every account</div>
           </article>
           <article class="svc-card reveal">
             <div class="svc-card__icon">🎯</div>
@@ -122,6 +124,7 @@
               <li>Maximum loss fixed at entry</li>
               <li>High probability of success</li>
             </ul>
+            <div class="svc-included">✓ Included in every account</div>
           </article>
           <article class="svc-card reveal">
             <div class="svc-card__icon">🔄</div>
@@ -133,6 +136,7 @@
               <li>Buys dips at a discount</li>
               <li>Sells rallies at a profit</li>
             </ul>
+            <div class="svc-included">✓ Included in every account</div>
           </article>
           <article class="svc-card reveal">
             <div class="svc-card__icon">↔️</div>
@@ -144,6 +148,7 @@
               <li>Statistically tested relationships</li>
               <li>Profit from convergence, not luck</li>
             </ul>
+            <div class="svc-included">✓ Included in every account</div>
           </article>
           <article class="svc-card svc-card--more reveal">
             <div class="svc-card__icon">📖</div>
@@ -199,9 +204,10 @@
             </div>
           </div>
           <canvas id="trackChart" height="300" role="img" aria-label="Equity curve vs benchmark"></canvas>
+          <p class="live-line"><span class="live-line__dot" aria-hidden="true"></span><span id="liveLineText">Simulated preview · live NAV connects via the portal</span></p>
         </div>
         <p style="text-align:center;margin-top:22px">
-          <a href="portal.html" class="btn btn--ghost">View the live portal ↗</a>
+          <a href="portal.html" class="btn btn--gold">View the live portal ↗</a>
         </p>
       </div>
     </section>
@@ -211,6 +217,9 @@
       <div class="container">
         <div class="chapter-head reveal"><span class="chapter-head__num">§ 06</span><span class="chapter-head__title">The manager</span></div>
         <h2 class="slogan reveal"><em>Real trades,</em> real accountability.</h2>
+        <div class="editorial reveal">
+          <p>The fund runs on rules, but a person is accountable for them. We publish what we trade — and we trade what we publish: every position appears in the investor portal the moment it's opened.</p>
+        </div>
         <div class="method-duo">
           <div class="team-card reveal">
             <div class="team-card__avatar">K</div>
@@ -283,11 +292,11 @@
 
   <div data-slot="footer"></div>
 
-  <script src="scripts/config.js?v=20260723a"></script>
+  <script src="scripts/config.js?v=20260723b"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="scripts/data.js?v=20260723a"></script>
-  <script src="scripts/db.js?v=20260723a"></script>
-  <script src="scripts/site.js?v=20260723a"></script>
-  <script src="scripts/home.js?v=20260723a" defer></script>
+  <script src="scripts/data.js?v=20260723b"></script>
+  <script src="scripts/db.js?v=20260723b"></script>
+  <script src="scripts/site.js?v=20260723b"></script>
+  <script src="scripts/home.js?v=20260723b" defer></script>
 </body>
 </html>

@@ -259,6 +259,19 @@
       ];
       el.innerHTML = ms.map((m) => `<div class="track-metric"><div class="track-metric__v">${m.v}</div><div class="track-metric__l">${m.l}</div></div>`).join("");
     }
+    // Status line under the chart (Slakur-style "LIVE · YTD · trades")
+    const ll = document.getElementById("liveLineText");
+    if (ll) {
+      const nowY = new Date().getFullYear();
+      let firstIdx = 0;
+      for (let i = 0; i < months; i++) {
+        const d = new Date(start); d.setMonth(start.getMonth() + i);
+        if (d.getFullYear() === nowY) { firstIdx = i; break; }
+      }
+      const base = strat[Math.max(0, firstIdx - 1)];
+      const ytd = (strat[months - 1] / base - 1) * 100;
+      ll.textContent = `Simulated preview · ${nowY} YTD ${F.fmtPct(ytd, 1)} · live NAV connects via the portal`;
+    }
   }
 
   function cashChart() {
