@@ -1372,3 +1372,17 @@ button { font: inherit; cursor: pointer; }
   color: #34d399; font-family: "JetBrains Mono", monospace;
   font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
 }
+
+/* --- team grid (two founders side by side) --- */
+.team-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px;
+}
+@media (max-width: 780px) { .team-grid { grid-template-columns: 1fr; } }
+.team-grid .team-card { transition: border-color 0.2s; }
+.team-grid .team-card:hover { border-color: var(--gold-dim); }
+
+/* --- check items in two columns inside a wide box --- */
+.check-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px 32px;
+}
+@media (max-width: 780px) { .check-grid { grid-template-columns: 1fr; } }

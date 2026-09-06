@@ -59,7 +59,7 @@ and `withdrawal_requests` — no dashboard toggles needed.
 4. In the SQL editor, run:
 
 ```sql
-UPDATE public.profiles SET role = 'manager', name = 'Kevin' WHERE id = 'PASTE-YOUR-UUID';
+UPDATE public.profiles SET role = 'manager', name = 'Kevin Le' WHERE id = 'PASTE-YOUR-UUID';
 ```
 
 ---
