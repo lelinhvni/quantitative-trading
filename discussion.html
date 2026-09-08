@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css?v=20260905a" />
+  <link rel="stylesheet" href="styles/main.css?v=20260908a" />
 </head>
 <body data-page="discussion">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -61,6 +61,21 @@
         <label for="newAuthor">Your name (optional)</label>
         <input id="newAuthor" type="text" placeholder="Anonymous" maxlength="40" />
       </div>
+      <div class="field">
+        <label>Attachments (optional)</label>
+        <div class="attach" data-scope="topic">
+          <div class="attach__row">
+            <label class="attach__btn">
+              📎 Attach files
+              <input type="file" class="attach__input" multiple hidden
+                     accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain,text/csv" />
+            </label>
+            <span class="attach__hint">Images, PDF, TXT or CSV · max 300 KB each · up to 3</span>
+          </div>
+          <div class="attach__chips"></div>
+          <p class="attach__err" role="status" aria-live="polite"></p>
+        </div>
+      </div>
       <p class="cta__note is-error" id="modalErr" role="status" aria-live="polite"></p>
       <div class="modal__actions">
         <button class="modal__cancel" id="modalCancel" type="button">Cancel</button>
@@ -71,9 +86,9 @@
 
   <div data-slot="footer"></div>
 
-  <script src="scripts/config.js?v=20260905a"></script>
-  <script src="scripts/data.js?v=20260905a"></script>
-  <script src="scripts/site.js?v=20260905a"></script>
-  <script src="scripts/discussion.js?v=20260905a" defer></script>
+  <script src="scripts/config.js?v=20260908a"></script>
+  <script src="scripts/data.js?v=20260908a"></script>
+  <script src="scripts/site.js?v=20260908a"></script>
+  <script src="scripts/discussion.js?v=20260908a" defer></script>
 </body>
 </html>

@@ -8,6 +8,61 @@
   const STORE_KEY = "jss_discussion_v1";
   const COLORS = ["sticky--teal", "sticky--indigo", "sticky--yellow", "sticky--green", "sticky--red"];
 
+  /* ---- Attachments ----------------------------------------------------
+     Files are held as data URLs alongside the post in localStorage, so
+     they stay small on purpose. Only these types are ever accepted or
+     rendered — anything else is rejected at pick time and again at
+     render time, so a hand-edited store can't inject an active type.  */
+  const MAX_FILES = 3;
+  const MAX_BYTES = 300 * 1024;                  // 300 KB per file
+  const ALLOWED = {
+    "image/png": "PNG", "image/jpeg": "JPG", "image/gif": "GIF",
+    "image/webp": "WEBP", "application/pdf": "PDF",
+    "text/plain": "TXT", "text/csv": "CSV",
+  };
+  const ACCEPT = Object.keys(ALLOWED).join(",");
+
+  /* pending picks, cleared once the post is saved */
+  let pendingTopic = [];
+  const pendingReply = {};                        // topicId -> [file objects]
+
+  function fmtBytes(n) {
+    return n < 1024 ? n + " B"
+      : n < 1024 * 1024 ? (n / 1024).toFixed(0) + " KB"
+      : (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  /* Read picked files into {name,type,size,dataUrl}; returns errors too */
+  function readFiles(fileList, existing) {
+    const errors = [];
+    const room = MAX_FILES - existing.length;
+    const picked = Array.from(fileList);
+    if (picked.length > room) {
+      errors.push(`Up to ${MAX_FILES} files per post.`);
+    }
+    const jobs = picked.slice(0, Math.max(0, room)).map((f) => new Promise((resolve) => {
+      if (!ALLOWED[f.type]) {
+        errors.push(`${f.name}: only images, PDF, TXT and CSV are allowed.`);
+        return resolve(null);
+      }
+      if (f.size > MAX_BYTES) {
+        errors.push(`${f.name} is ${fmtBytes(f.size)} — the limit is ${fmtBytes(MAX_BYTES)}.`);
+        return resolve(null);
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: f.name, type: f.type, size: f.size, dataUrl: reader.result });
+      reader.onerror = () => { errors.push(`${f.name}: could not be read.`); resolve(null); };
+      reader.readAsDataURL(f);
+    }));
+    return Promise.all(jobs).then((res) => ({ files: res.filter(Boolean), errors }));
+  }
+
+  /* A stored attachment is only trusted if its data URL matches its type */
+  function safeAttachment(a) {
+    return a && ALLOWED[a.type] && typeof a.dataUrl === "string" &&
+      a.dataUrl.startsWith("data:" + a.type + ";base64,");
+  }
+
   /* ---- Seed topics (shown until user adds their own) ---- */
   const SEED_TOPICS = [
     {
@@ -83,8 +138,11 @@
     } catch (_) { return null; }
   }
 
+  /* Returns true on success; false when the browser store is full
+     (attachments are the usual cause, so the caller can say so). */
   function save(data) {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); } catch (_) {}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(data)); return true; }
+    catch (_) { return false; }
   }
 
   function getData() {
@@ -94,7 +152,89 @@
   }
 
   function saveData(data) {
-    save(data);
+    return save(data);
+  }
+
+  /* ============================================================
+     Attachment rendering
+     ============================================================ */
+  /* Posted attachments: images inline, everything else a download chip */
+  function attachmentsHtml(list) {
+    const files = (list || []).filter(safeAttachment);
+    if (!files.length) return "";
+    return `<div class="att-grid">${files.map((a) => {
+      const name = escHtml(a.name);
+      if (a.type.startsWith("image/")) {
+        return `<a class="att-thumb" href="${a.dataUrl}" download="${name}" title="${name}">
+          <img src="${a.dataUrl}" alt="${name}" loading="lazy" />
+        </a>`;
+      }
+      return `<a class="att-file" href="${a.dataUrl}" download="${name}">
+        <span class="att-file__ext">${ALLOWED[a.type]}</span>
+        <span class="att-file__meta"><b>${name}</b><span>${fmtBytes(a.size)}</span></span>
+      </a>`;
+    }).join("")}</div>`;
+  }
+
+  /* Picker: attach button + chips for files queued but not yet posted */
+  function pickerHtml(scope) {
+    return `
+    <div class="attach" data-scope="${scope}">
+      <div class="attach__row">
+        <label class="attach__btn">
+          📎 Attach files
+          <input type="file" class="attach__input" multiple accept="${ACCEPT}" hidden />
+        </label>
+        <span class="attach__hint">Images, PDF, TXT or CSV · max ${fmtBytes(MAX_BYTES)} each · up to ${MAX_FILES}</span>
+      </div>
+      <div class="attach__chips"></div>
+      <p class="attach__err" role="status" aria-live="polite"></p>
+    </div>`;
+  }
+
+  function chipsHtml(files) {
+    return files.map((f, i) => `
+      <span class="attach__chip">
+        ${f.type.startsWith("image/") ? `<img src="${f.dataUrl}" alt="" />` : `<span class="attach__chip__ext">${ALLOWED[f.type]}</span>`}
+        <span class="attach__chip__name">${escHtml(f.name)}</span>
+        <span class="attach__chip__size">${fmtBytes(f.size)}</span>
+        <button type="button" class="attach__chip__x" data-i="${i}" aria-label="Remove ${escHtml(f.name)}">×</button>
+      </span>`).join("");
+  }
+
+  /* Wire one picker to its pending-file array. getList/setList let the
+     same code serve the modal (one array) and each reply form. */
+  function bindPicker(root, getList, setList) {
+    if (!root || root.dataset.bound) return;
+    root.dataset.bound = "1";
+    const input = root.querySelector(".attach__input");
+    const chips = root.querySelector(".attach__chips");
+    const err = root.querySelector(".attach__err");
+
+    const paint = () => {
+      const list = getList();
+      chips.innerHTML = chipsHtml(list);
+      chips.querySelectorAll(".attach__chip__x").forEach((b) =>
+        b.addEventListener("click", () => {
+          const next = getList().slice();
+          next.splice(+b.dataset.i, 1);
+          setList(next);
+          paint();
+        })
+      );
+    };
+
+    input.addEventListener("change", () => {
+      err.textContent = "";
+      readFiles(input.files, getList()).then(({ files, errors }) => {
+        if (files.length) setList(getList().concat(files));
+        err.textContent = errors.join(" ");
+        input.value = "";
+        paint();
+      });
+    });
+
+    paint();
   }
 
   /* ============================================================
@@ -122,9 +262,18 @@
     sorted.forEach((t) => {
       const card = document.getElementById("sticky-" + t.id);
       if (!card) return;
-      card.querySelector(".sticky__header").addEventListener("click", () => toggleOpen(t.id));
+      card.querySelector(".sticky__header").addEventListener("click", (e) => {
+        // let attachment links work without collapsing the card
+        if (e.target.closest("a")) return;
+        toggleOpen(t.id);
+      });
       const form = card.querySelector(".thread__submit");
       if (form) form.addEventListener("click", () => submitReply(t.id, card));
+      bindPicker(
+        card.querySelector(".attach"),
+        () => pendingReply[t.id] || [],
+        (list) => { pendingReply[t.id] = list; }
+      );
     });
   }
 
@@ -143,6 +292,7 @@
            onkeydown="if(event.key==='Enter'||event.key===' ')this.click()">
         <div class="sticky__title">${escHtml(t.title)}</div>
         <div class="sticky__body">${escHtml(t.body)}</div>
+        ${attachmentsHtml(t.files)}
         <div class="sticky__meta">
           <span>${escHtml(t.author || "Anonymous")} · ${ago}</span>
           <span class="sticky__replies">${t.replies.length} repl${t.replies.length !== 1 ? "ies" : "y"} <span class="sticky__caret">▼</span></span>
@@ -155,7 +305,9 @@
             <input class="thread__author-input" type="text" placeholder="Your name (optional)" maxlength="40" />
           </div>
           <textarea class="thread__reply-input" placeholder="Add to the conversation…" maxlength="600" rows="3"></textarea>
-          <div style="display:flex;justify-content:flex-end">
+          ${pickerHtml("reply")}
+          <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px">
+            <span class="cta__note thread__err" role="status" aria-live="polite"></span>
             <button class="btn btn--primary btn--sm thread__submit" type="button">Reply</button>
           </div>
         </div>
@@ -171,6 +323,7 @@
         <span class="thread__reply__time">${relTime(r.createdAt)}</span>
       </div>
       <div class="thread__reply__body">${escHtml(r.body)}</div>
+      ${attachmentsHtml(r.files)}
     </div>`;
   }
 
@@ -188,9 +341,12 @@
   function submitReply(topicId, card) {
     const authorEl = card.querySelector(".thread__author-input");
     const bodyEl = card.querySelector(".thread__reply-input");
+    const errEl = card.querySelector(".thread__err");
     const body = bodyEl ? bodyEl.value.trim() : "";
     const author = authorEl ? authorEl.value.trim() || "Anonymous" : "Anonymous";
-    if (!body) { bodyEl && bodyEl.focus(); return; }
+    const files = pendingReply[topicId] || [];
+    if (errEl) errEl.textContent = "";
+    if (!body && !files.length) { bodyEl && bodyEl.focus(); return; }
 
     const data = getData();
     const topic = data.topics.find((t) => t.id === topicId);
@@ -199,9 +355,14 @@
       id: "r-" + Date.now(),
       author,
       body,
+      files,
       createdAt: new Date().toISOString(),
     });
-    saveData(data);
+    if (!saveData(data)) {
+      if (errEl) errEl.textContent = "Not enough browser storage — try smaller attachments.";
+      return;
+    }
+    delete pendingReply[topicId];
     render();
   }
 
@@ -215,7 +376,14 @@
     const submit = document.getElementById("modalSubmit");
     const err = document.getElementById("modalErr");
 
-    if (btn) btn.addEventListener("click", () => overlay && overlay.classList.remove("is-hidden"));
+    if (btn) btn.addEventListener("click", () => {
+      if (overlay) overlay.classList.remove("is-hidden");
+      bindPicker(
+        document.querySelector("#modalOverlay .attach"),
+        () => pendingTopic,
+        (list) => { pendingTopic = list; }
+      );
+    });
     if (cancel) cancel.addEventListener("click", closeModal);
     if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -236,12 +404,16 @@
           title,
           body,
           author,
+          files: pendingTopic,
           createdAt: new Date().toISOString(),
           pinned: false,
           color: COLORS[colorIdx],
           replies: [],
         });
-        saveData(data);
+        if (!saveData(data)) {
+          if (err) err.textContent = "Not enough browser storage — try smaller attachments.";
+          return;
+        }
         closeModal();
         render();
       });
@@ -257,6 +429,13 @@
     });
     const err = document.getElementById("modalErr");
     if (err) err.textContent = "";
+    pendingTopic = [];
+    const picker = document.querySelector("#modalOverlay .attach");
+    if (picker) {
+      picker.querySelector(".attach__chips").innerHTML = "";
+      picker.querySelector(".attach__err").textContent = "";
+      picker.querySelector(".attach__input").value = "";
+    }
   }
 
   /* ============================================================
