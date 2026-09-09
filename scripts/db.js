@@ -255,6 +255,25 @@
     },
 
     /* ============================================================
+       APP SETTINGS — private key/value, manager-only via RLS.
+       Used for values that must not sit in the public repo, such
+       as the new-enquiry alert address.
+       ============================================================ */
+    async getSetting(key) {
+      const { data, error } = await this._client
+        .from("app_settings").select("value").eq("key", key).maybeSingle();
+      if (error) throw error;
+      return data ? data.value : null;
+    },
+
+    async setSetting(key, value) {
+      const { error } = await this._client
+        .from("app_settings")
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) throw error;
+    },
+
+    /* ============================================================
        ADMIN EDIT TOOLS — direct writes, manager-only via RLS.
        These bypass the atomic bookkeeping; the profile page's
        ledger-reconciliation check catches any resulting drift.

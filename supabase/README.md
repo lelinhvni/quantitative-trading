@@ -148,8 +148,14 @@ Deploy. Then under its **Secrets** add:
 | Secret | Value |
 |---|---|
 | `RESEND_API_KEY` | `re_…` from step a |
-| `ALERT_TO` | where alerts go, e.g. `kevin@bpsquant.com` (comma-separate for several) |
 | `ALERT_FROM` | `BPSQuant <alerts@bpsquant.com>` — must be on your verified domain |
+| `ALERT_TO` | *optional* — set the recipient here, or leave it unset and use the ops console (below) |
+
+**Where alerts are sent.** Open `/ops.html`, unlock it, and fill in
+**Enquiry alerts → Alert email address**. It's saved to the private
+`app_settings` table in your database, so your personal address never
+appears in this public repo, and you can change it any time without a
+redeploy. (An `ALERT_TO` secret, if set, takes priority.)
 
 **c. Point the database at it** — SQL editor, replacing both values:
 

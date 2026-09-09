@@ -444,3 +444,18 @@ DROP TRIGGER IF EXISTS on_contact_lead_created ON public.contact_leads;
 CREATE TRIGGER on_contact_lead_created
   AFTER INSERT ON public.contact_leads
   FOR EACH ROW EXECUTE FUNCTION public.on_new_lead();
+
+-- ============================================================
+-- 18. app_settings — small private key/value store
+--     Holds things that must NOT live in the public repo, e.g.
+--     the address that new-enquiry alerts are emailed to.
+--     Manager-only: no investor or anonymous access at all.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "manager_all" ON public.app_settings;
+CREATE POLICY "manager_all" ON public.app_settings FOR ALL USING (is_manager());

@@ -103,8 +103,43 @@
       investors.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
     sel.addEventListener("change", () => loadInvestor(sel.value));
     $("opsProfileForm").addEventListener("submit", saveProfile);
+    await loadAlertSetting();
     await loadTrades();
     await loadPositions();
+  }
+
+  /* ---------- enquiry alert recipient ---------- */
+  async function loadAlertSetting() {
+    const input = $("opsAlertTo");
+    const note = $("opsAlertNote");
+    const form = $("opsAlertForm");
+    if (!form) return;
+    try {
+      const v = await DB.getSetting("alert_to");
+      if (input && v) input.value = v;
+    } catch (err) {
+      if (note) {
+        note.textContent = "Run the latest supabase/schema.sql to enable this (app_settings table missing).";
+        note.classList.add("is-error");
+      }
+    }
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const val = (input.value || "").trim();
+      if (val && !/^[^@\s,]+@[^@\s,]+\.[^@\s,]+(\s*,\s*[^@\s,]+@[^@\s,]+\.[^@\s,]+)*$/.test(val)) {
+        note.textContent = "That doesn't look like a valid email address.";
+        note.classList.add("is-error");
+        return;
+      }
+      try {
+        await DB.setSetting("alert_to", val);
+        note.classList.remove("is-error");
+        note.textContent = val ? "✓ Alerts will go to " + val : "✓ Alerts turned off.";
+      } catch (err) {
+        note.textContent = "Error: " + err.message;
+        note.classList.add("is-error");
+      }
+    });
   }
 
   async function loadInvestor(id) {

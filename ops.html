@@ -8,7 +8,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css?v=20260909a" />
+  <link rel="stylesheet" href="styles/main.css?v=20260909b" />
 </head>
 <body data-page="ops" style="padding-top:32px">
   <main id="main">
@@ -52,6 +52,19 @@
               <p class="portal__role">Direct data editing — changes are immediate and unaudited. The investor portal's atomic forms remain the preferred path.</p>
             </div>
             <button class="btn btn--ghost btn--sm" id="opsLockBtn">Lock console</button>
+          </div>
+
+          <div class="panel">
+            <div class="panel__head"><h2>Enquiry alerts</h2><span class="panel__sub">Where new contact-form submissions are emailed</span></div>
+            <form class="mgr-form" id="opsAlertForm">
+              <div class="field field--full">
+                <label for="opsAlertTo">Alert email address</label>
+                <input id="opsAlertTo" type="text" placeholder="you@example.com" autocomplete="email" />
+              </div>
+              <button type="submit" class="btn btn--primary btn--sm">Save alert email</button>
+              <p class="cta__note" id="opsAlertNote" role="status" aria-live="polite"></p>
+            </form>
+            <p class="portal__note">Stored privately in your database — never in the public repo. Separate several addresses with commas. Requires the <code>notify-lead</code> function to be deployed with a Resend key.</p>
           </div>
 
           <div class="panel">
@@ -112,10 +125,10 @@
     </section>
   </main>
 
-  <script src="scripts/config.js?v=20260909a"></script>
+  <script src="scripts/config.js?v=20260909b"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="scripts/data.js?v=20260909a"></script>
-  <script src="scripts/db.js?v=20260909a"></script>
-  <script src="scripts/ops.js?v=20260909a" defer></script>
+  <script src="scripts/data.js?v=20260909b"></script>
+  <script src="scripts/db.js?v=20260909b"></script>
+  <script src="scripts/ops.js?v=20260909b" defer></script>
 </body>
 </html>

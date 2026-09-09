@@ -38,8 +38,27 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   const key = Deno.env.get("RESEND_API_KEY");
-  const to = (Deno.env.get("ALERT_TO") || "").split(",").map((s) => s.trim()).filter(Boolean);
   const from = Deno.env.get("ALERT_FROM") || "BPSQuant <onboarding@resend.dev>";
+
+  // Recipient: the ALERT_TO secret wins; otherwise read app_settings.alert_to,
+  // which the manager sets from the ops console. Keeping it in the database
+  // means no personal address is ever committed to the public repo.
+  let toRaw = Deno.env.get("ALERT_TO") || "";
+  if (!toRaw) {
+    try {
+      const url = Deno.env.get("SUPABASE_URL");
+      const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (url && svc) {
+        const r = await fetch(
+          `${url}/rest/v1/app_settings?key=eq.alert_to&select=value`,
+          { headers: { apikey: svc, Authorization: `Bearer ${svc}` } },
+        );
+        const rows = await r.json();
+        if (Array.isArray(rows) && rows[0]?.value) toRaw = String(rows[0].value);
+      }
+    } catch { /* fall through to "not configured" */ }
+  }
+  const to = toRaw.split(",").map((s) => s.trim()).filter(Boolean);
 
   if (!key || !to.length) {
     // Not configured yet — succeed quietly so the lead is never lost.
