@@ -277,26 +277,92 @@
     const retPct = curVal != null && netInv > 0 ? (gain / netInv) * 100 : null;
     const navSeries = allNav.length ? allNav : null;
 
+    const deposits = events.filter(e => e.type === "deposit");
+    const firstDate = deposits.length ? deposits[deposits.length - 1].date : (account && account.since);
+    const unreadMsgs = messages.filter(m => m.sender_role === "manager" && !m.read_at).length;
+    const pendingWd  = withdrawals.filter(w => w.status === "pending").length;
+
+    /* Headline: what you put in, what it's worth, what you've made.
+       Everything else lives below in collapsible detail sections. */
     body.innerHTML = `
       <div>
-        <div class="metricrow reveal">
-          <div class="metric"><div class="metric__v">${curVal != null ? F.fmtMoney(curVal,0) : "—"}</div><div class="metric__l">Current value</div></div>
-          <div class="metric"><div class="metric__v">${F.fmtMoney(netInv,0)}</div><div class="metric__l">Net invested</div></div>
-          <div class="metric"><div class="metric__v ${gain!=null&&gain>=0?"pos":"neg"}">${gain!=null?F.fmtMoney(gain,0):"—"}</div><div class="metric__l">Total gain/loss</div></div>
-          <div class="metric"><div class="metric__v ${retPct!=null&&retPct>=0?"pos":"neg"}">${retPct!=null?F.fmtPct(retPct):"—"}</div><div class="metric__l">Total return</div></div>
-          <div class="metric"><div class="metric__v mono">${units.toFixed(4)}</div><div class="metric__l">Fund units</div></div>
+        <div class="acct-hero reveal">
+          <div class="acct-hero__main">
+            <div class="acct-hero__label">Your account is worth</div>
+            <div class="acct-hero__value">${curVal != null ? F.fmtMoney(curVal, 2) : "—"}</div>
+            ${gain != null ? `
+              <div class="acct-hero__delta ${gain >= 0 ? "is-up" : "is-down"}">
+                ${gain >= 0 ? "▲" : "▼"} ${F.fmtMoney(Math.abs(gain), 2)}
+                ${retPct != null ? `(${retPct >= 0 ? "+" : "−"}${Math.abs(retPct).toFixed(1)}%)` : ""}
+                <span>${gain >= 0 ? "earned" : "down"} since you joined</span>
+              </div>` : ""}
+          </div>
+          <div class="acct-hero__split">
+            <div class="acct-fact">
+              <div class="acct-fact__l">You put in</div>
+              <div class="acct-fact__v">${F.fmtMoney(netInv, 2)}</div>
+              <div class="acct-fact__s">${totalWith > 0 ? F.fmtMoney(totalDep,0) + " deposited − " + F.fmtMoney(totalWith,0) + " withdrawn" : (firstDate ? "since " + firstDate : "no deposits yet")}</div>
+            </div>
+            <div class="acct-fact">
+              <div class="acct-fact__l">You've made</div>
+              <div class="acct-fact__v ${gain != null && gain >= 0 ? "pos" : gain != null ? "neg" : ""}">${gain != null ? (gain >= 0 ? "+" : "−") + F.fmtMoney(Math.abs(gain), 2) : "—"}</div>
+              <div class="acct-fact__s">${retPct != null ? (retPct >= 0 ? "+" : "−") + Math.abs(retPct).toFixed(1) + "% total return" : "starts once your first deposit lands"}</div>
+            </div>
+          </div>
         </div>
-        ${navSeries ? `<div class="panel reveal"><div class="panel__head"><h2>Account value over time</h2></div><canvas id="acctChart" height="280"></canvas></div>` : ""}
-        ${riskPanelHtml(account && account.risk_pref ? account.risk_pref : "balanced")}
-        ${liveWithdrawPanelHtml(withdrawals)}
-        <div class="panel reveal"><div class="panel__head"><h2>Capital events</h2></div>
-          ${events.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Units</th><th>NAV at txn</th><th>Note</th></tr></thead><tbody>${events.map(ev=>`<tr><td class="mono">${ev.date}</td><td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${ev.type}</span></td><td class="mono">${F.fmtMoney(ev.amount,0)}</td><td class="mono">${ev.units!=null?F.fmtNum(ev.units,4):"—"}</td><td class="mono">${ev.nav_at_txn!=null?F.fmtNum(ev.nav_at_txn,2):"—"}</td><td>${ev.note||""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No capital events yet.</p>`}
-        </div>
-        ${positionsPanel(positions)}
-        ${tradesPanel(trades, {title:"Trade activity", sub:"Executions logged"})}
-        ${liveMessagesPanelHtml(messages, "investor")}
-        <p class="portal__note">NAV as of ${latestNav?latestNav.date:"—"}: ${navPU?F.fmtNum(navPU,2):"—"} per unit.</p>
+
+        ${navSeries && units > 0 ? `
+        <div class="panel reveal">
+          <div class="panel__head"><h2>How your money has grown</h2><span class="panel__sub">Your balance, day by day</span></div>
+          <canvas id="acctChart" height="260"></canvas>
+        </div>` : `<p class="portal__note">Your growth chart appears once your first deposit is recorded.</p>`}
+
+        ${pendingWd ? `<div class="demo-banner">You have ${pendingWd} withdrawal request${pendingWd>1?"s":""} awaiting review.</div>` : ""}
+
+        <details class="acct-more reveal">
+          <summary><span>Your deposits &amp; withdrawals</span><span class="acct-more__hint">${events.length} record${events.length!==1?"s":""}</span></summary>
+          ${events.length ? `<div class="table-wrap"><table class="ttable">
+            <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead>
+            <tbody>${events.map(ev=>`<tr>
+              <td class="mono">${ev.date}</td>
+              <td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${ev.type}</span></td>
+              <td class="mono">${F.fmtMoney(ev.amount,2)}</td>
+              <td>${esc(ev.note||"")}</td></tr>`).join("")}</tbody>
+          </table></div>` : `<p class="portal__note">Nothing recorded yet.</p>`}
+        </details>
+
+        <details class="acct-more reveal">
+          <summary><span>Messages with the team</span><span class="acct-more__hint">${unreadMsgs ? unreadMsgs + " new" : messages.length + " message" + (messages.length!==1?"s":"")}</span></summary>
+          <div id="msgMount"></div>
+        </details>
+
+        <details class="acct-more reveal">
+          <summary><span>What the fund is trading</span><span class="acct-more__hint">${trades.length} recent</span></summary>
+          ${positionsPanel(positions)}
+          ${tradesPanel(trades, {title:"Recent trades", sub:"Every position we open"})}
+        </details>
+
+        <details class="acct-more reveal">
+          <summary><span>Request a withdrawal</span><span class="acct-more__hint">${withdrawals.length ? withdrawals.length + " request" + (withdrawals.length!==1?"s":"") : "any time"}</span></summary>
+          <div id="wdMount"></div>
+        </details>
+
+        <details class="acct-more reveal">
+          <summary><span>Your risk preference</span><span class="acct-more__hint">${(RISK_OPTIONS.find(r=>r.key===(account&&account.risk_pref))||RISK_OPTIONS[1]).label}</span></summary>
+          <div id="riskMount"></div>
+        </details>
+
+        <p class="portal__note">
+          Your balance is your ${F.fmtNum(units, 4)} fund units × today's unit price of
+          ${navPU ? F.fmtNum(navPU, 4) : "—"}${latestNav ? " (set " + latestNav.date + ")" : ""}.
+        </p>
       </div>`;
+
+    /* Mount the heavier panels inside their collapsed sections */
+    const mount = (id, html) => { const m = document.getElementById(id); if (m) m.innerHTML = html; };
+    mount("msgMount",  liveMessagesPanelHtml(messages, "investor"));
+    mount("wdMount",   liveWithdrawPanelHtml(withdrawals));
+    mount("riskMount", riskPanelHtml(account && account.risk_pref ? account.risk_pref : "balanced"));
 
     revealAll();
     if (navSeries && units > 0) {
@@ -304,7 +370,7 @@
       if (c) F.chart.lineChart(c, {
         labels: navSeries.map(n => n.date.slice(5)),
         series: [{values: navSeries.map(n => units * +n.nav_per_unit), color:"#5eead4", fill:"rgba(94,234,212,0.18)", width:2.4}],
-        yFmt: v => "$"+(v/1000).toFixed(0)+"k",
+        yFmt: v => "$" + (v >= 10000 ? (v/1000).toFixed(0) + "k" : v.toFixed(0)),
       });
     }
     bindRiskPanel();
@@ -426,12 +492,35 @@
     const body = document.getElementById("portalBody");
     body.innerHTML = `
       <div class="portal-tabs" role="tablist">
-        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"]]
-          .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_liveTab?"is-active":""}" data-atab="${k}" role="tab">${l}</button>`).join("")}
+        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"],["inbox","Inbox"]]
+          .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_liveTab?"is-active":""}" data-atab="${k}" role="tab">${l}${k==="inbox"?`<span class="tab-badge" id="inboxBadge" hidden></span>`:""}</button>`).join("")}
       </div>
       <div id="adminTabContent"></div>`;
     revealAll();
     await switchLiveTab(_liveTab);
+    refreshInboxBadge();
+    // Light the badge the moment an enquiry lands
+    if (!_leadChannel) {
+      try {
+        _leadChannel = DB.subscribeLeads(() => {
+          refreshInboxBadge();
+          if (_liveTab === "inbox") switchLiveTab("inbox");
+        });
+      } catch (_) { /* realtime optional */ }
+    }
+  }
+
+  let _leadChannel = null;
+
+  async function refreshInboxBadge() {
+    const badge = document.getElementById("inboxBadge");
+    if (!badge) return;
+    try {
+      const leads = await DB.getLeads(200);
+      const n = leads.filter(l => (l.status || "new") === "new").length;
+      badge.textContent = n;
+      badge.hidden = n === 0;
+    } catch (_) { badge.hidden = true; }
   }
 
   async function switchLiveTab(tab) {
@@ -449,6 +538,7 @@
       else if (tab === "cashflow")  await liveCashflowTab(el);
       else if (tab === "trading")   await liveTradingTab(el);
       else if (tab === "messages")  await liveMessagesTab(el);
+      else if (tab === "inbox")     await liveInboxTab(el);
     } catch (err) {
       el.innerHTML = `<div class="snap__loading">Could not load this tab: ${esc(err.message)}</div>`;
     }
@@ -539,9 +629,9 @@
   /* ---------- LIVE TAB: Investors ---------- */
   async function liveInvestorsTab(el) {
     if (_liveProfileId) return liveInvestorProfile(el, _liveProfileId);
-    const [profiles, accounts, latestNav, events, leads] = await Promise.all([
+    const [profiles, accounts, latestNav, events] = await Promise.all([
       DB.getInvestorProfiles().catch(()=>[]), DB.getAllInvestors().catch(()=>[]),
-      DB.getLatestNav().catch(()=>null), DB.getAllCapitalEvents().catch(()=>[]), DB.getLeads().catch(()=>[]),
+      DB.getLatestNav().catch(()=>null), DB.getAllCapitalEvents().catch(()=>[]),
     ]);
     const navPU = latestNav ? +latestNav.nav_per_unit : null;
     const acctOf = id => accounts.find(a => a.investor_id === id);
@@ -573,8 +663,7 @@
       <div class="panel reveal">
         <div class="panel__head"><h2>Add investor</h2></div>
         <p class="portal__note">Invite investors from the Supabase dashboard: <b>Authentication → Users → Invite user</b>. They set their own password from the emailed link and appear here automatically. Record their first deposit from the Capital tab to activate them.</p>
-      </div>
-      ${mgrLeadsPanel(leads)}`;
+      </div>`;
 
     el.querySelectorAll(".inv-row").forEach(r =>
       r.addEventListener("click", () => { _liveProfileId = r.dataset.id; switchLiveTab("investors"); })
@@ -803,6 +892,95 @@
       ${tradesPanel(recentTrades, {title:"Recent trades", sub:"Most recent executions"})}
       ${mgrPositionsPanel(positions)}`;
     bindManagerForms(null);
+  }
+
+  /* ---------- LIVE TAB: Inbox (contact form enquiries) ---------- */
+  let _inboxFilter = "open";     // open = new + read, or "archived"
+
+  async function liveInboxTab(el) {
+    const leads = await DB.getLeads(200).catch(() => []);
+    const open = leads.filter(l => (l.status || "new") !== "archived");
+    const archived = leads.filter(l => (l.status || "new") === "archived");
+    const shown = _inboxFilter === "archived" ? archived : open;
+    const unread = open.filter(l => (l.status || "new") === "new").length;
+
+    el.innerHTML = `
+      <div class="metricrow reveal">
+        <div class="metric"><div class="metric__v ${unread?"pos":""}">${unread}</div><div class="metric__l">Unread enquiries</div></div>
+        <div class="metric"><div class="metric__v">${open.length}</div><div class="metric__l">In the inbox</div></div>
+        <div class="metric"><div class="metric__v">${archived.length}</div><div class="metric__l">Archived</div></div>
+      </div>
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Enquiries</h2>
+          <div class="trade-filter-chips" style="margin:0">
+            <button class="trade-chip ${_inboxFilter==="open"?"is-active":""}" data-inbox="open">Inbox (${open.length})</button>
+            <button class="trade-chip ${_inboxFilter==="archived"?"is-active":""}" data-inbox="archived">Archived (${archived.length})</button>
+          </div>
+        </div>
+        ${shown.length ? `<div class="lead-list">${shown.map(leadCardHtml).join("")}</div>`
+          : `<p class="portal__note">${_inboxFilter==="archived" ? "Nothing archived yet." : "No enquiries yet. Submissions from the homepage contact form land here."}</p>`}
+        <p class="cta__note" id="inboxNote" role="status" aria-live="polite"></p>
+      </div>`;
+
+    el.querySelectorAll("[data-inbox]").forEach(b =>
+      b.addEventListener("click", () => { _inboxFilter = b.dataset.inbox; switchLiveTab("inbox"); })
+    );
+    bindInboxActions();
+  }
+
+  function leadCardHtml(l) {
+    const status = l.status || "new";
+    const when = new Date(l.created_at);
+    const stamp = when.toLocaleDateString() + " " + when.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+    return `
+      <article class="lead ${status === "new" ? "is-new" : ""}" data-lead="${l.id}">
+        <div class="lead__head">
+          <div>
+            <div class="lead__name">${esc(l.name)}${status === "new" ? `<span class="lead__dot" title="Unread"></span>` : ""}</div>
+            <a class="lead__email" href="mailto:${esc(l.email)}?subject=${encodeURIComponent("Re: your BPSQuant enquiry")}">${esc(l.email)}</a>
+          </div>
+          <span class="lead__time mono">${stamp}</span>
+        </div>
+        ${l.message ? `<p class="lead__msg">${esc(l.message)}</p>` : `<p class="lead__msg lead__msg--empty">No message provided.</p>`}
+        <div class="lead__actions">
+          <a class="btn btn--primary btn--sm" href="mailto:${esc(l.email)}?subject=${encodeURIComponent("Re: your BPSQuant enquiry")}&body=${encodeURIComponent("Hi " + (l.name||"") + ",\n\n")}">Reply by email</a>
+          ${status === "new" ? `<button class="btn btn--ghost btn--sm lead-read" data-id="${l.id}">Mark read</button>` : ""}
+          ${status === "archived"
+            ? `<button class="btn btn--ghost btn--sm lead-restore" data-id="${l.id}">Restore</button>`
+            : `<button class="btn btn--ghost btn--sm lead-archive" data-id="${l.id}">Archive</button>`}
+        </div>
+        <details class="lead__notes">
+          <summary>Private notes</summary>
+          <textarea class="csv-textarea lead-notes-input" rows="2" data-id="${l.id}">${esc(l.notes || "")}</textarea>
+          <button class="btn btn--ghost btn--sm lead-note-save" data-id="${l.id}" style="margin-top:8px">Save note</button>
+        </details>
+      </article>`;
+  }
+
+  function bindInboxActions() {
+    const note = () => document.getElementById("inboxNote");
+    const act = (sel, fn) => document.querySelectorAll(sel).forEach(b =>
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        try { await fn(b.dataset.id, b); await refreshInboxBadge(); await switchLiveTab("inbox"); }
+        catch (err) { b.disabled = false; const n = note(); if (n) { n.textContent = "Error: " + err.message; n.classList.add("is-error"); } }
+      })
+    );
+    act(".lead-read",     (id) => DB.setLeadStatus(id, "read"));
+    act(".lead-archive",  (id) => DB.setLeadStatus(id, "archived"));
+    act(".lead-restore",  (id) => DB.setLeadStatus(id, "read"));
+
+    document.querySelectorAll(".lead-note-save").forEach(b =>
+      b.addEventListener("click", async () => {
+        const ta = document.querySelector(`.lead-notes-input[data-id="${b.dataset.id}"]`);
+        const n = note();
+        try {
+          await DB.setLeadNotes(b.dataset.id, ta ? ta.value : "");
+          if (n) { n.classList.remove("is-error"); n.textContent = "✓ Note saved."; }
+        } catch (err) { if (n) { n.textContent = "Error: " + err.message; n.classList.add("is-error"); } }
+      })
+    );
   }
 
   /* ---------- LIVE TAB: Messages ---------- */

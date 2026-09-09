@@ -315,11 +315,33 @@
       if (error) throw error;
     },
 
-    async getLeads() {
+    async getLeads(limit = 100) {
       const { data, error } = await this._client
-        .from("contact_leads").select("*").order("created_at", { ascending: false }).limit(50);
+        .from("contact_leads").select("*")
+        .order("created_at", { ascending: false }).limit(limit);
       if (error) throw error;
       return data || [];
+    },
+
+    /* Mailbox: mark read / archive / restore, and private notes */
+    async setLeadStatus(id, status) {
+      const patch = { status };
+      if (status === "read" || status === "archived") patch.read_at = new Date().toISOString();
+      const { error } = await this._client.from("contact_leads").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+
+    async setLeadNotes(id, notes) {
+      const { error } = await this._client.from("contact_leads").update({ notes }).eq("id", id);
+      if (error) throw error;
+    },
+
+    /* Realtime: a new enquiry lights up the inbox without a refresh */
+    subscribeLeads(onInsert) {
+      return this._client
+        .channel("leads-realtime")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "contact_leads" }, (p) => onInsert(p.new))
+        .subscribe();
     },
 
     /* ============================================================

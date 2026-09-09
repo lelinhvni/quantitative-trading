@@ -373,3 +373,74 @@ DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.trades;        
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.nav_history;         EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.withdrawal_requests; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+-- v3 MIGRATIONS — contact mailbox + new-lead email alerts
+-- Safe to re-run.
+-- ============================================================
+
+-- ============================================================
+-- 16. contact_leads — mailbox state (unread / read / archived)
+-- ============================================================
+ALTER TABLE public.contact_leads
+  ADD COLUMN IF NOT EXISTS status  TEXT NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new','read','archived')),
+  ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS notes   TEXT;
+
+CREATE INDEX IF NOT EXISTS contact_leads_status_idx
+  ON public.contact_leads (status, created_at DESC);
+
+-- Managers need UPDATE (mark read / archive / add notes), not just SELECT
+DROP POLICY IF EXISTS "manager_update" ON public.contact_leads;
+CREATE POLICY "manager_update" ON public.contact_leads FOR UPDATE USING (is_manager());
+
+-- Realtime so a new lead lights up the inbox without a refresh
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.contact_leads; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+-- 17. Email alert on a new lead
+--     Calls the notify-lead Edge Function via pg_net. Both the
+--     function URL and the service key live in Vault, so no
+--     secrets are stored in this file.
+--
+--     One-time setup (SQL editor, replace the two values):
+--       select vault.create_secret(
+--         'https://YOUR-REF.supabase.co/functions/v1/notify-lead',
+--         'notify_lead_url');
+--       select vault.create_secret('YOUR-SERVICE-ROLE-KEY',
+--         'notify_lead_key');
+--     Then: create extension if not exists pg_net with schema extensions;
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.on_new_lead()
+RETURNS TRIGGER SECURITY DEFINER LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_url TEXT;
+  v_key TEXT;
+BEGIN
+  SELECT decrypted_secret INTO v_url FROM vault.decrypted_secrets WHERE name = 'notify_lead_url';
+  SELECT decrypted_secret INTO v_key FROM vault.decrypted_secrets WHERE name = 'notify_lead_key';
+  IF v_url IS NULL OR v_key IS NULL THEN
+    RETURN NEW;                       -- alerts not configured yet; never block the insert
+  END IF;
+
+  PERFORM net.http_post(
+    url     := v_url,
+    headers := jsonb_build_object(
+                 'Content-Type',  'application/json',
+                 'Authorization', 'Bearer ' || v_key),
+    body    := jsonb_build_object(
+                 'name',    NEW.name,
+                 'email',   NEW.email,
+                 'message', NEW.message,
+                 'at',      NEW.created_at)
+  );
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;                         -- a failed alert must never lose the lead
+END; $$;
+
+DROP TRIGGER IF EXISTS on_contact_lead_created ON public.contact_leads;
+CREATE TRIGGER on_contact_lead_created
+  AFTER INSERT ON public.contact_leads
+  FOR EACH ROW EXECUTE FUNCTION public.on_new_lead();

@@ -132,7 +132,49 @@ in their portal instantly (realtime).
 
 ---
 
-## 8. Going public — launch checklist
+## 8. Email alerts for new enquiries (optional, ~10 min)
+
+Every contact-form submission already lands in the portal's **Inbox** tab
+with an unread badge. To also get an email the moment one arrives:
+
+**a. Get a Resend key** — sign up at [resend.com](https://resend.com) (free:
+3,000 emails/month). Verify `bpsquant.com` as a sending domain, then create
+an API key.
+
+**b. Deploy the function** — Edge Functions → Deploy a new function → name it
+exactly `notify-lead` → paste `supabase/functions/notify-lead/index.ts` →
+Deploy. Then under its **Secrets** add:
+
+| Secret | Value |
+|---|---|
+| `RESEND_API_KEY` | `re_…` from step a |
+| `ALERT_TO` | where alerts go, e.g. `kevin@bpsquant.com` (comma-separate for several) |
+| `ALERT_FROM` | `BPSQuant <alerts@bpsquant.com>` — must be on your verified domain |
+
+**c. Point the database at it** — SQL editor, replacing both values:
+
+```sql
+create extension if not exists pg_net with schema extensions;
+
+select vault.create_secret(
+  'https://iwwogjrnoacjnrpukzdb.supabase.co/functions/v1/notify-lead',
+  'notify_lead_url');
+
+select vault.create_secret('YOUR-SERVICE-ROLE-KEY', 'notify_lead_key');
+```
+
+Find the service role key under **Settings → API**. It lives only in Vault,
+never in this repo or the website.
+
+**d. Test** — submit the contact form on the live site. The enquiry appears in
+the Inbox tab within a second, and the email arrives shortly after.
+
+If alerts are not configured, the trigger does nothing and the enquiry is
+still saved — the form never fails because of email.
+
+---
+
+## 9. Going public — launch checklist
 
 - [ ] Supabase project created, schema run, manager account set (steps 1–3)
 - [ ] Keys pasted into `scripts/config.js`, pushed, Pages deploy green
