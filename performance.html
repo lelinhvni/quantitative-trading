@@ -7,13 +7,13 @@
   <title>Quantitative Finance — BPSQuant</title>
   <meta name="description" content="What is quantitative finance? How algorithms, data and math turn market signals into steady income — explained in plain English." />
   <meta property="og:title" content="Quantitative Finance, Explained Simply — BPSQuant" />
-  <meta property="og:description" content="What quant trading is, how short selling and pairs trading work, and how BPSQuant turns market signals into steady income — written for non-finance readers." />
+  <meta property="og:description" content="What quant trading is, how hedging and pairs trading remove market risk, and how BPSQuant turns market signals into steady income — written for non-finance readers." />
   <meta property="og:image" content="https://www.bpsquant.com/assets/og-image.svg" />
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles/main.css?v=20260909b" />
+  <link rel="stylesheet" href="styles/main.css?v=20260922a" />
 </head>
 <body data-page="quant">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -30,7 +30,7 @@
         <nav class="quant-toc reveal" aria-label="Page sections">
           <a href="#what-is-quant">What is quant finance?</a>
           <a href="#how-quants-work">How it works</a>
-          <a href="#short-selling">Short selling</a>
+          <a href="#hedging">Hedging</a>
           <a href="#pairs-trading">Pairs trading</a>
           <a href="#signals">Our signals</a>
           <a href="#process">Our process</a>
@@ -98,62 +98,66 @@
       </div>
     </section>
 
-    <!-- ④ Short Selling -->
-    <section class="section" id="short-selling">
+    <!-- ④ Hedging -->
+    <section class="section" id="hedging">
       <div class="container">
         <div class="section__head reveal">
-          <span class="kicker">Profiting in both directions</span>
-          <h2>Short selling — making money when prices fall</h2>
-          <p>Most everyday investors can only profit when a stock <em>rises</em>. Buy low, sell high. But quants have access to a second direction: short selling. Understanding this unlocks how strategies like pairs trading work.</p>
+          <span class="kicker">Taking the market out of the equation</span>
+          <h2>Hedging — how we cancel out market swings</h2>
+          <p>Buy-and-hold investors live or die by one question: does the market go up? Hedging removes that question. By holding two matched positions that move together, the broad market's ups and downs cancel each other out — leaving only the small, measurable gap we actually set out to capture.</p>
         </div>
         <div class="quant-hero" style="padding-bottom:0">
           <div class="quant-content reveal">
-            <h2 style="font-size:1.4rem">The short selling mechanic</h2>
-            <p>Short selling sounds backwards — and it is. Instead of buying first and selling later, you sell first and buy later. Here's how it works in three steps:</p>
+            <h2 style="font-size:1.4rem">How a hedged pair works</h2>
+            <p>Think of it like a seesaw with a weight on each end. If the whole playground floor rises, both ends rise together and the <em>tilt</em> between them is unchanged. We aren't betting on the floor — we're trading the tilt.</p>
             <div class="short-steps">
               <div class="short-step reveal">
                 <div class="short-step__num">1</div>
                 <div class="short-step__body">
-                  <strong>Borrow &amp; sell</strong>
-                  <p>You borrow 100 shares of Stock X at $50 from your broker and immediately sell them. You now hold $5,000 in cash — but you owe 100 shares back to the broker.</p>
+                  <strong>Buy the side we think is cheap</strong>
+                  <p>Say two rival drinks companies normally trade $5 apart, but the gap has stretched to $15. We buy the one that has fallen behind — a normal purchase, exactly like buying any share.</p>
                 </div>
               </div>
               <div class="short-step reveal">
                 <div class="short-step__num">2</div>
                 <div class="short-step__body">
-                  <strong>Wait for the fall</strong>
-                  <p>Stock X drops from $50 to $40. You buy back 100 shares for $4,000 — spending $1,000 less than you received when you sold.</p>
+                  <strong>Take the offsetting side on the expensive one</strong>
+                  <p>At the same moment we take an equal and opposite position in the one that has run ahead, borrowing shares from the broker to sell. This is the hedge: its only job is to neutralise whatever the market does to both companies at once.</p>
                 </div>
               </div>
               <div class="short-step reveal">
                 <div class="short-step__num">3</div>
                 <div class="short-step__body">
-                  <strong>Return &amp; pocket the difference</strong>
-                  <p>You return the 100 shares to the broker. Profit = $1,000 (minus small borrowing fees). The whole trade works without ever "owning" the stock in the traditional sense.</p>
+                  <strong>Close both when the gap returns to normal</strong>
+                  <p>When the $15 gap narrows back toward $5, we close both sides together and keep the difference. We never needed to know whether the market rose or fell — only that the two would reconnect.</p>
                 </div>
               </div>
             </div>
           </div>
           <div class="panel reveal" style="align-self:start">
-            <h3 style="margin-bottom:16px;font-size:1.05rem">Short selling at a glance</h3>
+            <h3 style="margin-bottom:16px;font-size:1.05rem">Why the hedge protects you</h3>
             <div class="fact-table">
               <div class="fact-row">
-                <span class="fact-label">Borrow &amp; sell at</span>
-                <span class="fact-val pos">$50 × 100 = <strong>$5,000 in</strong></span>
+                <span class="fact-label">Market crashes 20%</span>
+                <span class="fact-val">Both sides fall — <strong>gap unchanged</strong></span>
               </div>
               <div class="fact-row">
-                <span class="fact-label">Buy back at</span>
-                <span class="fact-val neg">$40 × 100 = <strong>$4,000 out</strong></span>
+                <span class="fact-label">Market rallies 20%</span>
+                <span class="fact-val">Both sides rise — <strong>gap unchanged</strong></span>
+              </div>
+              <div class="fact-row">
+                <span class="fact-label">Market goes nowhere</span>
+                <span class="fact-val">Gap can still close — <strong>still works</strong></span>
               </div>
               <div class="fact-row fact-row--total">
-                <span class="fact-label">Profit</span>
-                <span class="fact-val pos"><strong>$1,000</strong></span>
+                <span class="fact-label">What we're exposed to</span>
+                <span class="fact-val pos"><strong>Only the gap</strong></span>
               </div>
             </div>
-            <div class="quant-warning">
-              <span class="quant-warning__icon">⚠️</span>
+            <div class="quant-explainer" style="margin-top:16px">
+              <div class="quant-explainer__icon">🛡️</div>
               <div>
-                <strong>The key risk:</strong> if the stock rises instead of falls, losses are theoretically unlimited — a stock can go up forever. This is why quants pair short positions with long positions (like in pairs trading) to cap the risk.
+                <strong>Always paired, never naked.</strong> A borrowed-share position held on its own is a speculative bet with no ceiling on losses — BPSQuant does not take those. Ours exist only as the offsetting half of a matched pair, opened and closed together, sized so the worst case is known before we enter.
               </div>
             </div>
           </div>
@@ -167,13 +171,13 @@
         <div class="section__head reveal">
           <span class="kicker">Market-neutral strategy</span>
           <h2>Pairs trading — profit from the relationship, not the direction</h2>
-          <p>Pairs trading combines a long position and a short position on two related stocks. Pioneered by quantitative researchers at Morgan Stanley in the 1980s, it's one of the most elegant market-neutral strategies ever designed.</p>
+          <p>Pairs trading holds two hedged positions in two related companies at the same time, so the market's direction cancels out. Pioneered by quantitative researchers at Morgan Stanley in the 1980s, it's one of the most elegant market-neutral strategies ever designed.</p>
         </div>
         <div class="quant-hero" style="padding-bottom:0">
           <div class="quant-content reveal">
             <h2 style="font-size:1.3rem">The core idea</h2>
             <p>Find two stocks that historically move together — like Coca-Cola (KO) and PepsiCo (PEP). They're competitors in the same industry, so their prices tend to track each other over time. When one temporarily runs ahead of the other, you bet on the gap closing.</p>
-            <p>You go <strong style="color:var(--green)">long</strong> the underperformer and <strong style="color:var(--red)">short</strong> the overperformer — in equal dollar amounts. When the prices converge back to normal, both legs profit. The overall market direction is irrelevant.</p>
+            <p>We <strong style="color:var(--green)">buy</strong> the one that has fallen behind and take the <strong style="color:var(--red)">offsetting hedge</strong> on the one that has run ahead — in equal dollar amounts, opened and closed together. When the prices converge back to normal, both legs profit. The overall market direction is irrelevant.</p>
             <div class="quant-explainer reveal" style="margin-top:20px">
               <div class="quant-explainer__icon">🔑</div>
               <div>
@@ -207,8 +211,8 @@
                 </tr>
                 <tr class="pairs-entry">
                   <td data-label="Phase"><span class="pairs-phase pairs-phase--action">Entry</span></td>
-                  <td data-label="Stock A (KO)" class="mono neg"><strong>SHORT $68</strong></td>
-                  <td data-label="Stock B (PEP)" class="mono pos"><strong>LONG $53</strong></td>
+                  <td data-label="Stock A (KO)" class="mono neg"><strong>Hedge leg $68</strong></td>
+                  <td data-label="Stock B (PEP)" class="mono pos"><strong>Buy leg $53</strong></td>
                   <td data-label="What's happening">Bet on spread closing back to $5</td>
                 </tr>
                 <tr>
@@ -219,8 +223,8 @@
                 </tr>
                 <tr class="pairs-profit">
                   <td data-label="Phase"><span class="pairs-phase pairs-phase--profit">Exit &amp; Profit</span></td>
-                  <td data-label="Stock A (KO)" class="mono pos">+$5 on short</td>
-                  <td data-label="Stock B (PEP)" class="mono pos">+$5 on long</td>
+                  <td data-label="Stock A (KO)" class="mono pos">+$5 on hedge leg</td>
+                  <td data-label="Stock B (PEP)" class="mono pos">+$5 on buy leg</td>
                   <td data-label="What's happening" class="pos"><strong>Total = $10 profit per pair</strong></td>
                 </tr>
               </tbody>
@@ -384,7 +388,7 @@
           <div class="quant-card reveal">
             <div class="quant-card__icon">🛡️</div>
             <h3>Defined-risk structures</h3>
-            <p>Every trade — including pair trades and short positions — enters with a known maximum loss. Spreads, hedges and stop-loss rules ensure there are no "tail risk" surprises. We know the worst case before we enter, and price the trade to make it worth it.</p>
+            <p>Every trade — including hedged pairs — enters with a known maximum loss. Spreads, hedges and stop-loss rules ensure there are no "tail risk" surprises. We never hold an unhedged borrowed position, so there is no open-ended downside: we know the worst case before we enter, and price the trade to make it worth it.</p>
           </div>
         </div>
       </div>
@@ -438,11 +442,11 @@
 
   <div data-slot="footer"></div>
 
-  <script src="scripts/config.js?v=20260909b"></script>
+  <script src="scripts/config.js?v=20260922a"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="scripts/data.js?v=20260909b"></script>
-  <script src="scripts/db.js?v=20260909b"></script>
-  <script src="scripts/site.js?v=20260909b"></script>
-  <script src="scripts/performance.js?v=20260909b" defer></script>
+  <script src="scripts/data.js?v=20260922a"></script>
+  <script src="scripts/db.js?v=20260922a"></script>
+  <script src="scripts/site.js?v=20260922a"></script>
+  <script src="scripts/performance.js?v=20260922a" defer></script>
 </body>
 </html>
