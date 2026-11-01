@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="BPSQuant">
+  <title>BPSQuant</title>
+  <path d="M32 4.5 55.8 18.25v27.5L32 59.5 8.2 45.75v-27.5Z"
+        fill="none" stroke="url(#bpsG)" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M17.5 43 26.5 33.5 33 39 44 23.5"
+        fill="none" stroke="url(#bpsG)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="44" cy="23.5" r="3.9" fill="url(#bpsG)"/>
+  <defs>
+    <linearGradient id="bpsG" x1="8" y1="5" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4"/><stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+</svg>

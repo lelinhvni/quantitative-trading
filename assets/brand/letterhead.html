@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>BasicPointQuant LLC — Letterhead</title>
+<style>
+  /* ============================================================
+     BasicPointQuant LLC — letterhead
+     A4. Page 1 = full letterhead. Page 2+ = continuation sheet.
+     Print palette: ink #0B2239 · accent #0D9488 · muted #64748B
+     ============================================================ */
+  @page { margin: 0; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "DejaVu Sans", Helvetica, Arial, sans-serif;
+         font-size: 10pt; line-height: 1.55; color: #16181d; margin: 0; }
+
+  .sheet { width: 210mm; min-height: 297mm; padding: 16mm 20mm 14mm;
+           display: flex; flex-direction: column; position: relative; }
+  .sheet + .sheet { page-break-before: always; }
+
+  /* ---------- header ---------- */
+  .lh { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+  .lh__brand { display: flex; align-items: center; gap: 13px; }
+  .lh__mark { width: 46px; height: 46px; flex: none; }
+  .lh__name { font-size: 20pt; font-weight: 800; letter-spacing: -0.6px; color: #0B2239; line-height: 1.05; }
+  .lh__name .q { font-weight: 400; color: #334155; }
+  .lh__name .llc { font-weight: 400; font-size: 11pt; color: #64748B; letter-spacing: 0; }
+  .lh__tag { font-size: 7.4pt; font-weight: 600; letter-spacing: 2.2px; color: #0D9488; margin-top: 3px; }
+
+  .lh__meta { text-align: right; font-size: 7.6pt; line-height: 1.6; color: #475569; padding-top: 3px; }
+  .lh__meta b { color: #0B2239; }
+
+  .rule { height: 2.5px; margin: 11px 0 0;
+          background: linear-gradient(90deg, #0D9488 0%, #0B2239 55%, rgba(11,34,57,0.12) 100%); }
+
+  /* ---------- continuation sheet header ---------- */
+  .lh--cont { align-items: center; }
+  .lh--cont .lh__mark { width: 26px; height: 26px; }
+  .lh--cont .lh__name { font-size: 12pt; }
+  .lh--cont .lh__name .llc { font-size: 8pt; }
+  .lh--cont .lh__meta { font-size: 7.2pt; }
+  .rule--thin { height: 1px; background: #cbd5e1; margin-top: 8px; }
+
+  /* ---------- body ---------- */
+  .body { flex: 1; padding-top: 11mm; }
+  .body h1 { font-size: 14pt; color: #0B2239; margin: 0 0 10px; letter-spacing: -0.3px; }
+  .body p { margin: 0 0 9px; }
+
+  .demo { color: #94a3b8; }
+  .demo .zone { border: 1px dashed #cbd5e1; border-radius: 6px; padding: 14px 16px;
+                color: #94a3b8; font-size: 9pt; text-align: center; }
+
+  /* ---------- footer ---------- */
+  .ft { margin-top: 10mm; border-top: 1px solid #cbd5e1; padding-top: 7px;
+        font-size: 7.1pt; line-height: 1.55; color: #64748B;
+        display: flex; justify-content: space-between; gap: 16px; }
+  .ft b { color: #0B2239; }
+  .ft .r { text-align: right; white-space: nowrap; }
+  .ft--cont { justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<!-- ============================ PAGE 1 — first sheet ============================ -->
+<div class="sheet">
+
+  <header class="lh">
+    <div class="lh__brand">
+      <svg class="lh__mark" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="BPSQuant">
+        <path d="M32 4.5 55.8 18.25v27.5L32 59.5 8.2 45.75v-27.5Z"
+              fill="none" stroke="#0B2239" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M17.5 43 26.5 33.5 33 39 44 23.5"
+              fill="none" stroke="#0D9488" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="44" cy="23.5" r="3.9" fill="#0D9488"/>
+      </svg>
+      <div>
+        <div class="lh__name">BasicPoint<span class="q">Quant</span> <span class="llc">LLC</span></div>
+        <div class="lh__tag">SYSTEMATIC QUANTITATIVE ETF TRADING</div>
+      </div>
+    </div>
+    <div class="lh__meta">
+      4539 N 22nd St, Ste N<br />
+      Phoenix, AZ 85016, United States<br />
+      <b>www.bpsquant.com</b>
+    </div>
+  </header>
+  <div class="rule"></div>
+
+  <main class="body demo">
+    <h1>Document title goes here</h1>
+    <p>Date / Ngày<br />Recipient name<br />Recipient address</p>
+    <p>&nbsp;</p>
+    <div class="zone">Body copy area — 170&nbsp;mm wide, clear of the header rule and the footer line.</div>
+    <p>&nbsp;</p>
+    <p>Yours sincerely,</p>
+    <p>&nbsp;<br />&nbsp;</p>
+    <p><b style="color:#0B2239">Kevin Le</b><br />Sole Member and Owner</p>
+  </main>
+
+  <footer class="ft">
+    <div>
+      <b>BasicPointQuant LLC</b> · Arizona Limited Liability Company · Member-Managed · Sole Member and Owner: Kevin Le<br />
+      EIN 32-0872560 · ACC Business ID 25101840 · Statutory Agent: Northwest Registered Agent LLC
+    </div>
+    <div class="r">
+      Page 1<br />
+      www.bpsquant.com
+    </div>
+  </footer>
+
+</div>
+
+<!-- ======================= PAGE 2 — continuation sheet ======================= -->
+<div class="sheet">
+
+  <header class="lh lh--cont">
+    <div class="lh__brand">
+      <svg class="lh__mark" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="BPSQuant">
+        <path d="M32 4.5 55.8 18.25v27.5L32 59.5 8.2 45.75v-27.5Z"
+              fill="none" stroke="#0B2239" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M17.5 43 26.5 33.5 33 39 44 23.5"
+              fill="none" stroke="#0D9488" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="44" cy="23.5" r="3.9" fill="#0D9488"/>
+      </svg>
+      <div class="lh__name">BasicPoint<span class="q">Quant</span> <span class="llc">LLC</span></div>
+    </div>
+    <div class="lh__meta">Document title — continued</div>
+  </header>
+  <div class="rule--thin"></div>
+
+  <main class="body demo">
+    <div class="zone">Continuation sheet. Slim header, no address block, no legal footer —<br />
+    so a long agreement does not repeat the full letterhead on every page.</div>
+  </main>
+
+  <footer class="ft ft--cont">
+    <div class="r">Page 2 · www.bpsquant.com</div>
+  </footer>
+
+</div>
+
+</body>
+</html>

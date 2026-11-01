@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 128" width="220" height="128" role="img" aria-label="BPSQuant">
+  <title>BPSQuant</title>
+  <g transform="translate(78,0)">
+    <path d="M32 4.5 55.8 18.25v27.5L32 59.5 8.2 45.75v-27.5Z"
+          fill="none" stroke="#0B2239" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M17.5 43 26.5 33.5 33 39 44 23.5"
+          fill="none" stroke="#0D9488" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="23.5" r="3.9" fill="#0D9488"/>
+  </g>
+  <text x="110" y="92" text-anchor="middle" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="29" letter-spacing="-0.5" fill="#0B2239">
+    <tspan font-weight="800">BPS</tspan><tspan font-weight="400" fill="#334155">Quant</tspan>
+  </text>
+  <text x="110" y="112" text-anchor="middle" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="9.5" letter-spacing="2.6" font-weight="600" fill="#0D9488">BASICPOINTQUANT LLC</text>
+</svg>
