@@ -399,18 +399,21 @@ CREATE POLICY "manager_update" ON public.contact_leads FOR UPDATE USING (is_mana
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.contact_leads; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ============================================================
--- 17. Email alert on a new lead
---     Calls the notify-lead Edge Function via pg_net. Both the
---     function URL and the service key live in Vault, so no
---     secrets are stored in this file.
+-- 17. Email alert on a new lead  —  OPTIONAL, AND OFF BY DEFAULT
 --
---     One-time setup (SQL editor, replace the two values):
---       select vault.create_secret(
---         'https://YOUR-REF.supabase.co/functions/v1/notify-lead',
---         'notify_lead_url');
---       select vault.create_secret('YOUR-SERVICE-ROLE-KEY',
---         'notify_lead_key');
---     Then: create extension if not exists pg_net with schema extensions;
+--     The website now calls the notify-lead Edge Function itself,
+--     straight after saving the enquiry (scripts/db.js → submitLead).
+--     That is the live path and it needs nothing in this section.
+--
+--     This trigger is the older server-side route. Leave it dormant:
+--     if both are active every enquiry is emailed TWICE. It stays here
+--     only as a fallback for enquiries created outside the website.
+--
+--     The trigger does nothing unless both vault secrets exist, so an
+--     untouched database is already safe. If you set them up earlier,
+--     turn it off with:
+--       select vault.delete_secret('notify_lead_url');
+--       select vault.delete_secret('notify_lead_key');
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.on_new_lead()
 RETURNS TRIGGER SECURITY DEFINER LANGUAGE plpgsql SET search_path = public AS $$

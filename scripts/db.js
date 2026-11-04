@@ -328,10 +328,25 @@
     /* ============================================================
        CONTACT LEADS
        ============================================================ */
+    /* Store the enquiry, then email it to the fund's inbox.
+       The insert is what must not fail — it is the record of the lead, and
+       the portal inbox reads from it. The email is sent straight after from
+       the browser, so delivery does not depend on the pg_net trigger and its
+       two vault secrets. A failure to email is logged, never thrown: the
+       lead is already safe, and the visitor should not see an error. */
     async submitLead({ name, email, message }) {
       const { error } = await this._client
         .from("contact_leads").insert({ name, email, message: message || null });
       if (error) throw error;
+
+      try {
+        const { error: fnErr } = await this._client.functions.invoke("notify-lead", {
+          body: { name, email, message: message || "", at: new Date().toISOString() },
+        });
+        if (fnErr) throw fnErr;
+      } catch (e) {
+        console.warn("[BPSQuant] Lead saved, but the email alert failed:", e.message);
+      }
     },
 
     async getLeads(limit = 100) {

@@ -159,26 +159,26 @@ database, so a personal address never appears in this public repo, and you can
 change it any time without a redeploy. Clearing the field returns alerts to the
 default. Priority: `ALERT_TO` secret → `app_settings.alert_to` → `info@bpsquant.com`.
 
-**c. Point the database at it** — SQL editor, replacing both values:
+**c. Test** — submit the contact form on the live site. The enquiry appears in
+the Inbox tab within a second, and the email arrives at `info@bpsquant.com`
+shortly after.
+
+That is the whole setup. There is **no third step**: the website calls
+`notify-lead` itself, straight after saving the enquiry, so nothing has to be
+wired up in the database. The old `pg_net` trigger in `schema.sql` §17 is no
+longer used and must stay dormant — with both paths active, every enquiry is
+emailed twice. An untouched database is already safe, because the trigger does
+nothing unless its two vault secrets exist. If you created them in an earlier
+attempt, remove them:
 
 ```sql
-create extension if not exists pg_net with schema extensions;
-
-select vault.create_secret(
-  'https://iwwogjrnoacjnrpukzdb.supabase.co/functions/v1/notify-lead',
-  'notify_lead_url');
-
-select vault.create_secret('YOUR-SERVICE-ROLE-KEY', 'notify_lead_key');
+select vault.delete_secret('notify_lead_url');
+select vault.delete_secret('notify_lead_key');
 ```
 
-Find the service role key under **Settings → API**. It lives only in Vault,
-never in this repo or the website.
-
-**d. Test** — submit the contact form on the live site. The enquiry appears in
-the Inbox tab within a second, and the email arrives shortly after.
-
-If alerts are not configured, the trigger does nothing and the enquiry is
-still saved — the form never fails because of email.
+**Until the Resend key is added**, the function returns "skipped" and no email
+goes out — but the enquiry is still saved and still shows in the Inbox tab.
+The form never fails because of email.
 
 ---
 

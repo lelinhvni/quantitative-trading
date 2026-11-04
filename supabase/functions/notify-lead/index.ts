@@ -1,27 +1,26 @@
 // ============================================================
 // BPSQuant — new contact lead → email alert
 //
-// Fired by the on_contact_lead_created trigger whenever someone
-// submits the homepage contact form. Sends a plain, readable
-// email to the fund's inbox via Resend.
+// Called by the website straight after a contact-form enquiry is
+// saved (scripts/db.js → submitLead). Emails it to the fund's
+// inbox via Resend.
 //
-// Deploy (Supabase dashboard, ~5 minutes):
+// Deploy (Supabase dashboard, ~5 minutes) — two steps:
 //   1. Sign up at resend.com (free: 3,000 emails/month), verify
-//      your sending domain (or use their onboarding sender for
-//      testing), and copy an API key.
+//      bpsquant.com as a sending domain, and copy an API key.
 //   2. Edge Functions → Deploy a new function → name: notify-lead
-//      → paste this file → Deploy.
-//   3. Edge Functions → notify-lead → Secrets, add:
+//      → paste this file → Deploy. Then under its Secrets add:
 //        RESEND_API_KEY = re_xxxxxxxx
 //        ALERT_FROM     = BPSQuant <alerts@bpsquant.com>
 //        ALERT_TO       = optional — only to send somewhere other than
 //                         the default inbox below (comma-separate for several)
 //      ALERT_FROM must be on a domain verified in Resend.
-//   4. Run the two vault.create_secret() statements documented in
-//      supabase/schema.sql so the trigger knows where to call.
 //
-// The function is called server-to-server with the service key, so
-// leave "Enforce JWT verification" ON.
+// Leave "Enforce JWT verification" ON: the website calls this with the
+// anon key, which satisfies it.
+//
+// The pg_net trigger in schema.sql is NOT needed any more and must stay
+// off, or every enquiry is emailed twice. See section 17 there.
 // ============================================================
 
 // The fund's Google Workspace inbox. Contact-form enquiries land here unless
@@ -34,9 +33,12 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, content-type",
 };
 
-function esc(s: unknown): string {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// Escape for HTML, and cap the length. The website calls this with the anon
+// key, so treat every field as untrusted and keep one enquiry from becoming a
+// megabyte of email.
+function esc(s: unknown, max = 2000): string {
+  const t = String(s ?? "").slice(0, max);
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 Deno.serve(async (req: Request) => {
@@ -80,9 +82,17 @@ Deno.serve(async (req: Request) => {
   let lead: Record<string, unknown> = {};
   try { lead = await req.json(); } catch { /* empty body */ }
 
-  const name = esc(lead.name) || "(no name)";
-  const email = esc(lead.email) || "(no email)";
-  const message = esc(lead.message) || "(no message)";
+  // An enquiry with neither a name nor an email is not one. Refusing it keeps
+  // an empty POST from turning into mail.
+  if (!String(lead.name ?? "").trim() && !String(lead.email ?? "").trim()) {
+    return new Response(JSON.stringify({ skipped: "empty enquiry" }), {
+      status: 200, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  const name = esc(lead.name, 200) || "(no name)";
+  const email = esc(lead.email, 200) || "(no email)";
+  const message = esc(lead.message, 5000) || "(no message)";
   const at = lead.at ? new Date(String(lead.at)).toUTCString() : new Date().toUTCString();
 
   const html = `
@@ -114,7 +124,11 @@ Deno.serve(async (req: Request) => {
         to,
         subject: `New enquiry from ${name}`,
         html,
-        reply_to: String(lead.email || "") || undefined,
+        // Only set reply_to when it really is an address — Resend rejects the
+        // whole send on a malformed one, which would lose the alert.
+        reply_to: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(lead.email || "").trim())
+          ? String(lead.email).trim()
+          : undefined,
       }),
     });
     const body = await res.text();
