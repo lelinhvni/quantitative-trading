@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="BPSQuant">
+  <title>BPSQuant</title>
+  <g transform="translate(512,512) scale(12.5) translate(-32,-32)">
+    <path d="M32 4.5 55.8 18.25v27.5L32 59.5 8.2 45.75v-27.5Z"
+          fill="none" stroke="#0B2239" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M17.5 43 26.5 33.5 33 39 44 23.5"
+          fill="none" stroke="#0D9488" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="23.5" r="3.9" fill="#0D9488"/>
+  </g>
+</svg>

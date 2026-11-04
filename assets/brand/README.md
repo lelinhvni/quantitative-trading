@@ -21,6 +21,9 @@ named after. It is also what keeps the mark readable when it is tiny.
 | `favicon.svg` | 32 px favicon, dark tile, screen gradient |
 | `favicon-ink.svg` | 32 px favicon, solid navy tile (no gradient) |
 | `letterhead.html` | A4 letterhead — page 1 full, page 2 continuation sheet |
+| `avatar-*.svg` | Square avatar sources (navy, gradient, white, transparent) |
+| `avatars/` | **Profile pictures as PNG**, 1024–180 px, plus which file goes on which account — see `avatars/README.md` |
+| `bpsquant-logo-files.zip` | Everything above in one download, for handing to a printer or a designer |
 
 ## Colour
 
