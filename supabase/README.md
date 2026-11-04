@@ -149,13 +149,15 @@ Deploy. Then under its **Secrets** add:
 |---|---|
 | `RESEND_API_KEY` | `re_…` from step a |
 | `ALERT_FROM` | `BPSQuant <alerts@bpsquant.com>` — must be on your verified domain |
-| `ALERT_TO` | *optional* — set the recipient here, or leave it unset and use the ops console (below) |
+| `ALERT_TO` | *optional* — only to override the default recipient |
 
-**Where alerts are sent.** Open `/ops.html`, unlock it, and fill in
-**Enquiry alerts → Alert email address**. It's saved to the private
-`app_settings` table in your database, so your personal address never
-appears in this public repo, and you can change it any time without a
-redeploy. (An `ALERT_TO` secret, if set, takes priority.)
+**Where alerts are sent.** By default, to **`info@bpsquant.com`** — the fund's
+Google Workspace inbox, which is built into the function. To send them
+elsewhere instead, open `/ops.html`, unlock it, and fill in **Enquiry alerts →
+Alert email address**. That's saved to the private `app_settings` table in your
+database, so a personal address never appears in this public repo, and you can
+change it any time without a redeploy. Clearing the field returns alerts to the
+default. Priority: `ALERT_TO` secret → `app_settings.alert_to` → `info@bpsquant.com`.
 
 **c. Point the database at it** — SQL editor, replacing both values:
 

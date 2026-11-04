@@ -117,6 +117,7 @@
     try {
       const v = await DB.getSetting("alert_to");
       if (input && v) input.value = v;
+      if (note && !v) note.textContent = "Going to info@bpsquant.com (the default).";
     } catch (err) {
       if (note) {
         note.textContent = "Run the latest supabase/schema.sql to enable this (app_settings table missing).";
@@ -134,7 +135,9 @@
       try {
         await DB.setSetting("alert_to", val);
         note.classList.remove("is-error");
-        note.textContent = val ? "✓ Alerts will go to " + val : "✓ Alerts turned off.";
+        note.textContent = val
+          ? "✓ Alerts will go to " + val
+          : "✓ Cleared — alerts go to info@bpsquant.com (the default).";
       } catch (err) {
         note.textContent = "Error: " + err.message;
         note.classList.add("is-error");

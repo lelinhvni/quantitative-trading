@@ -410,9 +410,11 @@
         return;
       }
       const message = form.message.value.trim();
+      let delivered = false;
       if (dbReady) {
         try {
           await DB.submitLead({ name, email, message });
+          delivered = true;
         } catch (err) {
           console.warn("[BPSQuant] Lead save to DB failed, falling back to localStorage:", err.message);
           saveLeadLocally(name, email, message);
@@ -420,8 +422,22 @@
       } else {
         saveLeadLocally(name, email, message);
       }
-      form.reset();
-      note.textContent = "Thanks — we received your message and will be in touch shortly.";
+
+      if (delivered) {
+        form.reset();
+        note.textContent = "Thanks — we received your message and will be in touch shortly.";
+        return;
+      }
+
+      // The message never reached us. Say so, and hand the visitor a working
+      // way to send it rather than pretending it went through.
+      const to = (CFG && CFG.brand && CFG.brand.email) || "info@bpsquant.com";
+      const href = "mailto:" + to
+        + "?subject=" + encodeURIComponent("Enquiry from " + name)
+        + "&body=" + encodeURIComponent(message + "\n\n— " + name + " (" + email + ")");
+      note.innerHTML = "We couldn't send that just now. Please email us at "
+        + '<a class="inline-link" href="' + href + '">' + to + "</a> — your message is ready to go.";
+      note.classList.add("is-error");
     });
   }
 

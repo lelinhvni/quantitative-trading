@@ -24,7 +24,7 @@ window.JSS_CONFIG = {
     name: "BPSQuant",
     full: "BPSQuant",
     tagline: "Systematic ETF trading, driven by quantitative theory.",
-    email: "invest@bpsquant.com",
+    email: "info@bpsquant.com",
   },
 
   /* ----- Market data providers -----------------------------------------

@@ -13,8 +13,9 @@
 //      → paste this file → Deploy.
 //   3. Edge Functions → notify-lead → Secrets, add:
 //        RESEND_API_KEY = re_xxxxxxxx
-//        ALERT_TO       = kevin86le@gmail.com        (comma-separate for several)
 //        ALERT_FROM     = BPSQuant <alerts@bpsquant.com>
+//        ALERT_TO       = optional — only to send somewhere other than
+//                         the default inbox below (comma-separate for several)
 //      ALERT_FROM must be on a domain verified in Resend.
 //   4. Run the two vault.create_secret() statements documented in
 //      supabase/schema.sql so the trigger knows where to call.
@@ -22,6 +23,10 @@
 // The function is called server-to-server with the service key, so
 // leave "Enforce JWT verification" ON.
 // ============================================================
+
+// The fund's Google Workspace inbox. Contact-form enquiries land here unless
+// something overrides it — a business address, so it belongs in the repo.
+const DEFAULT_ALERT_TO = "info@bpsquant.com";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -40,9 +45,12 @@ Deno.serve(async (req: Request) => {
   const key = Deno.env.get("RESEND_API_KEY");
   const from = Deno.env.get("ALERT_FROM") || "BPSQuant <onboarding@resend.dev>";
 
-  // Recipient: the ALERT_TO secret wins; otherwise read app_settings.alert_to,
-  // which the manager sets from the ops console. Keeping it in the database
-  // means no personal address is ever committed to the public repo.
+  // Recipient, in order of priority:
+  //   1. the ALERT_TO secret, if set;
+  //   2. app_settings.alert_to, which the manager sets from the ops console —
+  //      use this to add a personal address without committing it here;
+  //   3. info@bpsquant.com, the fund's own inbox.
+  // So alerts always have somewhere to land, even before anything is configured.
   let toRaw = Deno.env.get("ALERT_TO") || "";
   if (!toRaw) {
     try {
@@ -56,12 +64,14 @@ Deno.serve(async (req: Request) => {
         const rows = await r.json();
         if (Array.isArray(rows) && rows[0]?.value) toRaw = String(rows[0].value);
       }
-    } catch { /* fall through to "not configured" */ }
+    } catch { /* fall through to the default inbox */ }
   }
+  if (!toRaw) toRaw = DEFAULT_ALERT_TO;
   const to = toRaw.split(",").map((s) => s.trim()).filter(Boolean);
 
   if (!key || !to.length) {
-    // Not configured yet — succeed quietly so the lead is never lost.
+    // No Resend key yet — succeed quietly so the lead is never lost. It is
+    // still stored in contact_leads and visible in the portal inbox.
     return new Response(JSON.stringify({ skipped: "alerts not configured" }), {
       status: 200, headers: { ...CORS, "Content-Type": "application/json" },
     });
