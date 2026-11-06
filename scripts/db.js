@@ -14,9 +14,15 @@
   async function sendViaFormSubmit({ name, email, message, at }) {
     const target = (global.JSS_CONFIG || {}).formsubmit;
     if (!target) return false;
+    // Hard timeout: FormSubmit is a free third party and has been seen to go
+    // down (Cloudflare 522), where a plain fetch can hang for half a minute.
+    // The visitor must never wait on it.
+    const ctl = new AbortController();
+    const killer = setTimeout(() => ctl.abort(), 8000);
     try {
       const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(target), {
         method: "POST",
+        signal: ctl.signal,
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
           _subject: "New enquiry from " + (name || "the website"),
@@ -40,6 +46,8 @@
     } catch (e) {
       console.warn("[BPSQuant] FormSubmit unreachable:", e.message);
       return false;
+    } finally {
+      clearTimeout(killer);
     }
   }
 
@@ -375,9 +383,15 @@
         .from("contact_leads").insert({ name, email, message: message || null });
       if (error) throw error;
 
-      const sent = await this.emailLead({ name, email, message: message || "" });
-      if (!sent) console.warn("[BPSQuant] Lead saved, but no email alert was sent.");
-      return sent;
+      // The enquiry is now safely in the inbox, so the visitor is done. Send
+      // the email alert in the background: an email relay being slow or down
+      // must not leave someone staring at a spinner for something that has
+      // already succeeded.
+      this.emailLead({ name, email, message: message || "" })
+        .then((sent) => {
+          if (!sent) console.warn("[BPSQuant] Lead saved, but no email alert was sent.");
+        })
+        .catch(() => {});
     },
 
     /* Email the enquiry to the fund's inbox. Two routes, tried in order, so
