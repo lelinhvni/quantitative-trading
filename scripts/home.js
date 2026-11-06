@@ -411,16 +411,26 @@
       }
       const message = form.message.value.trim();
       let delivered = false;
+
       if (dbReady) {
         try {
           await DB.submitLead({ name, email, message });
-          delivered = true;
+          delivered = true;              // stored in the inbox, and emailed
         } catch (err) {
-          console.warn("[BPSQuant] Lead save to DB failed, falling back to localStorage:", err.message);
+          console.warn("[BPSQuant] Lead save to DB failed:", err.message);
           saveLeadLocally(name, email, message);
         }
       } else {
         saveLeadLocally(name, email, message);
+      }
+
+      // Supabase is down or not configured — the enquiry can still reach the
+      // inbox by email on its own, so try that before telling the visitor
+      // anything went wrong.
+      if (!delivered && DB && DB.emailLead) {
+        try {
+          delivered = await DB.emailLead({ name, email, message });
+        } catch (_) { /* fall through to the mailto below */ }
       }
 
       if (delivered) {

@@ -7,6 +7,42 @@
 (function (global) {
   "use strict";
 
+  /* ----- FormSubmit relay -----------------------------------------------
+     Posts the enquiry to FormSubmit, which emails it on. No account, no API
+     key and no DNS; the address (or its alias) lives in config.formsubmit.
+     Returns true only when FormSubmit confirms it accepted the message. */
+  async function sendViaFormSubmit({ name, email, message, at }) {
+    const target = (global.JSS_CONFIG || {}).formsubmit;
+    if (!target) return false;
+    try {
+      const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(target), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          _subject: "New enquiry from " + (name || "the website"),
+          _template: "table",
+          _captcha: "false",
+          Name: name || "(no name)",
+          Email: email || "(no email)",
+          Message: message || "(no message)",
+          Received: at,
+          Source: "www.bpsquant.com contact form",
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      // FormSubmit answers {"success":"true"} — as a string on some routes.
+      const ok = res.ok && String(body.success) === "true";
+      if (!ok) {
+        console.warn("[BPSQuant] FormSubmit did not accept the enquiry:",
+                     res.status, body.message || "");
+      }
+      return ok;
+    } catch (e) {
+      console.warn("[BPSQuant] FormSubmit unreachable:", e.message);
+      return false;
+    }
+  }
+
   const DB = {
     _client: null,
     _profile: null,
@@ -339,14 +375,32 @@
         .from("contact_leads").insert({ name, email, message: message || null });
       if (error) throw error;
 
-      try {
-        const { error: fnErr } = await this._client.functions.invoke("notify-lead", {
-          body: { name, email, message: message || "", at: new Date().toISOString() },
-        });
-        if (fnErr) throw fnErr;
-      } catch (e) {
-        console.warn("[BPSQuant] Lead saved, but the email alert failed:", e.message);
+      const sent = await this.emailLead({ name, email, message: message || "" });
+      if (!sent) console.warn("[BPSQuant] Lead saved, but no email alert was sent.");
+      return sent;
+    },
+
+    /* Email the enquiry to the fund's inbox. Two routes, tried in order, so
+       exactly one email goes out:
+         1. the notify-lead Edge Function — only actually sends when a Resend
+            key is configured, otherwise it answers {skipped};
+         2. FormSubmit — no account, no key, needs one confirmation click.
+       Returns true if a route reported sending. Never throws: the lead is
+       already stored, and the visitor must not see an error for that. */
+    async emailLead({ name, email, message }) {
+      const payload = { name, email, message, at: new Date().toISOString() };
+
+      if (this._client) {
+        try {
+          const { data, error } = await this._client.functions.invoke("notify-lead", { body: payload });
+          // `skipped` means the function ran but had no Resend key — fall through.
+          if (!error && data && !data.skipped) return true;
+        } catch (e) {
+          console.warn("[BPSQuant] notify-lead unavailable:", e.message);
+        }
       }
+
+      return await sendViaFormSubmit(payload);
     },
 
     async getLeads(limit = 100) {

@@ -132,14 +132,43 @@ in their portal instantly (realtime).
 
 ---
 
-## 8. Email alerts for new enquiries (optional, ~10 min)
+## 8. Email alerts for new enquiries
 
-Every contact-form submission already lands in the portal's **Inbox** tab
-with an unread badge. To also get an email the moment one arrives:
+Every contact-form submission lands in the portal's **Inbox** tab with an
+unread badge. It is also emailed to `info@bpsquant.com`.
+
+### The simple way — one click, already wired up
+
+The site posts each enquiry to **FormSubmit**, which emails it on. No account,
+no API key, no DNS.
+
+**The only step:** the first time anyone submits the form, FormSubmit emails
+`info@bpsquant.com` asking you to confirm the address. Open it and click the
+button once. Every enquiry after that arrives automatically.
+
+Submit the form on the live site yourself to trigger that email.
+
+**Then hide the address.** After confirming, FormSubmit gives you a random
+alias (like `a1b2c3d4e5f6…`). Put it in `scripts/formsubmit` in
+`scripts/config.js` in place of `info@bpsquant.com`, so the inbox is not
+sitting in the page source for spam crawlers to find. Nothing else changes.
+
+Until you confirm, enquiries are still saved and still show in the Inbox tab —
+nothing is lost, you just do not get the email.
+
+### The private way — Resend (optional, ~10 min)
+
+FormSubmit is a third party, so enquiries pass through their servers on the
+way to you. For a fund taking investor enquiries that may matter. Resend keeps
+delivery under your own domain instead.
+
+Set it up and it takes over automatically: `notify-lead` sends, FormSubmit is
+not called, and you never get two copies of the same enquiry. No page change.
 
 **a. Get a Resend key** — sign up at [resend.com](https://resend.com) (free:
-3,000 emails/month). Verify `bpsquant.com` as a sending domain, then create
-an API key.
+3,000 emails/month). You can skip domain verification at first and let it send
+from Resend's test address; verify `bpsquant.com` later to send from your own.
+Then create an API key.
 
 **b. Deploy the function** — Edge Functions → Deploy a new function → name it
 exactly `notify-lead` → paste `supabase/functions/notify-lead/index.ts` →
@@ -176,9 +205,21 @@ select vault.delete_secret('notify_lead_url');
 select vault.delete_secret('notify_lead_key');
 ```
 
-**Until the Resend key is added**, the function returns "skipped" and no email
-goes out — but the enquiry is still saved and still shows in the Inbox tab.
-The form never fails because of email.
+**Until the Resend key is added**, the function answers "skipped" and the site
+falls back to FormSubmit. Either way the enquiry is saved and shows in the
+Inbox tab. The form never fails because of email.
+
+### How the two fit together
+
+On every submission the site saves the enquiry, then tries to email it:
+
+1. **`notify-lead`** — sends only if a Resend key is set, otherwise answers
+   `skipped`;
+2. **FormSubmit** — used only when step 1 did not send.
+
+So exactly one email goes out, whichever is configured. If both the database
+and both email routes are unreachable, the form says so and offers the visitor
+a prefilled `mailto:` rather than claiming the message was received.
 
 ---
 

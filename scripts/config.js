@@ -27,6 +27,29 @@ window.JSS_CONFIG = {
     email: "info@bpsquant.com",
   },
 
+  /* ----- Where contact-form enquiries are emailed ----------------------
+     FormSubmit relays the form to this address. No account, no API key,
+     no DNS — the only setup is one confirmation click.
+
+     FIRST TIME ONLY: the first enquiry sent makes FormSubmit email
+     info@bpsquant.com asking to confirm. Click the button in that email
+     once. From then on every enquiry arrives automatically. Until you
+     click it, enquiries are still saved and still show in the portal's
+     Inbox tab — nothing is lost.
+
+     AFTER CONFIRMING, hide the address: FormSubmit gives you a random
+     alias (looks like "a1b2c3d4e5f6..."). Paste it here in place of the
+     address so the inbox is not sitting in the page source for spam
+     crawlers to scrape. Everything else keeps working.
+
+     This is only a fallback. If the notify-lead Edge Function is ever
+     given a Resend key it sends instead, and FormSubmit is not called —
+     so you never get two copies of the same enquiry.
+
+     Set to "" to turn the fallback off.
+  --------------------------------------------------------------------- */
+  formsubmit: "info@bpsquant.com",
+
   /* ----- Market data providers -----------------------------------------
      Sources are tried in order until one succeeds; demo is the final
      fallback so the site always renders.
