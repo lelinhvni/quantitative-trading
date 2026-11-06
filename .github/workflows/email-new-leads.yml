@@ -1,0 +1,51 @@
+# Emails new contact-form enquiries to info@bpsquant.com, sent from the
+# fund's own Google Workspace mailbox.
+#
+# Needs two repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_SERVICE_KEY  Supabase -> Settings -> API -> service_role key
+#   GMAIL_APP_PASSWORD    Google Account -> Security -> App passwords
+#
+# Until both exist the job exits quietly, so it is harmless to merge early.
+# Enquiries are never lost either way: they are always saved to Supabase and
+# shown in the portal's Inbox tab. This only adds the notification.
+name: Email new enquiries
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 minutes
+  workflow_dispatch: {}       # run on demand from the Actions tab
+
+# One run at a time, so a slow run cannot overlap the next and send twice.
+concurrency:
+  group: email-new-leads
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the secrets are set
+        id: gate
+        env:
+          SVC: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          APP: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          if [ -z "$SVC" ] || [ -z "$APP" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Secrets not set yet — skipping. Add SUPABASE_SERVICE_KEY and"
+            echo "GMAIL_APP_PASSWORD under Settings -> Secrets and variables -> Actions."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send any new enquiries
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          SUPABASE_URL: https://iwwogjrnoacjnrpukzdb.supabase.co
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GMAIL_USER: info@bpsquant.com
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_TO: info@bpsquant.com
+        run: python3 .github/scripts/notify_leads.py

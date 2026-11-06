@@ -137,7 +137,39 @@ in their portal instantly (realtime).
 Every contact-form submission lands in the portal's **Inbox** tab with an
 unread badge. It is also emailed to `info@bpsquant.com`.
 
-### The simple way — one click, already wired up
+### The reliable way — your own Gmail, two secrets (recommended)
+
+A GitHub Action (`.github/workflows/email-new-leads.yml`) checks for new
+enquiries every 15 minutes and emails them from **info@bpsquant.com** using
+your existing Google Workspace mailbox. No new vendor, no DNS, and no third
+party ever sees an enquiry. It uses only the Python standard library, so
+there is nothing from PyPI running against your data.
+
+Add two repository secrets — **Settings → Secrets and variables → Actions →
+New repository secret**:
+
+| Secret | Where to get it |
+|---|---|
+| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → **service_role** key |
+| `GMAIL_APP_PASSWORD` | Google Account → Security → **App passwords** (needs 2-step verification on) |
+
+Then go to the **Actions** tab → *Email new enquiries* → **Run workflow** to
+test it immediately rather than waiting for the schedule.
+
+Until both secrets exist the job exits quietly, so nothing breaks in the
+meantime. It tracks what it has already sent in `app_settings`
+(`last_lead_notified_at`), so a re-run never emails the same enquiry twice,
+and a send that fails halfway is retried on the next run rather than lost.
+
+The `service_role` key bypasses Row Level Security. It is safe in GitHub
+Actions secrets (never printed, never exposed to forks), but do not paste it
+anywhere public — and never into `scripts/config.js`, which ships to browsers.
+
+### The one-click way — FormSubmit (currently unreliable)
+
+> **Status, 6 Nov 2026:** FormSubmit was returning HTTP 522 — their origin was
+> unreachable, so no email could be relayed. It is a free service with no
+> uptime guarantee and no status page. Treat it as a bonus, not the main path.
 
 The site posts each enquiry to **FormSubmit**, which emails it on. No account,
 no API key, no DNS.
@@ -211,15 +243,32 @@ Inbox tab. The form never fails because of email.
 
 ### How the two fit together
 
-On every submission the site saves the enquiry, then tries to email it:
+Every enquiry is **always** saved to `contact_leads` and shown in the portal's
+Inbox tab. That is the record; email is only the notification on top.
+
+From the browser, on each submission, in order:
 
 1. **`notify-lead`** — sends only if a Resend key is set, otherwise answers
    `skipped`;
 2. **FormSubmit** — used only when step 1 did not send.
 
-So exactly one email goes out, whichever is configured. If both the database
-and both email routes are unreachable, the form says so and offers the visitor
-a prefilled `mailto:` rather than claiming the message was received.
+So exactly one email goes out, whichever is configured. Both run in the
+background: the visitor is confirmed as soon as the enquiry is stored, and a
+slow or dead relay never makes them wait.
+
+Separately, from GitHub Actions every 15 minutes:
+
+3. **Gmail** — emails anything that arrived since the last run.
+
+Routes 1–2 are instant but depend on a service being up; route 3 is a few
+minutes behind but depends only on things you own, so it catches anything the
+others missed. Running Gmail alongside a working route 1 or 2 means two copies
+of the same enquiry — pick one as the main path and leave the others as the
+safety net, or just delete the duplicates.
+
+If the database and every email route are unreachable at once, the form says
+so and offers the visitor a prefilled `mailto:` rather than claiming the
+message was received.
 
 ---
 
