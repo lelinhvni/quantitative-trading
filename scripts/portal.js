@@ -259,27 +259,300 @@
   /* ============================================================
      LIVE MODE — INVESTOR VIEW
      ============================================================ */
+  /* ============================================================
+     ACCOUNT MATHS
+     Every figure the investor sees is derived here, once, so the
+     headline, the money-flow statement and the "how this is worked
+     out" section can never disagree with each other.
+     ============================================================ */
+
+  /* Money-weighted return (XIRR), solved by bisection.
+     A plain gain ÷ contributions figure overstates or understates badly
+     once money arrives at different times — a deposit made last month
+     has not had the same chance to grow as one made last January. This
+     accounts for when each pound actually arrived. */
+  function xirr(flows) {
+    if (!flows || flows.length < 2) return null;
+    const fs = flows.slice().sort((a, b) => a.date - b.date);
+    const t0 = fs[0].date.getTime();
+    const npv = (r) => fs.reduce((s, f) => {
+      const yrs = (f.date.getTime() - t0) / (365 * 864e5);
+      return s + f.amount / Math.pow(1 + r, yrs);
+    }, 0);
+    let lo = -0.9999, hi = 10, flo = npv(lo), fhi = npv(hi);
+    if (!isFinite(flo) || !isFinite(fhi) || flo * fhi > 0) return null;
+    for (let i = 0; i < 200; i += 1) {
+      const mid = (lo + hi) / 2, fm = npv(mid);
+      if (!isFinite(fm)) return null;
+      if (Math.abs(fm) < 1e-9) return mid;
+      if (flo * fm < 0) { hi = mid; } else { lo = mid; flo = fm; }
+    }
+    return (lo + hi) / 2;
+  }
+
+  /* One object holding every number the investor dashboard shows.
+     The identity that has to hold, and is shown to the investor as a
+     statement they can add up themselves:
+         deposits − withdrawals + growth − cashIncome = value
+     so growth is the balancing figure, which is exactly what it is:
+     everything the account gained that was not put in by hand. */
+  function accountMaths({ account, latestNav, events, distributions }) {
+    const navPU = latestNav ? +latestNav.nav_per_unit : null;
+    const units = account ? +account.units : 0;
+    const value = navPU != null ? units * navPU : null;
+
+    const deposits = events.filter(e => e.type === "deposit");
+    const withdraws = events.filter(e => e.type === "withdrawal");
+    const totalDep = deposits.reduce((a, e) => a + +e.amount, 0);
+    const totalWith = withdraws.reduce((a, e) => a + +e.amount, 0);
+
+    const dists = (distributions || []).slice()
+      .sort((a, b) => String(a.period).localeCompare(String(b.period)));
+    const cashIncome = dists.filter(d => d.mode === "cash")
+      .reduce((a, d) => a + +d.paid_amount, 0);
+    const reinvested = dists.filter(d => d.mode === "reinvest")
+      .reduce((a, d) => a + +d.paid_amount, 0);
+    const paidTotal = cashIncome + reinvested;
+
+    // Growth is everything the account gained that nobody deposited.
+    const growth = value != null ? value - totalDep + totalWith + cashIncome : null;
+    const netIn = totalDep - totalWith;
+
+    // Cash flows from the investor's point of view: money handed over is
+    // negative, money received is positive, and today's value counts as
+    // money they could receive now.
+    const flows = [];
+    deposits.forEach(e => flows.push({ date: new Date(e.date), amount: -(+e.amount) }));
+    withdraws.forEach(e => flows.push({ date: new Date(e.date), amount: +e.amount }));
+    dists.filter(d => d.mode === "cash")
+      .forEach(d => flows.push({ date: new Date(d.period), amount: +d.paid_amount }));
+    if (value != null) flows.push({ date: new Date(), amount: value });
+    const rate = xirr(flows);
+
+    // Reserve and shortfall are plain running sums of the recorded rows,
+    // so they can never drift away from the months that produced them.
+    const reserve = dists.reduce((a, d) => a + +d.reserve_delta, 0);
+    const shortfall = dists.reduce((a, d) => a + +d.shortfall_delta, 0);
+    const lastDist = dists.length ? dists[dists.length - 1] : null;
+    const targetRate = lastDist ? +lastDist.target_rate : 0.017;
+
+    const firstDate = deposits.length
+      ? deposits[deposits.length - 1].date
+      : (account && account.since) || null;
+
+    return {
+      navPU, units, value, totalDep, totalWith, netIn, growth,
+      cashIncome, reinvested, paidTotal, rate, reserve, shortfall,
+      dists, lastDist, targetRate, firstDate,
+      openNav: deposits.length ? +deposits[deposits.length - 1].nav_at_txn || null : null,
+    };
+  }
+
+  const pctStr = (r) => r == null ? "—" : (r >= 0 ? "+" : "−") + (Math.abs(r) * 100).toFixed(1) + "%";
+
+  /* ---------- money in, growth, money out, value today ---------- */
+  function moneyFlowPanel(m) {
+    if (m.value == null) return "";
+    const row = (label, sub, amount, cls, strong) => `
+      <tr class="${strong ? "flow__total" : ""}">
+        <td><span class="flow__l">${label}</span>${sub ? `<span class="flow__s">${sub}</span>` : ""}</td>
+        <td class="mono flow__v ${cls || ""}">${amount}</td>
+      </tr>`;
+    const money = (v, signed) => (signed && v > 0 ? "+" : signed && v < 0 ? "−" : "") +
+      F.fmtMoney(Math.abs(v), 2);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Where your money went</h2>
+          <span class="panel__sub">Every figure adds up to the line below it</span>
+        </div>
+        <table class="flow">
+          <tbody>
+            ${row("Money you deposited", m.totalDep ? "across your deposits" : "", money(m.totalDep, true), "pos")}
+            ${m.totalWith ? row("Money you withdrew", "cash you took back out", "−" + F.fmtMoney(m.totalWith, 2), "neg") : ""}
+            ${row("Your money in the fund", "deposits less withdrawals", F.fmtMoney(m.netIn, 2), "", true)}
+            ${row("Investment growth", "what the fund earned on it", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
+            ${m.cashIncome ? row("Monthly income paid to you", "already in your bank, no longer in the fund", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
+            ${m.reinvested ? row("Monthly income reinvested", "turned into more units, still in the fund", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
+            ${row("Account value today", m.navPU ? F.fmtNum(m.units, 4) + " units × " + F.fmtNum(m.navPU, 4) : "", F.fmtMoney(m.value, 2), "", true)}
+          </tbody>
+        </table>
+        <p class="portal__note">
+          <b>Total earned: ${money(m.growth, true)}</b>${m.cashIncome ? ` — of which ${F.fmtMoney(m.cashIncome, 2)} has already been paid out to you, and the rest is still working in the fund.` : " — all of it still in the fund, working."}
+        </p>
+      </div>`;
+  }
+
+  /* ---------- monthly income: target, what was paid, and why ---------- */
+  function incomePanel(m) {
+    const ratePct = (m.targetRate * 100).toFixed(2).replace(/0$/, "");
+    const targetNow = m.value != null ? m.value * m.targetRate : null;
+
+    if (!m.dists.length) {
+      return `
+        <div class="panel reveal">
+          <div class="panel__head">
+            <h2>Monthly income</h2>
+            <span class="panel__sub">Target ${ratePct}% a month</span>
+          </div>
+          <div class="inc-cards">
+            <div class="inc-card">
+              <div class="inc-card__l">Target each month</div>
+              <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
+              <div class="inc-card__s">${ratePct}% of ${m.value != null ? F.fmtMoney(m.value, 0) : "your balance"}</div>
+            </div>
+            <div class="inc-card">
+              <div class="inc-card__l">Paid so far</div>
+              <div class="inc-card__v">—</div>
+              <div class="inc-card__s">no distributions recorded yet</div>
+            </div>
+          </div>
+          <p class="portal__note">
+            ${ratePct}% a month is a <b>target, not a guarantee</b>. You are paid out of
+            profit the fund actually earns, topped up from the Smoothing Reserve in a weak
+            month. Once your first distribution is recorded it appears here with the full
+            working — what the fund earned, what the target was, what the reserve covered,
+            and anything carried forward.
+          </p>
+        </div>`;
+    }
+
+    const recent = m.dists.slice(-12).reverse();
+    // Running balances as at the end of each month, oldest first, so the
+    // table can show the state the investor would have seen at the time.
+    let runRes = 0, runSh = 0;
+    const after = new Map();
+    m.dists.forEach(d => {
+      runRes += +d.reserve_delta; runSh += +d.shortfall_delta;
+      after.set(d.period, { res: runRes, sh: runSh });
+    });
+
+    const last = m.lastDist;
+    return `
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Monthly income</h2>
+          <span class="panel__sub">Target ${ratePct}% a month — paid from profit, not from your capital</span>
+        </div>
+        <div class="inc-cards">
+          <div class="inc-card">
+            <div class="inc-card__l">Target each month</div>
+            <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
+            <div class="inc-card__s">${ratePct}% of ${m.value != null ? F.fmtMoney(m.value, 0) : "—"}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Last payment</div>
+            <div class="inc-card__v ${+last.paid_amount >= +last.target_amount ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
+            <div class="inc-card__s">${last.period} · ${last.mode === "cash" ? "paid in cash" : "reinvested"}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Smoothing Reserve</div>
+            <div class="inc-card__v">${F.fmtMoney(m.reserve, 2)}</div>
+            <div class="inc-card__s">your money, held back to cover weak months</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Owed to you</div>
+            <div class="inc-card__v ${m.shortfall > 0 ? "warn" : ""}">${F.fmtMoney(m.shortfall, 2)}</div>
+            <div class="inc-card__s">${m.shortfall > 0 ? "repaid from later profit, before any performance fee" : "nothing outstanding"}</div>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:18px"><table class="ttable">
+          <thead><tr>
+            <th>Month</th><th>Fund earned you</th><th>Target</th><th>You received</th>
+            <th>Reserve after</th><th>Owed after</th>
+          </tr></thead>
+          <tbody>${recent.map(d => {
+            const a = after.get(d.period) || { res: 0, sh: 0 };
+            const paid = +d.paid_amount, tgt = +d.target_amount, prof = +d.profit_amount;
+            const full = paid >= tgt - 0.005;
+            return `<tr>
+              <td class="mono">${String(d.period).slice(0, 7)}</td>
+              <td class="mono ${prof >= 0 ? "" : "neg"}">${prof >= 0 ? "" : "−"}${F.fmtMoney(Math.abs(prof), 2)}</td>
+              <td class="mono muted">${F.fmtMoney(tgt, 2)}</td>
+              <td class="mono ${full ? "pos" : "warn"}">${F.fmtMoney(paid, 2)}${d.mode === "reinvest" ? " ↻" : ""}</td>
+              <td class="mono muted">${F.fmtMoney(a.res, 2)}</td>
+              <td class="mono ${a.sh > 0 ? "warn" : "muted"}">${F.fmtMoney(a.sh, 2)}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table></div>
+        <p class="portal__note">
+          <b>Fund earned you</b> is your share of what the fund made that month. When it beat
+          the target the surplus went into your Smoothing Reserve; when it fell short the
+          reserve topped your payment back up. If the reserve ran out, the gap was recorded
+          under <b>owed</b> and is repaid from later profit before the fund takes any
+          performance fee. ↻ means that payment was reinvested as units instead of paid in cash.
+        </p>
+      </div>`;
+  }
+
+  /* ---------- the arithmetic, spelled out with the investor's own numbers ---------- */
+  function howCalculatedPanel(m) {
+    if (m.value == null) return "";
+    const growthPct = m.openNav && m.navPU ? (m.navPU / m.openNav - 1) : null;
+    return `
+      <details class="acct-more reveal">
+        <summary><span>How these numbers are worked out</span><span class="acct-more__hint">in plain words</span></summary>
+        <div class="panel" style="margin-top:0">
+          <ol class="calc">
+            <li>
+              <b>What a unit is.</b> The fund is one shared pot. When you deposit, you buy
+              <b>units</b> of it — like slices of a cake. Your slice count only changes when
+              you deposit, withdraw, or reinvest income. You hold
+              <b>${F.fmtNum(m.units, 4)} units</b>.
+            </li>
+            <li>
+              <b>What a unit is worth.</b> Every unit is worth the same amount, the
+              <b>unit price</b> (NAV). It moves up and down with the fund's trading.
+              Today it is <b>${F.fmtNum(m.navPU, 4)}</b>${m.openNav ? `, against <b>${F.fmtNum(m.openNav, 4)}</b> when you first deposited${growthPct != null ? ` — the fund is ${pctStr(growthPct)} since then` : ""}` : ""}.
+            </li>
+            <li>
+              <b>Your balance.</b> Units × unit price.<br />
+              <span class="calc__m">${F.fmtNum(m.units, 4)} × ${F.fmtNum(m.navPU, 4)} = <b>${F.fmtMoney(m.value, 2)}</b></span>
+            </li>
+            <li>
+              <b>What you have earned.</b> What the account is worth now, less what you put
+              in, plus anything already paid out to you.<br />
+              <span class="calc__m">${F.fmtMoney(m.value, 2)} − ${F.fmtMoney(m.totalDep, 2)} + ${F.fmtMoney(m.totalWith, 2)}${m.cashIncome ? " + " + F.fmtMoney(m.cashIncome, 2) : ""} = <b>${m.growth >= 0 ? "+" : "−"}${F.fmtMoney(Math.abs(m.growth), 2)}</b></span>
+            </li>
+            <li>
+              <b>Your return rate.</b> ${m.rate != null ? `<b>${pctStr(m.rate)} a year.</b> This counts <i>when</i> each
+              deposit arrived — money added recently has had less time to grow, so simply
+              dividing your gain by your deposits would flatter or punish you unfairly
+              depending on timing.` : `Shown once there is enough history to measure it fairly.`}
+            </li>
+            ${m.dists.length ? `
+            <li>
+              <b>Your monthly income.</b> ${(m.targetRate * 100).toFixed(2).replace(/0$/, "")}% of your balance is the
+              <i>target</i>. You are paid from the profit the fund actually made that month;
+              if that falls short, your Smoothing Reserve tops it up; if the reserve is empty,
+              the gap is recorded and repaid from later profit before the fund earns any
+              performance fee. Income is never paid out of your deposit.
+            </li>` : ""}
+          </ol>
+          <p class="portal__note" style="margin-top:4px">
+            Nothing here is an estimate — every figure comes from your recorded deposits,
+            withdrawals and the published unit price. If a number looks wrong, message us
+            below and we will walk through it with you.
+          </p>
+        </div>
+      </details>`;
+  }
+
   async function renderInvestor(profile) {
     const body = document.getElementById("portalBody");
     body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
-    const [account, latestNav, events, allNav, trades, positions, withdrawals, messages] = await Promise.all([
+    const [account, latestNav, events, allNav, trades, positions, withdrawals, messages, distributions] = await Promise.all([
       DB.getMyAccount(), DB.getLatestNav(), DB.getMyCapitalEvents(),
       DB.getAllNavHistory(), DB.getTrades(60).catch(() => []), DB.getPositions().catch(() => []),
       DB.getMyWithdrawals().catch(() => []), DB.getMyMessages().catch(() => []),
+      DB.getMyDistributions().catch(() => []),
     ]);
-    const navPU  = latestNav ? +latestNav.nav_per_unit : null;
-    const units  = account ? +account.units : 0;
-    const curVal = navPU ? units * navPU : null;
-    const totalDep  = events.filter(e => e.type === "deposit").reduce((a,e) => a + +e.amount, 0);
-    const totalWith = events.filter(e => e.type === "withdrawal").reduce((a,e) => a + +e.amount, 0);
-    const netInv = totalDep - totalWith;
-    const gain   = curVal != null ? curVal - netInv : null;
-    const retPct = curVal != null && netInv > 0 ? (gain / netInv) * 100 : null;
-    const navSeries = allNav.length ? allNav : null;
 
-    const deposits = events.filter(e => e.type === "deposit");
-    const firstDate = deposits.length ? deposits[deposits.length - 1].date : (account && account.since);
-    const unreadMsgs = messages.filter(m => m.sender_role === "manager" && !m.read_at).length;
+    const m = accountMaths({ account, latestNav, events, distributions });
+    const { navPU, units, value: curVal, growth: gain, firstDate } = m;
+    const navSeries = allNav.length ? allNav : null;
+    const unreadMsgs = messages.filter(x => x.sender_role === "manager" && !x.read_at).length;
     const pendingWd  = withdrawals.filter(w => w.status === "pending").length;
 
     /* Headline: what you put in, what it's worth, what you've made.
@@ -290,32 +563,43 @@
           <div class="acct-hero__main">
             <div class="acct-hero__label">Your account is worth</div>
             <div class="acct-hero__value">${curVal != null ? F.fmtMoney(curVal, 2) : "—"}</div>
-            ${gain != null ? `
+            ${gain != null && m.netIn > 0 ? `
               <div class="acct-hero__delta ${gain >= 0 ? "is-up" : "is-down"}">
                 ${gain >= 0 ? "▲" : "▼"} ${F.fmtMoney(Math.abs(gain), 2)}
-                ${retPct != null ? `(${retPct >= 0 ? "+" : "−"}${Math.abs(retPct).toFixed(1)}%)` : ""}
+                ${m.rate != null ? `(${pctStr(m.rate)} a year)` : ""}
                 <span>${gain >= 0 ? "earned" : "down"} since you joined</span>
               </div>` : ""}
           </div>
           <div class="acct-hero__split">
             <div class="acct-fact">
               <div class="acct-fact__l">You put in</div>
-              <div class="acct-fact__v">${F.fmtMoney(netInv, 2)}</div>
-              <div class="acct-fact__s">${totalWith > 0 ? F.fmtMoney(totalDep,0) + " deposited − " + F.fmtMoney(totalWith,0) + " withdrawn" : (firstDate ? "since " + firstDate : "no deposits yet")}</div>
+              <div class="acct-fact__v">${F.fmtMoney(m.netIn, 2)}</div>
+              <div class="acct-fact__s">${m.totalWith > 0 ? F.fmtMoney(m.totalDep,0) + " deposited − " + F.fmtMoney(m.totalWith,0) + " withdrawn" : (firstDate ? "since " + firstDate : "no deposits yet")}</div>
             </div>
             <div class="acct-fact">
-              <div class="acct-fact__l">You've made</div>
+              <div class="acct-fact__l">You've earned</div>
               <div class="acct-fact__v ${gain != null && gain >= 0 ? "pos" : gain != null ? "neg" : ""}">${gain != null ? (gain >= 0 ? "+" : "−") + F.fmtMoney(Math.abs(gain), 2) : "—"}</div>
-              <div class="acct-fact__s">${retPct != null ? (retPct >= 0 ? "+" : "−") + Math.abs(retPct).toFixed(1) + "% total return" : "starts once your first deposit lands"}</div>
+              <div class="acct-fact__s">${m.rate != null ? pctStr(m.rate) + " a year" : "starts once your first deposit lands"}</div>
+            </div>
+            <div class="acct-fact">
+              <div class="acct-fact__l">Income paid to you</div>
+              <div class="acct-fact__v">${m.paidTotal ? F.fmtMoney(m.paidTotal, 2) : "—"}</div>
+              <div class="acct-fact__s">${m.paidTotal ? (m.reinvested ? F.fmtMoney(m.cashIncome,0) + " cash · " + F.fmtMoney(m.reinvested,0) + " reinvested" : "paid in cash") : "no distributions yet"}</div>
             </div>
           </div>
         </div>
+
+        ${moneyFlowPanel(m)}
+
+        ${incomePanel(m)}
 
         ${navSeries && units > 0 ? `
         <div class="panel reveal">
           <div class="panel__head"><h2>How your money has grown</h2><span class="panel__sub">Your balance, day by day</span></div>
           <canvas id="acctChart" height="260"></canvas>
         </div>` : `<p class="portal__note">Your growth chart appears once your first deposit is recorded.</p>`}
+
+        ${howCalculatedPanel(m)}
 
         ${pendingWd ? `<div class="demo-banner">You have ${pendingWd} withdrawal request${pendingWd>1?"s":""} awaiting review.</div>` : ""}
 
@@ -353,8 +637,8 @@
         </details>
 
         <p class="portal__note">
-          Your balance is your ${F.fmtNum(units, 4)} fund units × today's unit price of
-          ${navPU ? F.fmtNum(navPU, 4) : "—"}${latestNav ? " (set " + latestNav.date + ")" : ""}.
+          Unit price ${navPU ? F.fmtNum(navPU, 4) : "—"}${latestNav ? ", set " + latestNav.date : ""}.
+          Figures update as soon as a new price is published.
         </p>
       </div>`;
 

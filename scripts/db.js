@@ -235,6 +235,27 @@
       return data || [];
     },
 
+    /* Monthly income distributions.
+       Returns [] rather than throwing when the `distributions` table has not
+       been created yet (supabase/migrations/2026-11-07-distributions.sql), so
+       a portal running against an older database still loads. */
+    async getMyDistributions(limit = 36) {
+      const session = await this.getSession();
+      if (!session) return [];
+      const { data, error } = await this._client
+        .from("distributions").select("*")
+        .eq("investor_id", session.user.id)
+        .order("period", { ascending: false })
+        .limit(limit);
+      if (error) {
+        // 42P01 = undefined_table. Anything else is worth knowing about.
+        if (error.code === "42P01" || /does not exist/i.test(error.message || "")) return [];
+        console.warn("[BPSQuant] distributions unavailable:", error.message);
+        return [];
+      }
+      return data || [];
+    },
+
     /* ============================================================
        MANAGER — investor management
        ============================================================ */
