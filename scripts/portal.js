@@ -332,6 +332,13 @@
     // Reserve and shortfall are plain running sums of the recorded rows,
     // so they can never drift away from the months that produced them.
     const reserve = dists.reduce((a, d) => a + +d.reserve_delta, 0);
+    // Clause 6.4A caps what an investor can receive in a calendar year at
+    // twelve times the Target. Show progress against it, so the cap is a
+    // visible fact rather than something discovered in a good year.
+    const yr = String(new Date().getFullYear());
+    const ytdPaid = dists.filter(d => String(d.period).slice(0, 4) === yr)
+      .reduce((a, d) => a + +d.paid_amount, 0);
+    const companyExcess = dists.reduce((a, d) => a + (+d.company_excess || 0), 0);
     const shortfall = dists.reduce((a, d) => a + +d.shortfall_delta, 0);
     const lastDist = dists.length ? dists[dists.length - 1] : null;
     const targetRate = lastDist ? +lastDist.target_rate : 0.017;
@@ -343,6 +350,7 @@
     return {
       navPU, units, value, totalDep, totalWith, netIn, growth,
       cashIncome, reinvested, paidTotal, rate, reserve, shortfall,
+      ytdPaid, companyExcess,
       dists, lastDist, targetRate, firstDate,
       openNav: deposits.length ? +deposits[deposits.length - 1].nav_at_txn || null : null,
     };
@@ -486,6 +494,11 @@
             <div class="inc-card__s">a month, at today's balance</div>
           </div>
           <div class="inc-card">
+            <div class="inc-card__l">This year so far</div>
+            <div class="inc-card__v">${F.fmtMoney(m.ytdPaid, 0)}</div>
+            <div class="inc-card__s">most you can get in a year is ${targetNow != null ? F.fmtMoney(targetNow * 12, 0) : "—"}</div>
+          </div>
+          <div class="inc-card">
             <div class="inc-card__l">Last payment</div>
             <div class="inc-card__v ${+last.paid_amount >= +last.target_amount - 0.005 ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
             <div class="inc-card__s">${String(last.period).slice(0, 7)}${last.mode === "reinvest" ? " · reinvested" : ""}</div>
@@ -516,7 +529,8 @@
         </table></div>
         <p class="portal__note">
           A short month is topped up from your reserve pot. If the pot is empty, the rest is
-          owed to you and paid back from later profit.${m.dists.some(d => d.mode === "reinvest") ? " ↻ added to your balance instead of paid out." : ""}
+          owed to you and paid back from later profit. Once you have had your target and your
+          pot is full, anything the fund earns above that is kept by the fund manager${m.companyExcess > 0 ? " — " + F.fmtMoney(m.companyExcess, 0) + " so far" : ""}.${m.dists.some(d => d.mode === "reinvest") ? " ↻ added to your balance instead of paid out." : ""}
         </p>
       </div>`;
   }

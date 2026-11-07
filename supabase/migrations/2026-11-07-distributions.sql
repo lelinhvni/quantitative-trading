@@ -14,6 +14,10 @@
 --   reserve_delta   = + surplus retained, - drawn to top the payment up
 --   paid_amount     = what actually went to the investor
 --   shortfall_delta = + recorded when the reserve ran out, - when repaid
+--   company_excess  = profit above the Target once the Reserve is at its cap,
+--                     which Clause 6.4(a) allocates to the Company. Recorded
+--                     per investor so the portal can show it rather than
+--                     leaving the investor to wonder where it went.
 --
 -- Running balances are plain sums, so nothing can drift out of step
 -- with the rows that produced them:
@@ -32,6 +36,9 @@ CREATE TABLE IF NOT EXISTS public.distributions (
   reserve_delta   NUMERIC(18,2) NOT NULL DEFAULT 0,    -- + retained, - drawn
   paid_amount     NUMERIC(18,2) NOT NULL DEFAULT 0,
   shortfall_delta NUMERIC(18,2) NOT NULL DEFAULT 0,    -- + recorded, - repaid
+  company_excess  NUMERIC(18,2) NOT NULL DEFAULT 0,    -- profit above Target once the
+                                                       -- Reserve is full: Clause 6.4(a),
+                                                       -- allocated to the Company
   mode            TEXT NOT NULL DEFAULT 'cash' CHECK (mode IN ('cash','reinvest')),
   units_issued    NUMERIC(18,6) NOT NULL DEFAULT 0,    -- when reinvested
   note            TEXT,
