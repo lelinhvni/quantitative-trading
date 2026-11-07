@@ -350,6 +350,62 @@
 
   const pctStr = (r) => r == null ? "—" : (r >= 0 ? "+" : "−") + (Math.abs(r) * 100).toFixed(1) + "%";
 
+  /* Last month in one sentence. A table of twelve months is a reference;
+     this is the bit someone actually reads, so it has to say what happened
+     and why, in words a child could follow. */
+  function lastMonthStory(m) {
+    const d = m.lastDist;
+    if (!d) return "";
+    const money = (v) => F.fmtMoney(Math.abs(+v), 0);
+    const paid = +d.paid_amount, tgt = +d.target_amount;
+    const prof = +d.profit_amount, res = +d.reserve_delta;
+    const month = new Date(String(d.period) + "T00:00:00")
+      .toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+    const got = d.mode === "reinvest"
+      ? `<b>${money(paid)}</b> was added to your balance`
+      : `you were paid <b>${money(paid)}</b>`;
+
+    let story;
+    if (prof < 0 && paid < 0.5) {
+      story = `the fund <b>lost money</b> and your pot was empty, so there was <b>no payment</b> this month. ` +
+        `The full <b>${money(tgt)}</b> is owed to you and comes back out of later profit.`;
+    } else if (prof < 0) {
+      story = `the fund <b>lost money</b>. Your pot covered what it could, so ${got}` +
+        (paid < tgt - 0.5 ? `, which is ${money(tgt - paid)} less than your target. That ${money(tgt - paid)} is owed to you and comes back out of later profit.` : ".");
+    } else if (res > 0.5) {
+      story = `the fund earned you <b>${money(prof)}</b>. Your target was ${money(tgt)}, so ${got} and the spare <b>${money(res)}</b> went into your pot.`;
+    } else if (res < -0.5) {
+      story = `the fund earned you <b>${money(prof)}</b> — less than your ${money(tgt)} target. Your pot made up the missing <b>${money(-res)}</b>, so ${got} anyway.`;
+    } else {
+      story = `the fund earned you <b>${money(prof)}</b>, and ${got}.`;
+    }
+    return `<div class="story"><span class="story__m">${month}</span> ${story}</div>`;
+  }
+
+  /* How full the reserve pot is, against its six-month cap. A bar says this
+     faster than a number does. */
+  function potNote(reserve, monthly) {
+    if (!(reserve > 0)) return "Your pot is empty right now. It fills up again the next time the fund beats your target.";
+    const months = reserve / monthly;
+    if (months < 0.95) return `On its own that would cover about <b>${Math.round(months * 100)}%</b> of one month's payment.`;
+    return `On its own that would cover about <b>${months.toFixed(1)} months</b> of payments.`;
+  }
+
+  function reserveBar(m) {
+    const cap = (m.lastDist ? +m.lastDist.target_amount : 0) * 6;
+    if (!(cap > 0)) return "";
+    const pct = Math.max(0, Math.min(100, (m.reserve / cap) * 100));
+    return `
+      <div class="pot">
+        <div class="pot__head">
+          <span>Your pot holds <b>${F.fmtMoney(m.reserve, 0)}</b></span>
+          <span class="pot__cap">it can hold up to ${F.fmtMoney(cap, 0)}</span>
+        </div>
+        <div class="pot__track"><div class="pot__fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <div class="pot__note">${potNote(m.reserve, cap / 6)}</div>
+      </div>`;
+  }
+
   /* ---------- money in, growth, money out, value today ---------- */
   function moneyFlowPanel(m) {
     if (m.value == null) return "";
@@ -421,6 +477,8 @@
     return `
       <div class="panel reveal">
         <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">Target ${ratePct}% a month</span></div>
+        ${lastMonthStory(m)}
+        ${reserveBar(m)}
         <div class="inc-cards">
           <div class="inc-card">
             <div class="inc-card__l">Your target</div>
@@ -431,11 +489,6 @@
             <div class="inc-card__l">Last payment</div>
             <div class="inc-card__v ${+last.paid_amount >= +last.target_amount - 0.005 ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
             <div class="inc-card__s">${String(last.period).slice(0, 7)}${last.mode === "reinvest" ? " · reinvested" : ""}</div>
-          </div>
-          <div class="inc-card">
-            <div class="inc-card__l">Your reserve pot</div>
-            <div class="inc-card__v">${F.fmtMoney(m.reserve, 2)}</div>
-            <div class="inc-card__s">yours, saved from your good months</div>
           </div>
           ${anyOwed ? `
           <div class="inc-card">
@@ -524,7 +577,6 @@
             ${gain != null && m.netIn > 0 ? `
               <div class="acct-hero__delta ${gain >= 0 ? "is-up" : "is-down"}">
                 ${gain >= 0 ? "▲" : "▼"} ${F.fmtMoney(Math.abs(gain), 2)}
-                ${m.rate != null ? `(${pctStr(m.rate)} a year)` : ""}
                 <span>${gain >= 0 ? "earned" : "down"} since you joined</span>
               </div>` : ""}
           </div>
@@ -537,7 +589,7 @@
             <div class="acct-fact">
               <div class="acct-fact__l">You've earned</div>
               <div class="acct-fact__v ${gain != null && gain >= 0 ? "pos" : gain != null ? "neg" : ""}">${gain != null ? (gain >= 0 ? "+" : "−") + F.fmtMoney(Math.abs(gain), 2) : "—"}</div>
-              <div class="acct-fact__s">${m.rate != null ? pctStr(m.rate) + " a year" : "starts once your first deposit lands"}</div>
+              <div class="acct-fact__s">${m.totalDep > 0 ? "every $100 you put in has earned $" + (m.growth / m.totalDep * 100).toFixed(0) : "starts once your first deposit lands"}</div>
             </div>
             <div class="acct-fact">
               <div class="acct-fact__l">Income paid to you</div>
@@ -1540,10 +1592,10 @@
      RISK PANEL (shared)
      ============================================================ */
   const RISK_OPTIONS = [
-    { key:"conservative", icon:"🛡️", label:"Conservative", target:"5–8% / yr",  desc:"Iron condors & covered calls only. Low delta, wide wings." },
-    { key:"balanced",     icon:"⚖️", label:"Balanced",     target:"10–15% / yr", desc:"Full strategy suite, moderate position sizing. (Default)" },
-    { key:"growth",       icon:"📈", label:"Growth",        target:"18–25% / yr", desc:"Higher theta exposure, tighter spreads, larger contracts." },
-    { key:"aggressive",   icon:"🚀", label:"Aggressive",   target:"25%+ / yr",   desc:"Full capital deployment, maximum risk/reward. Volatility expected." },
+    { key:"conservative", icon:"🛡️", label:"Conservative", target:"5–8% / yr",  desc:"Play it safe. Smaller gains, but fewer bad months." },
+    { key:"balanced",     icon:"⚖️", label:"Balanced",     target:"10–15% / yr", desc:"A middle path. Most people choose this one." },
+    { key:"growth",       icon:"📈", label:"Growth",        target:"18–25% / yr", desc:"Aim higher. Bigger gains, and bigger drops along the way." },
+    { key:"aggressive",   icon:"🚀", label:"Aggressive",   target:"25%+ / yr",   desc:"Push hard. Expect some months to hurt." },
   ];
 
   function riskPanelHtml(current) {

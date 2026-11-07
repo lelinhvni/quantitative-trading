@@ -1597,3 +1597,20 @@ button { font: inherit; cursor: pointer; }
   .flow__v { font-size: 0.9rem; }
   .calc__m { font-size: 0.74rem; }
 }
+
+/* ---------- plain-language month story + reserve pot ---------- */
+.story {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--teal); border-radius: var(--radius-sm);
+  padding: 13px 16px; margin-bottom: 14px; line-height: 1.65; font-size: 0.95rem;
+}
+.story__m { color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em;
+            font-size: 0.72rem; font-weight: 600; margin-right: 6px; }
+.pot { margin-bottom: 16px; }
+.pot__head { display: flex; justify-content: space-between; align-items: baseline;
+             gap: 10px; flex-wrap: wrap; font-size: 0.9rem; margin-bottom: 7px; }
+.pot__cap { color: var(--faint); font-size: 0.76rem; }
+.pot__track { height: 12px; border-radius: 99px; background: var(--surface-2);
+              border: 1px solid var(--border); overflow: hidden; }
+.pot__fill { height: 100%; border-radius: 99px; background: var(--grad); transition: width .6s var(--ease); }
+.pot__note { font-size: 0.78rem; color: var(--faint); margin-top: 7px; }
