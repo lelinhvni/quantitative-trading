@@ -619,7 +619,7 @@
 
         ${navSeries && units > 0 ? `
         <div class="panel reveal">
-          <div class="panel__head"><h2>How your money has grown</h2><span class="panel__sub">Your balance, day by day</span></div>
+          <div class="panel__head"><h2>How your money has grown</h2><span class="panel__sub">Your balance at each valuation</span></div>
           <canvas id="acctChart" height="260"></canvas>
         </div>` : `<p class="portal__note">Your growth chart appears once your first deposit is recorded.</p>`}
 
