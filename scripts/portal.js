@@ -374,7 +374,7 @@
             ${row("Investment growth", "what the fund earned on it", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
             ${m.cashIncome ? row("Monthly income paid to you", "already in your bank, no longer in the fund", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
             ${m.reinvested ? row("Monthly income reinvested", "turned into more units, still in the fund", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
-            ${row("Account value today", m.navPU ? F.fmtNum(m.units, 4) + " units × " + F.fmtNum(m.navPU, 4) : "", F.fmtMoney(m.value, 2), "", true)}
+            ${row("Your balance today", "what your share of the fund is worth", F.fmtMoney(m.value, 2), "", true)}
           </tbody>
         </table>
         <p class="portal__note">
@@ -481,7 +481,8 @@
           the target the surplus went into your Smoothing Reserve; when it fell short the
           reserve topped your payment back up. If the reserve ran out, the gap was recorded
           under <b>owed</b> and is repaid from later profit before the fund takes any
-          performance fee. ↻ means that payment was reinvested as units instead of paid in cash.
+          performance fee. ↻ means that payment was added back into your balance instead of
+          being paid out in cash.
         </p>
       </div>`;
   }
@@ -496,23 +497,13 @@
         <div class="panel" style="margin-top:0">
           <ol class="calc">
             <li>
-              <b>What a unit is.</b> The fund is one shared pot. When you deposit, you buy
-              <b>units</b> of it — like slices of a cake. Your slice count only changes when
-              you deposit, withdraw, or reinvest income. You hold
-              <b>${F.fmtNum(m.units, 4)} units</b>.
+              <b>Your balance.</b> The fund is one shared pot. Your balance is your share of
+              it, and it moves up and down with the fund's trading. Today your share is worth
+              <b>${F.fmtMoney(m.value, 2)}</b>.
             </li>
             <li>
-              <b>What a unit is worth.</b> Every unit is worth the same amount, the
-              <b>unit price</b> (NAV). It moves up and down with the fund's trading.
-              Today it is <b>${F.fmtNum(m.navPU, 4)}</b>${m.openNav ? `, against <b>${F.fmtNum(m.openNav, 4)}</b> when you first deposited${growthPct != null ? ` — the fund is ${pctStr(growthPct)} since then` : ""}` : ""}.
-            </li>
-            <li>
-              <b>Your balance.</b> Units × unit price.<br />
-              <span class="calc__m">${F.fmtNum(m.units, 4)} × ${F.fmtNum(m.navPU, 4)} = <b>${F.fmtMoney(m.value, 2)}</b></span>
-            </li>
-            <li>
-              <b>What you have earned.</b> What the account is worth now, less what you put
-              in, plus anything already paid out to you.<br />
+              <b>What you have earned.</b> What your share is worth now, less what you put in,
+              plus anything already paid out to you.<br />
               <span class="calc__m">${F.fmtMoney(m.value, 2)} − ${F.fmtMoney(m.totalDep, 2)} + ${F.fmtMoney(m.totalWith, 2)}${m.cashIncome ? " + " + F.fmtMoney(m.cashIncome, 2) : ""} = <b>${m.growth >= 0 ? "+" : "−"}${F.fmtMoney(Math.abs(m.growth), 2)}</b></span>
             </li>
             <li>
@@ -521,19 +512,33 @@
               dividing your gain by your deposits would flatter or punish you unfairly
               depending on timing.` : `Shown once there is enough history to measure it fairly.`}
             </li>
-            ${m.dists.length ? `
             <li>
               <b>Your monthly income.</b> ${(m.targetRate * 100).toFixed(2).replace(/0$/, "")}% of your balance is the
               <i>target</i>. You are paid from the profit the fund actually made that month;
               if that falls short, your Smoothing Reserve tops it up; if the reserve is empty,
               the gap is recorded and repaid from later profit before the fund earns any
               performance fee. Income is never paid out of your deposit.
-            </li>` : ""}
+            </li>
+            <li>
+              <b>Why joining later is not a disadvantage.</b> Your deposit buys a share of the
+              fund at what it is worth <i>on the day it lands</i>. You do not pay for, or
+              receive, gains the fund made before you arrived — and nobody who joins after you
+              takes a share of yours. Each investor's Smoothing Reserve is their own, built
+              only from their own good months.
+            </li>
+            <li>
+              <b>If you want to check the arithmetic.</b> Behind the scenes your share is held
+              as <b>${F.fmtNum(m.units, 4)} units</b> at a published price of
+              <b>${F.fmtNum(m.navPU, 4)}</b> each${m.openNav ? `, against ${F.fmtNum(m.openNav, 4)} when you first deposited${growthPct != null ? ` — the fund is ${pctStr(growthPct)} since then` : ""}` : ""}.
+              You never need to think about units; they are simply how the fund keeps every
+              investor's share exact.<br />
+              <span class="calc__m">${F.fmtNum(m.units, 4)} × ${F.fmtNum(m.navPU, 4)} = <b>${F.fmtMoney(m.value, 2)}</b></span>
+            </li>
           </ol>
           <p class="portal__note" style="margin-top:4px">
             Nothing here is an estimate — every figure comes from your recorded deposits,
-            withdrawals and the published unit price. If a number looks wrong, message us
-            below and we will walk through it with you.
+            withdrawals and the fund's published valuation. If a number looks wrong, message
+            us below and we will walk through it with you.
           </p>
         </div>
       </details>`;
@@ -637,8 +642,7 @@
         </details>
 
         <p class="portal__note">
-          Unit price ${navPU ? F.fmtNum(navPU, 4) : "—"}${latestNav ? ", set " + latestNav.date : ""}.
-          Figures update as soon as a new price is published.
+          Figures update as soon as the fund publishes a new valuation${latestNav ? " — last set " + latestNav.date : ""}.
         </p>
       </div>`;
 
