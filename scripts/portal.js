@@ -364,21 +364,21 @@
       <div class="panel reveal">
         <div class="panel__head">
           <h2>Where your money went</h2>
-          <span class="panel__sub">Every figure adds up to the line below it</span>
+          <span class="panel__sub">Every line adds up to the one below it</span>
         </div>
         <table class="flow">
           <tbody>
-            ${row("Money you deposited", m.totalDep ? "across your deposits" : "", money(m.totalDep, true), "pos")}
-            ${m.totalWith ? row("Money you withdrew", "cash you took back out", "−" + F.fmtMoney(m.totalWith, 2), "neg") : ""}
-            ${row("Your money in the fund", "deposits less withdrawals", F.fmtMoney(m.netIn, 2), "", true)}
-            ${row("Investment growth", "what the fund earned on it", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
-            ${m.cashIncome ? row("Monthly income paid to you", "already in your bank, no longer in the fund", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
-            ${m.reinvested ? row("Monthly income reinvested", "turned into more units, still in the fund", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
-            ${row("Your balance today", "what your share of the fund is worth", F.fmtMoney(m.value, 2), "", true)}
+            ${row("You put in", "", money(m.totalDep, true), "pos")}
+            ${m.totalWith ? row("You took out", "", "−" + F.fmtMoney(m.totalWith, 2), "neg") : ""}
+            ${row("Your money in the fund", "", F.fmtMoney(m.netIn, 2), "", true)}
+            ${row("What the fund earned you", "", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
+            ${m.cashIncome ? row("Income already paid to you", "", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
+            ${m.reinvested ? row("Income added back in", "", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
+            ${row("Your balance today", "", F.fmtMoney(m.value, 2), "", true)}
           </tbody>
         </table>
         <p class="portal__note">
-          <b>Total earned: ${money(m.growth, true)}</b>${m.cashIncome ? ` — of which ${F.fmtMoney(m.cashIncome, 2)} has already been paid out to you, and the rest is still working in the fund.` : " — all of it still in the fund, working."}
+          ${m.cashIncome ? `${F.fmtMoney(m.cashIncome, 2)} of that is already in your bank. The rest is still working in the fund.` : "All of it is still in the fund, working."}
         </p>
       </div>`;
   }
@@ -391,154 +391,107 @@
     if (!m.dists.length) {
       return `
         <div class="panel reveal">
-          <div class="panel__head">
-            <h2>Monthly income</h2>
-            <span class="panel__sub">Target ${ratePct}% a month</span>
-          </div>
+          <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">Target ${ratePct}% a month</span></div>
           <div class="inc-cards">
             <div class="inc-card">
-              <div class="inc-card__l">Target each month</div>
+              <div class="inc-card__l">Your target</div>
               <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
-              <div class="inc-card__s">${ratePct}% of ${m.value != null ? F.fmtMoney(m.value, 0) : "your balance"}</div>
+              <div class="inc-card__s">a month, at today's balance</div>
             </div>
             <div class="inc-card">
               <div class="inc-card__l">Paid so far</div>
               <div class="inc-card__v">—</div>
-              <div class="inc-card__s">no distributions recorded yet</div>
+              <div class="inc-card__s">first payment not due yet</div>
             </div>
           </div>
-          <p class="portal__note">
-            ${ratePct}% a month is a <b>target, not a guarantee</b>. You are paid out of
-            profit the fund actually earns, topped up from the Smoothing Reserve in a weak
-            month. Once your first distribution is recorded it appears here with the full
-            working — what the fund earned, what the target was, what the reserve covered,
-            and anything carried forward.
-          </p>
+          <p class="portal__note">A target, not a guarantee. You are paid from what the fund actually earns.</p>
         </div>`;
     }
 
     const recent = m.dists.slice(-12).reverse();
-    // Running balances as at the end of each month, oldest first, so the
-    // table can show the state the investor would have seen at the time.
     let runRes = 0, runSh = 0;
     const after = new Map();
     m.dists.forEach(d => {
       runRes += +d.reserve_delta; runSh += +d.shortfall_delta;
       after.set(d.period, { res: runRes, sh: runSh });
     });
-
     const last = m.lastDist;
+    const anyOwed = m.shortfall > 0.005;
+
     return `
       <div class="panel reveal">
-        <div class="panel__head">
-          <h2>Monthly income</h2>
-          <span class="panel__sub">Target ${ratePct}% a month — paid from profit, not from your capital</span>
-        </div>
+        <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">Target ${ratePct}% a month</span></div>
         <div class="inc-cards">
           <div class="inc-card">
-            <div class="inc-card__l">Target each month</div>
+            <div class="inc-card__l">Your target</div>
             <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
-            <div class="inc-card__s">${ratePct}% of ${m.value != null ? F.fmtMoney(m.value, 0) : "—"}</div>
+            <div class="inc-card__s">a month, at today's balance</div>
           </div>
           <div class="inc-card">
             <div class="inc-card__l">Last payment</div>
-            <div class="inc-card__v ${+last.paid_amount >= +last.target_amount ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
-            <div class="inc-card__s">${last.period} · ${last.mode === "cash" ? "paid in cash" : "reinvested"}</div>
+            <div class="inc-card__v ${+last.paid_amount >= +last.target_amount - 0.005 ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
+            <div class="inc-card__s">${String(last.period).slice(0, 7)}${last.mode === "reinvest" ? " · reinvested" : ""}</div>
           </div>
           <div class="inc-card">
-            <div class="inc-card__l">Smoothing Reserve</div>
+            <div class="inc-card__l">Your reserve pot</div>
             <div class="inc-card__v">${F.fmtMoney(m.reserve, 2)}</div>
-            <div class="inc-card__s">your money, held back to cover weak months</div>
+            <div class="inc-card__s">yours, saved from your good months</div>
           </div>
+          ${anyOwed ? `
           <div class="inc-card">
             <div class="inc-card__l">Owed to you</div>
-            <div class="inc-card__v ${m.shortfall > 0 ? "warn" : ""}">${F.fmtMoney(m.shortfall, 2)}</div>
-            <div class="inc-card__s">${m.shortfall > 0 ? "repaid from later profit, before any performance fee" : "nothing outstanding"}</div>
-          </div>
+            <div class="inc-card__v warn">${F.fmtMoney(m.shortfall, 2)}</div>
+            <div class="inc-card__s">paid back from later profit</div>
+          </div>` : ""}
         </div>
 
         <div class="table-wrap" style="margin-top:18px"><table class="ttable">
           <thead><tr>
-            <th>Month</th><th>Fund earned you</th><th>Target</th><th>You received</th>
-            <th>Reserve after</th><th>Owed after</th>
+            <th>Month</th><th>Target</th><th>Fund made you</th><th>You received</th><th>Your reserve</th>
           </tr></thead>
           <tbody>${recent.map(d => {
-            const a = after.get(d.period) || { res: 0, sh: 0 };
+            const a = after.get(d.period) || { res: 0 };
             const paid = +d.paid_amount, tgt = +d.target_amount, prof = +d.profit_amount;
-            const full = paid >= tgt - 0.005;
             return `<tr>
               <td class="mono">${String(d.period).slice(0, 7)}</td>
-              <td class="mono ${prof >= 0 ? "" : "neg"}">${prof >= 0 ? "" : "−"}${F.fmtMoney(Math.abs(prof), 2)}</td>
               <td class="mono muted">${F.fmtMoney(tgt, 2)}</td>
-              <td class="mono ${full ? "pos" : "warn"}">${F.fmtMoney(paid, 2)}${d.mode === "reinvest" ? " ↻" : ""}</td>
+              <td class="mono ${prof >= 0 ? "" : "neg"}">${prof >= 0 ? "" : "−"}${F.fmtMoney(Math.abs(prof), 2)}</td>
+              <td class="mono ${paid >= tgt - 0.005 ? "pos" : "warn"}">${F.fmtMoney(paid, 2)}${d.mode === "reinvest" ? " ↻" : ""}</td>
               <td class="mono muted">${F.fmtMoney(a.res, 2)}</td>
-              <td class="mono ${a.sh > 0 ? "warn" : "muted"}">${F.fmtMoney(a.sh, 2)}</td>
             </tr>`;
           }).join("")}</tbody>
         </table></div>
         <p class="portal__note">
-          <b>Fund earned you</b> is your share of what the fund made that month. When it beat
-          the target the surplus went into your Smoothing Reserve; when it fell short the
-          reserve topped your payment back up. If the reserve ran out, the gap was recorded
-          under <b>owed</b> and is repaid from later profit before the fund takes any
-          performance fee. ↻ means that payment was added back into your balance instead of
-          being paid out in cash.
+          A short month is topped up from your reserve pot. If the pot is empty, the rest is
+          owed to you and paid back from later profit.${m.dists.some(d => d.mode === "reinvest") ? " ↻ added to your balance instead of paid out." : ""}
         </p>
       </div>`;
   }
 
-  /* ---------- the arithmetic, spelled out with the investor's own numbers ---------- */
+  /* ---------- a short note, for anyone who wants to check ---------- */
   function howCalculatedPanel(m) {
     if (m.value == null) return "";
-    const growthPct = m.openNav && m.navPU ? (m.navPU / m.openNav - 1) : null;
     return `
       <details class="acct-more reveal">
-        <summary><span>How these numbers are worked out</span><span class="acct-more__hint">in plain words</span></summary>
+        <summary><span>How your balance is worked out</span><span class="acct-more__hint">the short version</span></summary>
         <div class="panel" style="margin-top:0">
           <ol class="calc">
             <li>
-              <b>Your balance.</b> The fund is one shared pot. Your balance is your share of
-              it, and it moves up and down with the fund's trading. Today your share is worth
-              <b>${F.fmtMoney(m.value, 2)}</b>.
-            </li>
-            <li>
-              <b>What you have earned.</b> What your share is worth now, less what you put in,
-              plus anything already paid out to you.<br />
+              <b>What you have earned.</b> Your balance now, less what you put in, plus
+              anything already paid out to you.<br />
               <span class="calc__m">${F.fmtMoney(m.value, 2)} − ${F.fmtMoney(m.totalDep, 2)} + ${F.fmtMoney(m.totalWith, 2)}${m.cashIncome ? " + " + F.fmtMoney(m.cashIncome, 2) : ""} = <b>${m.growth >= 0 ? "+" : "−"}${F.fmtMoney(Math.abs(m.growth), 2)}</b></span>
             </li>
             <li>
-              <b>Your return rate.</b> ${m.rate != null ? `<b>${pctStr(m.rate)} a year.</b> This counts <i>when</i> each
-              deposit arrived — money added recently has had less time to grow, so simply
-              dividing your gain by your deposits would flatter or punish you unfairly
-              depending on timing.` : `Shown once there is enough history to measure it fairly.`}
+              <b>Your return rate.</b> ${m.rate != null ? `<b>${pctStr(m.rate)} a year</b>, counting when each deposit arrived.` : "Shown once there is enough history to measure it fairly."}
             </li>
             <li>
-              <b>Your monthly income.</b> ${(m.targetRate * 100).toFixed(2).replace(/0$/, "")}% of your balance is the
-              <i>target</i>. You are paid from the profit the fund actually made that month;
-              if that falls short, your Smoothing Reserve tops it up; if the reserve is empty,
-              the gap is recorded and repaid from later profit before the fund earns any
-              performance fee. Income is never paid out of your deposit.
-            </li>
-            <li>
-              <b>Why joining later is not a disadvantage.</b> Your deposit buys a share of the
-              fund at what it is worth <i>on the day it lands</i>. You do not pay for, or
-              receive, gains the fund made before you arrived — and nobody who joins after you
-              takes a share of yours. Each investor's Smoothing Reserve is their own, built
-              only from their own good months.
-            </li>
-            <li>
-              <b>If you want to check the arithmetic.</b> Behind the scenes your share is held
-              as <b>${F.fmtNum(m.units, 4)} units</b> at a published price of
-              <b>${F.fmtNum(m.navPU, 4)}</b> each${m.openNav ? `, against ${F.fmtNum(m.openNav, 4)} when you first deposited${growthPct != null ? ` — the fund is ${pctStr(growthPct)} since then` : ""}` : ""}.
-              You never need to think about units; they are simply how the fund keeps every
-              investor's share exact.<br />
-              <span class="calc__m">${F.fmtNum(m.units, 4)} × ${F.fmtNum(m.navPU, 4)} = <b>${F.fmtMoney(m.value, 2)}</b></span>
+              <b>Joining later costs you nothing.</b> Your deposit buys a share of the fund at
+              what it is worth the day it lands, and your reserve pot is your own.
             </li>
           </ol>
           <p class="portal__note" style="margin-top:4px">
-            Nothing here is an estimate — every figure comes from your recorded deposits,
-            withdrawals and the fund's published valuation. If a number looks wrong, message
-            us below and we will walk through it with you.
+            Every figure comes from your recorded deposits, withdrawals and the fund's
+            published valuation. If one looks wrong, message us below.
           </p>
         </div>
       </details>`;
