@@ -1614,3 +1614,24 @@ button { font: inherit; cursor: pointer; }
               border: 1px solid var(--border); overflow: hidden; }
 .pot__fill { height: 100%; border-radius: 99px; background: var(--grad); transition: width .6s var(--ease); }
 .pot__note { font-size: 0.78rem; color: var(--faint); margin-top: 7px; }
+
+/* ---------- trade import: parse result, column map, warnings ---------- */
+.tb-result { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 16px; }
+.tb-src { font-size: 0.9rem; color: var(--muted); line-height: 1.6; }
+.tb-src b { color: var(--text); }
+.tb-map {
+  margin-top: 12px; padding: 10px 12px; font-size: 0.78rem; line-height: 1.9;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--faint);
+}
+.tb-ok   { color: var(--teal); font-family: "JetBrains Mono", ui-monospace, monospace; }
+.tb-miss { color: var(--gold, #d8b874); font-style: italic; }
+.tb-warn {
+  margin-top: 10px; padding: 9px 12px; font-size: 0.82rem; line-height: 1.6;
+  background: rgba(216,184,116,0.08); border: 1px solid rgba(216,184,116,0.35);
+  border-radius: var(--radius-sm); color: var(--gold, #d8b874);
+}
+#tbPaste {
+  font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.82rem;
+  white-space: pre; overflow-x: auto;
+}

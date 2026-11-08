@@ -1189,16 +1189,242 @@
   }
 
   /* ---------- LIVE TAB: Trading ---------- */
+
+  /* ============================================================
+     TRADE BOOK — paste raw broker data, read the P&L out of it
+     ============================================================ */
+  let _tbResult = null;      // last parse
+  let _tbLastImport = null;  // import_id, so a mistake can be undone
+
+  function tradeBookPanel() {
+    return `
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Import trades &amp; read the P&amp;L</h2>
+          <span class="panel__sub">Paste from any broker or spreadsheet — columns are detected</span>
+        </div>
+        <p class="portal__note" style="margin-top:0">
+          Copy the rows straight out of your broker export or Excel and paste them below,
+          header row included. Order and column names do not matter. If your file has a
+          profit column it is used as-is; if not, buys and sells in each group are netted.
+        </p>
+        <div class="field field--full">
+          <label for="tbPaste">Paste trades</label>
+          <textarea id="tbPaste" rows="7" spellcheck="false"
+            placeholder="Date&#9;Symbol&#9;Side&#9;Qty&#9;Price&#9;Strategy&#10;2026-01-06&#9;SPY 520P&#9;SELL&#9;2&#9;1.85&#9;Iron Condor"></textarea>
+        </div>
+        <div class="mgr-form" style="margin-top:4px">
+          <div class="field">
+            <label for="tbMult">Each contract equals</label>
+            <select id="tbMult">
+              <option value="auto" selected>Detect automatically</option>
+              <option value="100">100 shares (options)</option>
+              <option value="1">1 share (stocks and ETFs)</option>
+            </select>
+          </div>
+          <button class="btn btn--ghost btn--sm" id="tbCheck" type="button">Check the data</button>
+          <p class="cta__note" id="tbNote" role="status" aria-live="polite"></p>
+        </div>
+        <div id="tbPreview"></div>
+      </div>`;
+  }
+
+  function tbMoney(v) { return (v < 0 ? "−" : "") + F.fmtMoney(Math.abs(v), 2); }
+
+  function tradeBookPreview(res) {
+    const s = res.summary;
+    const got = (k) => res.mapping[k] >= 0 ? `<span class="tb-ok">${esc(res.headers[res.mapping[k]])}</span>`
+                                           : `<span class="tb-miss">not found</span>`;
+    const warn = [];
+    if (s.missingSide)  warn.push(`${s.missingSide} row${s.missingSide>1?"s":""} with no buy/sell`);
+    if (s.missingDate)  warn.push(`${s.missingDate} row${s.missingDate>1?"s":""} with no date`);
+    if (res.skipped)    warn.push(`${res.skipped} row${res.skipped>1?"s":""} skipped (blank or totals)`);
+    if (s.incomplete)   warn.push(`${s.incomplete} group${s.incomplete>1?"s":""} missing numbers — P&L there is partial`);
+
+    return `
+      <div class="tb-result">
+        <div class="tb-src">
+          Read <b>${s.rowCount}</b> trade${s.rowCount>1?"s":""} in <b>${s.groupCount}</b> group${s.groupCount>1?"s":""},
+          ${res.delimiterName}-separated.
+          ${s.pnlSource === "file"
+            ? `Profit taken from your <b>${esc(res.headers[res.mapping.pnl])}</b> column.`
+            : `No profit column found, so buys and sells were netted — <b>only correct for groups that are closed</b>.`}
+        </div>
+
+        <div class="inc-cards" style="margin-top:12px">
+          <div class="inc-card">
+            <div class="inc-card__l">Net profit / loss</div>
+            <div class="inc-card__v ${s.totalPnl >= 0 ? "pos" : "neg"}">${tbMoney(s.totalPnl)}</div>
+            <div class="inc-card__s">${s.totalFees ? "after " + F.fmtMoney(s.totalFees, 2) + " of fees" : "no fees in the data"}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Win rate</div>
+            <div class="inc-card__v">${s.winRate != null ? s.winRate.toFixed(0) + "%" : "—"}</div>
+            <div class="inc-card__s">${s.wins} up, ${s.losses} down</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Best</div>
+            <div class="inc-card__v pos">${s.best ? tbMoney(s.best.pnl) : "—"}</div>
+            <div class="inc-card__s">${s.best ? esc(s.best.key) : ""}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Worst</div>
+            <div class="inc-card__v ${s.worst && s.worst.pnl < 0 ? "neg" : ""}">${s.worst ? tbMoney(s.worst.pnl) : "—"}</div>
+            <div class="inc-card__s">${s.worst ? esc(s.worst.key) : ""}</div>
+          </div>
+        </div>
+
+        <div class="tb-map">
+          Columns found — date: ${got("date")} · symbol: ${got("symbol")} · side: ${got("side")} ·
+          qty: ${got("qty")} · price: ${got("price")} · profit: ${got("pnl")} ·
+          fees: ${got("fees")} · group: ${got("strategy")}
+        </div>
+
+        ${warn.length ? `<div class="tb-warn">⚠ ${warn.join(" · ")}</div>` : ""}
+
+        <div class="table-wrap" style="margin-top:12px"><table class="ttable">
+          <thead><tr><th>Group</th><th>Legs</th><th>Profit / loss</th></tr></thead>
+          <tbody>${s.groups.slice(0, 20).map(g => `
+            <tr>
+              <td><b>${esc(g.key)}</b>${g.complete ? "" : ` <span class="tb-miss">partial</span>`}</td>
+              <td class="mono muted">${g.rows.length}</td>
+              <td class="mono ${g.pnl >= 0 ? "pos" : "neg"}">${tbMoney(g.pnl)}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+        ${s.groupCount > 20 ? `<p class="portal__note">Showing the first 20 of ${s.groupCount} groups.</p>` : ""}
+
+        <div class="mgr-form" style="margin-top:14px">
+          <button class="btn btn--primary btn--sm" id="tbSave" type="button">
+            Save ${s.rowCount} trade${s.rowCount>1?"s":""}
+          </button>
+          <button class="btn btn--ghost btn--sm" id="tbClear" type="button">Discard</button>
+          <p class="cta__note" id="tbSaveNote" role="status" aria-live="polite"></p>
+        </div>
+      </div>`;
+  }
+
+  function bindTradeBook() {
+    const btn = document.getElementById("tbCheck");
+    if (!btn) return;
+    const note = document.getElementById("tbNote");
+    const prev = document.getElementById("tbPreview");
+
+    btn.addEventListener("click", () => {
+      const text = (document.getElementById("tbPaste").value || "").trim();
+      const multSel = document.getElementById("tbMult").value;
+      note.classList.remove("is-error"); note.textContent = "";
+      prev.innerHTML = "";
+      if (!text) { note.textContent = "Paste some rows first."; note.classList.add("is-error"); return; }
+      if (!global_JSSTradeImport()) { note.textContent = "Importer did not load — refresh the page."; note.classList.add("is-error"); return; }
+
+      const res = global_JSSTradeImport().parse(text, multSel === "auto" ? {} : { multiplier: +multSel });
+      if (!res.ok) { note.textContent = res.error; note.classList.add("is-error"); return; }
+      _tbResult = res;
+      prev.innerHTML = tradeBookPreview(res);
+      bindTradeBookSave();
+    });
+  }
+
+  function global_JSSTradeImport() { return window.JSSTradeImport; }
+
+  function bindTradeBookSave() {
+    const save = document.getElementById("tbSave");
+    const clear = document.getElementById("tbClear");
+    const note = document.getElementById("tbSaveNote");
+    if (clear) clear.addEventListener("click", () => {
+      _tbResult = null;
+      document.getElementById("tbPreview").innerHTML = "";
+      document.getElementById("tbPaste").value = "";
+    });
+    if (!save) return;
+    save.addEventListener("click", async () => {
+      if (!_tbResult) return;
+      save.disabled = true;
+      note.classList.remove("is-error");
+      note.textContent = "Saving…";
+      try {
+        const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now());
+        const n = await DB.addTradesBulk(_tbResult.rows, id);
+        _tbLastImport = id;
+        note.innerHTML = `✓ Saved ${n} trade${n>1?"s":""}. <button class="link-btn" id="tbUndo" type="button">Undo this import</button>`;
+        const undo = document.getElementById("tbUndo");
+        if (undo) undo.addEventListener("click", async () => {
+          try {
+            await DB.undoImport(_tbLastImport);
+            note.textContent = "Import removed.";
+          } catch (err) { note.textContent = "Could not undo: " + err.message; note.classList.add("is-error"); }
+        });
+        setTimeout(() => switchLiveTab("trading"), 1800);
+      } catch (err) {
+        note.textContent = "Error: " + err.message;
+        note.classList.add("is-error");
+        save.disabled = false;
+      }
+    });
+  }
+
+  /* ---------- realised P&L, by month, from the saved trades ---------- */
+  function tradePnlPanel(months) {
+    if (!months || !months.length) return "";
+    const net = months.reduce((a, m) => a + +m.net_pnl, 0);
+    const tr = months.reduce((a, m) => a + +m.trades, 0);
+    const w  = months.reduce((a, m) => a + +m.wins, 0);
+    const l  = months.reduce((a, m) => a + +m.losses, 0);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Realised P&amp;L from trades</h2>
+          <span class="panel__sub">What the book actually made, month by month</span>
+        </div>
+        <div class="inc-cards">
+          <div class="inc-card">
+            <div class="inc-card__l">Net, all time</div>
+            <div class="inc-card__v ${net >= 0 ? "pos" : "neg"}">${tbMoney(net)}</div>
+            <div class="inc-card__s">${tr} trade${tr===1?"":"s"} with a recorded result</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Win rate</div>
+            <div class="inc-card__v">${(w+l) ? Math.round(w/(w+l)*100) + "%" : "—"}</div>
+            <div class="inc-card__s">${w} up, ${l} down</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Best month</div>
+            <div class="inc-card__v pos">${tbMoney(Math.max(...months.map(m => +m.net_pnl)))}</div>
+            <div class="inc-card__s">of ${months.length} month${months.length===1?"":"s"}</div>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px"><table class="ttable">
+          <thead><tr><th>Month</th><th>Trades</th><th>Up</th><th>Down</th><th>Fees</th><th>Net</th></tr></thead>
+          <tbody>${months.map(m => `
+            <tr>
+              <td class="mono">${String(m.month).slice(0,7)}</td>
+              <td class="mono muted">${m.trades}</td>
+              <td class="mono pos">${m.wins}</td>
+              <td class="mono ${+m.losses ? "neg" : "muted"}">${m.losses}</td>
+              <td class="mono muted">${F.fmtMoney(+m.fees, 2)}</td>
+              <td class="mono ${+m.net_pnl >= 0 ? "pos" : "neg"}"><b>${tbMoney(+m.net_pnl)}</b></td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+        <p class="portal__note">
+          This is profit from closed trades only. It is not the same as the fund's return,
+          which also moves with open positions and is set by the unit price you publish.
+        </p>
+      </div>`;
+  }
+
   async function liveTradingTab(el) {
-    const [recentTrades, positions] = await Promise.all([
+    const [recentTrades, positions, pnlMonths] = await Promise.all([
       DB.getTrades(80).catch(()=>[]), DB.getPositions().catch(()=>[]),
+      DB.getTradePnlMonthly ? DB.getTradePnlMonthly().catch(()=>[]) : [],
     ]);
     el.innerHTML = `
-      ${mgrTradePanel()}
-      ${mgrCsvPanel()}
+      ${tradeBookPanel()}
+      ${tradePnlPanel(pnlMonths)}
       ${tradesPanel(recentTrades, {title:"Recent trades", sub:"Most recent executions"})}
+      ${mgrTradePanel()}
       ${mgrPositionsPanel(positions)}`;
     bindManagerForms(null);
+    bindTradeBook();
   }
 
   /* ---------- LIVE TAB: Inbox (contact form enquiries) ---------- */

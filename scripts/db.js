@@ -203,6 +203,53 @@
       return data || [];
     },
 
+    /* Bulk insert from the paste importer. One import_id tags the whole
+       batch so a mistaken import can be found and undone in one go. */
+    async addTradesBulk(rows, importId) {
+      if (!rows || !rows.length) return 0;
+      const payload = rows.map(r => ({
+        symbol: r.symbol || "—",
+        side: r.side || "BUY",
+        qty: r.qty != null ? r.qty : 0,
+        price: r.price != null ? r.price : 0,
+        pnl: r.pnlFinal != null ? r.pnlFinal : null,
+        fees: Math.abs(r.fees || 0),
+        multiplier: r.multiplier || 1,
+        group_label: r.strategy || null,
+        strategy: r.strategy || null,
+        status: "filled",
+        source: "import",
+        import_id: importId,
+        executed_at: r.date ? new Date(r.date + "T12:00:00Z").toISOString() : new Date().toISOString(),
+      }));
+      // Chunked: PostgREST rejects very large single payloads.
+      let n = 0;
+      for (let i = 0; i < payload.length; i += 200) {
+        const { error } = await this._client.from("trades").insert(payload.slice(i, i + 200));
+        if (error) throw error;
+        n += payload.slice(i, i + 200).length;
+      }
+      return n;
+    },
+
+    async undoImport(importId) {
+      const { error } = await this._client.from("trades").delete().eq("import_id", importId);
+      if (error) throw error;
+    },
+
+    /* Realised P&L by month. Returns [] when the migration has not been
+       run yet, so the admin dashboard still loads. */
+    async getTradePnlMonthly() {
+      const { data, error } = await this._client
+        .from("trade_pnl_monthly").select("*").limit(24);
+      if (error) {
+        if (error.code === "42P01" || /does not exist/i.test(error.message || "")) return [];
+        console.warn("[BPSQuant] trade P&L unavailable:", error.message);
+        return [];
+      }
+      return data || [];
+    },
+
     async upsertPosition({ symbol, qty, avgCost }) {
       const { data, error } = await this._client
         .from("positions")
