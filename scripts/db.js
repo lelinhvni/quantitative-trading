@@ -250,6 +250,36 @@
       return data || [];
     },
 
+    /* Manager: every distribution row, for computing each investor's
+       running reserve, shortfall and year-to-date paid. */
+    async getAllDistributions(limit = 5000) {
+      const { data, error } = await this._client
+        .from("distributions").select("*, profiles(id, name)")
+        .order("period", { ascending: true }).limit(limit);
+      if (error) {
+        if (error.code === "42P01" || /does not exist/i.test(error.message || "")) return null;
+        throw error;
+      }
+      return data || [];
+    },
+
+    /* Write one month for every investor at once. The table's
+       (investor_id, period) unique key makes this safe to re-run: an
+       existing month is corrected rather than duplicated. */
+    async saveDistributions(rows) {
+      if (!rows || !rows.length) return 0;
+      const { error } = await this._client
+        .from("distributions")
+        .upsert(rows, { onConflict: "investor_id,period" });
+      if (error) throw error;
+      return rows.length;
+    },
+
+    async deleteDistributionPeriod(period) {
+      const { error } = await this._client.from("distributions").delete().eq("period", period);
+      if (error) throw error;
+    },
+
     async upsertPosition({ symbol, qty, avgCost }) {
       const { data, error } = await this._client
         .from("positions")

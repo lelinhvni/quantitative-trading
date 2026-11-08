@@ -799,7 +799,7 @@
     const body = document.getElementById("portalBody");
     body.innerHTML = `
       <div class="portal-tabs" role="tablist">
-        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"],["inbox","Inbox"]]
+        ${[["dashboard","Dashboard"],["investors","Investors"],["capital","Capital"],["distributions","Income"],["cashflow","Cash Flow"],["trading","Trading"],["messages","Messages"],["inbox","Inbox"]]
           .map(([k,l]) => `<button class="portal-tab admin-tab ${k===_liveTab?"is-active":""}" data-atab="${k}" role="tab">${l}${k==="inbox"?`<span class="tab-badge" id="inboxBadge" hidden></span>`:""}</button>`).join("")}
       </div>
       <div id="adminTabContent"></div>`;
@@ -842,6 +842,7 @@
       if      (tab === "dashboard") await liveDashboardTab(el);
       else if (tab === "investors") await liveInvestorsTab(el);
       else if (tab === "capital")   await liveCapitalTab(el);
+      else if (tab === "distributions") await liveDistributionsTab(el);
       else if (tab === "cashflow")  await liveCashflowTab(el);
       else if (tab === "trading")   await liveTradingTab(el);
       else if (tab === "messages")  await liveMessagesTab(el);
@@ -884,6 +885,12 @@
         <div class="metric"><div class="metric__v ${pnl>=0?"pos":"neg"}">${pnl>=0?"+":""}${F.fmtMoney(pnl,0)}</div><div class="metric__l">Total P&amp;L</div></div>
         <div class="metric"><div class="metric__v">${active}</div><div class="metric__l">Active investors</div></div>
         <div class="metric"><div class="metric__v mono">${navPU!=null?F.fmtNum(navPU,4):"—"}</div><div class="metric__l">NAV / unit</div></div>
+      </div>
+      <div class="story reveal">
+        <span class="story__m">Right now</span>
+        ${active} investor${active===1?" has":"s have"} ${F.fmtMoney(netInv,0)} with the fund, worth
+        <b>${F.fmtMoney(aum,0)}</b> today — ${pnl>=0?"a gain of":"down"} <b>${F.fmtMoney(Math.abs(pnl),0)}</b>${netInv>0?`, or ${(Math.abs(pnl)/netInv*100).toFixed(1)}% on what they put in`:""}.
+        ${latestNav ? `Unit price ${F.fmtNum(navPU,4)}, last set ${latestNav.date}.` : `No unit price published yet — set one below before recording any deposit.`}
       </div>
       ${mgrNavPanel(navPU != null ? navPU : "", navHistory)}
       ${navHistory.length > 1 ? `
@@ -1425,6 +1432,262 @@
       ${mgrPositionsPanel(positions)}`;
     bindManagerForms(null);
     bindTradeBook();
+  }
+
+
+  /* ============================================================
+     LIVE TAB: Distributions — one month's profit, split by Clause 6
+     ============================================================ */
+  let _dxPreview = null;
+
+  async function liveDistributionsTab(el) {
+    const [investors, navHistory, latestNav, dists] = await Promise.all([
+      DB.getAllInvestors().catch(() => []),
+      DB.getAllNavHistory().catch(() => []),
+      DB.getLatestNav().catch(() => null),
+      DB.getAllDistributions ? DB.getAllDistributions().catch(() => null) : null,
+    ]);
+
+    if (dists === null) {
+      el.innerHTML = `
+        <div class="panel reveal">
+          <div class="panel__head"><h2>Monthly distributions</h2></div>
+          <p class="portal__note">
+            The <code>distributions</code> table does not exist yet. Run
+            <code>supabase/migrations/2026-11-07-distributions.sql</code> in the Supabase SQL
+            editor, then reload this tab.
+          </p>
+        </div>`;
+      return;
+    }
+
+    const active = investors.filter(i => +i.units > 0);
+    const lastPeriod = dists.length ? String(dists[dists.length - 1].period).slice(0, 10) : null;
+    const suggested = nextPeriodAfter(lastPeriod);
+
+    el.innerHTML = `
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Record a month's income</h2>
+          <span class="panel__sub">One number in — the whole Clause 6 waterfall out</span>
+        </div>
+        <p class="portal__note" style="margin-top:0">
+          Enter the fund's <b>net trading profit</b> for the month. Each investor's share is
+          worked out by the units they hold, then the target, their own reserve, anything owed
+          to them and the Company's share all follow from the agreement. Nothing is written
+          until you have seen the result.
+        </p>
+        <div class="mgr-form">
+          <div class="field">
+            <label for="dxMonth">Month</label>
+            <input type="month" id="dxMonth" value="${suggested.slice(0, 7)}" />
+          </div>
+          <div class="field">
+            <label for="dxProfit">Fund net profit for the month ($)</label>
+            <input type="number" id="dxProfit" step="0.01" placeholder="e.g. 24500 or -8000" />
+          </div>
+          <div class="field">
+            <label for="dxRate">Target rate</label>
+            <select id="dxRate">
+              <option value="0.017" selected>1.70% a month (standard)</option>
+              <option value="0.02">2.00% a month (after a 75%+ year)</option>
+            </select>
+          </div>
+          <button class="btn btn--ghost btn--sm" id="dxRun" type="button">Work it out</button>
+          <p class="cta__note" id="dxNote" role="status" aria-live="polite"></p>
+        </div>
+        <p class="portal__note">
+          ${active.length} investor${active.length === 1 ? "" : "s"} holding units.
+          Unit price ${latestNav ? F.fmtNum(+latestNav.nav_per_unit, 4) + " (" + latestNav.date + ")" : "not set"}.
+          ${lastPeriod ? "Last month recorded: " + lastPeriod.slice(0, 7) + "." : "No months recorded yet."}
+        </p>
+        <div id="dxPreview"></div>
+      </div>
+      ${distHistoryPanel(dists)}`;
+
+    bindDistributions(active, navHistory, latestNav, dists);
+  }
+
+  function nextPeriodAfter(period) {
+    const d = period ? new Date(period + "T00:00:00Z") : new Date();
+    if (period) d.setUTCMonth(d.getUTCMonth() + 1); else d.setUTCDate(1);
+    return d.toISOString().slice(0, 10).replace(/\d{2}$/, "01");
+  }
+
+  /* Each investor's state going into the month, from the rows already saved. */
+  function investorStateFor(active, dists, period, navHistory, latestNav) {
+    const year = period.slice(0, 4);
+    return active.map(inv => {
+      const mine = dists.filter(d => d.investor_id === inv.id && String(d.period) < period);
+      const reserve = mine.reduce((a, d) => a + +d.reserve_delta, 0);
+      const shortfall = mine.reduce((a, d) => a + +d.shortfall_delta, 0);
+      const ytdPaid = mine.filter(d => String(d.period).slice(0, 4) === year)
+                          .reduce((a, d) => a + +d.paid_amount, 0);
+      // Opening value uses the unit price in force at the start of the month.
+      const navAt = liveNavAt(navHistory, period) || (latestNav ? +latestNav.nav_per_unit : 0);
+      return {
+        id: inv.id, name: inv.name || inv.email || inv.id,
+        units: +inv.units, openingValue: +inv.units * navAt,
+        reserve, shortfall, ytdPaid,
+        mode: inv.income_mode === "reinvest" ? "reinvest" : "cash",
+      };
+    });
+  }
+
+  function bindDistributions(active, navHistory, latestNav, dists) {
+    const run = document.getElementById("dxRun");
+    if (!run) return;
+    const note = document.getElementById("dxNote");
+    const mount = document.getElementById("dxPreview");
+
+    run.addEventListener("click", () => {
+      note.classList.remove("is-error"); note.textContent = ""; mount.innerHTML = "";
+      const month = document.getElementById("dxMonth").value;
+      const profit = parseFloat(document.getElementById("dxProfit").value);
+      const rate = parseFloat(document.getElementById("dxRate").value);
+      if (!month) { note.textContent = "Pick a month."; note.classList.add("is-error"); return; }
+      if (!isFinite(profit)) { note.textContent = "Enter the fund's profit for the month — a loss is a negative number."; note.classList.add("is-error"); return; }
+      if (!active.length) { note.textContent = "No investor holds units yet."; note.classList.add("is-error"); return; }
+      if (!window.JSSWaterfall) { note.textContent = "Waterfall did not load — refresh the page."; note.classList.add("is-error"); return; }
+
+      const period = month + "-01";
+      const already = dists.some(d => String(d.period).slice(0, 7) === month);
+      const state = investorStateFor(active, dists, period, navHistory, latestNav);
+      const out = window.JSSWaterfall.run({
+        period, fundProfit: profit, targetRate: rate,
+        reserveCapMonths: 6, annualCapMonths: 12, investors: state,
+      });
+      _dxPreview = { period, rate, out };
+      mount.innerHTML = distPreviewHtml(out, period, already);
+      bindDistSave();
+    });
+  }
+
+  function distPreviewHtml(out, period, already) {
+    const t = out.totals;
+    const m = (v) => (v < 0 ? "−" : "") + F.fmtMoney(Math.abs(v), 2);
+    const blocked = Math.abs(t.unaccounted) > 0.05;
+    return `
+      <div class="tb-result">
+        ${already ? `<div class="tb-warn">⚠ ${period.slice(0,7)} is already recorded. Saving will overwrite those rows.</div>` : ""}
+        ${out.warnings.length ? `<div class="tb-warn">⚠ ${out.warnings.map(esc).join(" · ")}</div>` : ""}
+
+        <div class="inc-cards">
+          <div class="inc-card">
+            <div class="inc-card__l">Paid to investors</div>
+            <div class="inc-card__v pos">${m(t.paid)}</div>
+            <div class="inc-card__s">${m(t.cash)} cash · ${m(t.reinvested)} reinvested</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Into their reserves</div>
+            <div class="inc-card__v">${m(t.reserveDelta)}</div>
+            <div class="inc-card__s">${t.reserveDelta < 0 ? "drawn down this month" : "held back for weak months"}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Company keeps</div>
+            <div class="inc-card__v">${m(t.companyExcess)}</div>
+            <div class="inc-card__s">${t.companyExcess > 0 ? "above target, reserves full" : "nothing above target"}</div>
+          </div>
+          <div class="inc-card">
+            <div class="inc-card__l">Newly owed</div>
+            <div class="inc-card__v ${t.shortfallDelta > 0 ? "warn" : ""}">${m(t.shortfallDelta)}</div>
+            <div class="inc-card__s">${t.shortfallDelta > 0 ? "carried to later months" : t.shortfallDelta < 0 ? "repaid this month" : "nothing outstanding"}</div>
+          </div>
+        </div>
+
+        <div class="tb-map">
+          Profit allocated ${m(t.positiveShare)} = paid ${m(t.paid)} + reserves ${m(t.reserveDelta)} + Company ${m(t.companyExcess)}
+          ${Math.abs(t.unaccounted) <= 0.05 ? `· <span class="tb-ok">balances</span>` : `· <span class="tb-miss">out by ${m(t.unaccounted)}</span>`}
+          ${t.lossBorneByNav < 0 ? `<br />Loss of ${m(-t.lossBorneByNav)} is borne by the unit price, not by this waterfall.` : ""}
+          ${t.cappedCount ? `<br />${t.cappedCount} investor${t.cappedCount>1?"s":""} hit the 12-month annual cap.` : ""}
+        </div>
+
+        <div class="table-wrap" style="margin-top:12px"><table class="ttable">
+          <thead><tr>
+            <th>Investor</th><th>Their profit</th><th>Target</th><th>Paid</th>
+            <th>Reserve</th><th>Owed</th><th>Company</th>
+          </tr></thead>
+          <tbody>${out.rows.map(r => `
+            <tr>
+              <td><b>${esc(r.name)}</b>${r.mode === "reinvest" ? ` <span class="muted">↻</span>` : ""}${r.cappedByAnnual ? ` <span class="tb-miss">capped</span>` : ""}</td>
+              <td class="mono ${r.profitShare < 0 ? "neg" : ""}">${m(r.profitShare)}</td>
+              <td class="mono muted">${m(r.target)}</td>
+              <td class="mono ${r.paid >= r.target - 0.005 ? "pos" : "warn"}"><b>${m(r.paid)}</b></td>
+              <td class="mono muted">${m(r.reserveDelta)} → ${m(r.reserveAfter)}</td>
+              <td class="mono ${r.shortfallAfter > 0 ? "warn" : "muted"}">${m(r.shortfallAfter)}</td>
+              <td class="mono muted">${m(r.companyExcess)}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+
+        <div class="mgr-form" style="margin-top:14px">
+          <button class="btn btn--primary btn--sm" id="dxSave" type="button" ${blocked ? "disabled" : ""}>
+            ${blocked ? "Cannot save — figures do not balance" : (already ? "Overwrite " : "Save ") + period.slice(0,7)}
+          </button>
+          <button class="btn btn--ghost btn--sm" id="dxCancel" type="button">Cancel</button>
+          <p class="cta__note" id="dxSaveNote" role="status" aria-live="polite"></p>
+        </div>
+      </div>`;
+  }
+
+  function bindDistSave() {
+    const cancel = document.getElementById("dxCancel");
+    if (cancel) cancel.addEventListener("click", () => {
+      _dxPreview = null;
+      document.getElementById("dxPreview").innerHTML = "";
+    });
+    const save = document.getElementById("dxSave");
+    if (!save || save.disabled) return;
+    const note = document.getElementById("dxSaveNote");
+    save.addEventListener("click", async () => {
+      if (!_dxPreview) return;
+      save.disabled = true; note.classList.remove("is-error"); note.textContent = "Saving…";
+      const { period, rate, out } = _dxPreview;
+      try {
+        await DB.saveDistributions(out.rows.map(r => ({
+          investor_id: r.investorId, period,
+          opening_value: r.openingValue, target_rate: rate, target_amount: r.target,
+          profit_amount: r.profitShare, reserve_delta: r.reserveDelta,
+          paid_amount: r.paid, shortfall_delta: r.shortfallDelta,
+          company_excess: r.companyExcess, mode: r.mode, units_issued: 0,
+          note: "Recorded from fund profit " + out.totals.fundProfit,
+        })));
+        note.textContent = `✓ Saved ${out.rows.length} investor${out.rows.length>1?"s":""} for ${period.slice(0,7)}.`;
+        setTimeout(() => switchLiveTab("distributions"), 1400);
+      } catch (err) {
+        note.textContent = "Error: " + err.message; note.classList.add("is-error");
+        save.disabled = false;
+      }
+    });
+  }
+
+  function distHistoryPanel(dists) {
+    if (!dists.length) return "";
+    const byPeriod = new Map();
+    dists.forEach(d => {
+      const k = String(d.period).slice(0, 10);
+      if (!byPeriod.has(k)) byPeriod.set(k, { period: k, n: 0, paid: 0, res: 0, sh: 0, co: 0 });
+      const g = byPeriod.get(k);
+      g.n += 1; g.paid += +d.paid_amount; g.res += +d.reserve_delta;
+      g.sh += +d.shortfall_delta; g.co += (+d.company_excess || 0);
+    });
+    const months = [...byPeriod.values()].sort((a, b) => b.period.localeCompare(a.period));
+    const m = (v) => (v < 0 ? "−" : "") + F.fmtMoney(Math.abs(v), 2);
+    return `
+      <div class="panel reveal">
+        <div class="panel__head"><h2>Months already recorded</h2><span class="panel__sub">What every investor was paid</span></div>
+        <div class="table-wrap"><table class="ttable">
+          <thead><tr><th>Month</th><th>Investors</th><th>Paid</th><th>Reserves</th><th>Owed</th><th>Company</th></tr></thead>
+          <tbody>${months.map(g => `
+            <tr>
+              <td class="mono">${g.period.slice(0,7)}</td>
+              <td class="mono muted">${g.n}</td>
+              <td class="mono pos"><b>${m(g.paid)}</b></td>
+              <td class="mono muted">${m(g.res)}</td>
+              <td class="mono ${g.sh > 0 ? "warn" : "muted"}">${m(g.sh)}</td>
+              <td class="mono muted">${m(g.co)}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+      </div>`;
   }
 
   /* ---------- LIVE TAB: Inbox (contact form enquiries) ---------- */
@@ -2862,7 +3125,7 @@
           <button type="submit" class="btn btn--primary">Save NAV</button>
           <p class="cta__note" id="navNote" role="status" aria-live="polite"></p>
         </form>
-        ${navHistory.length ? `<div class="table-wrap" style="margin-top:18px"><table class="ttable"><thead><tr><th>Date</th><th>NAV / unit</th><th>AUM</th><th>Note</th></tr></thead><tbody>${navHistory.slice().reverse().slice(0,12).map(n=>`<tr><td class="mono">${n.date}</td><td class="mono">${F.fmtNum(n.nav_per_unit,2)}</td><td class="mono">${n.aum?F.fmtMoney(n.aum,0):"—"}</td><td>${n.note||""}</td></tr>`).join("")}</tbody></table></div>` : ""}
+        ${navHistory.length ? `<div class="table-wrap" style="margin-top:18px"><table class="ttable"><thead><tr><th>Date</th><th>NAV / unit</th><th>AUM</th><th>Note</th></tr></thead><tbody>${navHistory.slice().reverse().slice(0,12).map(n=>`<tr><td class="mono">${n.date}</td><td class="mono">${F.fmtNum(n.nav_per_unit,4)}</td><td class="mono">${n.aum?F.fmtMoney(n.aum,0):"—"}</td><td>${n.note||""}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </div>`;
   }
 
