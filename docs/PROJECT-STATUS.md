@@ -1,6 +1,6 @@
 # BPSQuant — project status
 
-Last updated: 7 November 2026. Live at **www.bpsquant.com**, served from `main`
+Last updated: 8 November 2026. Live at **www.bpsquant.com**, served from `main`
 via GitHub Pages. The working branch is `claude/website-perfection-c9jctk`;
 publishing is a fast-forward of `main` to it.
 
@@ -8,16 +8,57 @@ publishing is a fast-forward of `main` to it.
 
 ## Waiting on you
 
-Nothing below is broken. Each item is live but dormant until someone with the
-right dashboard access finishes it.
+Nothing below is broken. Each item is built and live but dormant until
+someone with the right dashboard access, or the right judgement call,
+finishes it.
 
-| # | What | Where | Why it matters |
-|---|---|---|---|
-| 1 | Run `supabase/migrations/2026-11-07-distributions.sql` | Supabase SQL editor | Until then the portal's Monthly income section shows the target and "no distributions recorded yet". Everything else works. |
-| 2 | Add `SUPABASE_SERVICE_KEY` and `GMAIL_APP_PASSWORD` | GitHub → Settings → Secrets → Actions | Turns on the enquiry emails. Takes about two minutes and needs no new account. |
-| 3 | Decide the **%** of fees paid into the reserve | Clause 6.5A, and §2 of the FY2027 letter | The one blank in the agreement. 25–50% is a credible commitment. |
-| 4 | Decide minimum subscription and currency | §3 of the FY2027 letter | Two more blanks. |
-| 5 | Have a licensed securities attorney review the agreement | — | It is a capped-participation security. Every document still carries the DRAFT FOR LEGAL REVIEW banner. |
+### Run these two, in the Supabase SQL editor
+
+| | File | Turns on |
+|---|---|---|
+| 1 | `supabase/migrations/2026-11-07-distributions.sql` | The investor portal's Monthly income section, and the admin **Income** tab. Until then the Income tab tells you it is missing. |
+| 2 | `supabase/migrations/2026-11-08-trade-pnl.sql` | Per-trade profit and the **Realised P&L** panel. Additive and safe on a live table. |
+
+### Add two GitHub secrets
+
+**Settings → Secrets and variables → Actions.** About two minutes, no new account.
+
+| Secret | Where to get it |
+|---|---|
+| `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → **service_role** |
+| `GMAIL_APP_PASSWORD` | Google Account → Security → **App passwords** (needs 2-step verification) |
+
+Turns on enquiry emails from info@bpsquant.com, every 15 minutes.
+
+### Decide three numbers
+
+| | What | Where |
+|---|---|---|
+| 1 | **% of fees** paid into investors' reserves. 25–50% is a credible commitment. | Clause 6.5A, and §2 of the FY2027 letter |
+| 2 | **Minimum subscription** | §3 of the FY2027 letter |
+| 3 | **Currency** for that minimum | §3 of the FY2027 letter |
+
+### Two contract readings a lawyer should confirm
+
+The waterfall engine had to resolve these to compute anything. Both are
+coded the investor-favourable way and shown in the Income tab, but the
+agreement does not state either explicitly:
+
+1. **Shortfalls are repaid before the Company keeps anything.** Order is:
+   pay target → repay what is owed → fill the investor's reserve → the rest
+   is the Company's.
+2. **A shortfall repayment counts toward the 12-month annual cap.** An
+   investor catching up on a previous year's shortfall uses this year's room.
+
+### Have the agreement reviewed
+
+It is a capped-participation security. Every document still carries the
+DRAFT FOR LEGAL REVIEW banner, and should until an attorney clears it.
+
+### Before any real investor
+
+Run `supabase/seeds/test-investor-remove.sql` and delete the
+`test.investor@bpsquant.com` login, if you created it.
 
 ---
 
@@ -89,6 +130,22 @@ Key terms as they now stand:
   already taken under 6.4(a) (11.2).
 
 ---
+
+## Admin portal
+
+Eight tabs: Dashboard, Investors, Capital, **Income**, Cash Flow, Trading,
+Messages, Inbox.
+
+- **Income** — enter the fund's net trading profit for a month and the whole
+  Clause 6 waterfall is computed for every investor: share by units, target,
+  reserve, anything owed, the Company's share. Previewed before anything is
+  written, upserted on `(investor_id, period)` so a correction replaces a
+  month rather than duplicating it, and Save is disabled if the figures do
+  not balance. `scripts/waterfall.js`, 35 tests.
+- **Trading** — paste trades from any broker or spreadsheet. Columns are
+  detected rather than dictated; profit is read from the file when it is
+  there and otherwise computed by netting each group. Every import is tagged
+  so it can be undone. `scripts/tradeimport.js`, 32 tests.
 
 ## Open design questions
 
