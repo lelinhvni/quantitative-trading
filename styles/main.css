@@ -1635,3 +1635,7 @@ button { font: inherit; cursor: pointer; }
   font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.82rem;
   white-space: pre; overflow-x: auto;
 }
+
+/* ---------- language toggle (investor view) ---------- */
+.lang-toggle { margin-right: 8px; min-width: 86px; }
+@media (max-width: 560px) { .lang-toggle { min-width: 0; } }

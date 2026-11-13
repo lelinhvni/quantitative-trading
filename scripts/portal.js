@@ -8,6 +8,9 @@
   const F   = window.JSS;
   const DB  = window.JSSDB;
   const CFG = window.JSS_CONFIG;
+  /* Investor-facing copy only; the manager view stays in English. */
+  const I   = window.JSSI18N || { t: (k) => k, lang: "en", other: () => "en", set() {}, onChange() {} };
+  const t   = (k, v) => I.t(k, v);
 
   let liveMode   = false;
   let _activeTab = "overview";
@@ -184,6 +187,34 @@
   /* ============================================================
      LIVE MODE (Supabase)
      ============================================================ */
+  /* The sign-in card is static markup, so translate it once on load and
+     again whenever the language changes. An investor meets this screen
+     before we know who they are, so it follows the browser's language. */
+  function applyLoginLang() {
+    const set = (sel, key) => { const el = document.querySelector(sel); if (el) el.textContent = t(key); };
+    set(".login-card .kicker", "login.eyebrow");
+    set(".login-card__title", "login.title");
+    set(".login-card__lede", "login.lede");
+    set('label[for="lemail"]', "login.email");
+    set('label[for="lpass"]', "login.password");
+    set('#loginForm button[type="submit"]', "login.submit");
+    set("#forgotBtn", "login.forgot");
+    const btn = document.getElementById("loginLangBtn");
+    if (btn) btn.textContent = I.t("lang.switch");
+  }
+
+  function mountLoginLangToggle() {
+    const card = document.querySelector(".login-card");
+    if (!card || document.getElementById("loginLangBtn")) return;
+    const b = document.createElement("button");
+    b.id = "loginLangBtn"; b.type = "button";
+    b.className = "link-btn lang-toggle";
+    b.style.cssText = "display:block;margin:14px auto 0;";
+    b.onclick = () => { I.set(I.other()); applyLoginLang(); };
+    card.appendChild(b);
+    applyLoginLang();
+  }
+
   async function initLive() {
     document.getElementById("loginView").hidden = false;
     document.getElementById("appView").hidden   = true;
@@ -201,6 +232,7 @@
       if (session) await showLiveApp(); else showLogin();
     } catch { showLogin(); }
     bindLiveLogin(); bindLogout(); bindForgot();
+    mountLoginLangToggle();
   }
 
   function bindForgot() {
@@ -242,11 +274,40 @@
       const profile = await DB.getProfile(true);
       document.getElementById("loginView").hidden = true;
       document.getElementById("appView").hidden   = false;
-      document.getElementById("greeting").textContent = "Welcome, " + profile.name;
-      document.getElementById("roleLine").textContent = profile.role === "manager" ? "Fund manager" : "Investor account";
+      const isInvestor = profile.role !== "manager";
+      document.getElementById("greeting").textContent =
+        isInvestor ? t("login.welcome", { name: profile.name }) : "Welcome, " + profile.name;
+      document.getElementById("roleLine").textContent =
+        isInvestor ? t("login.investorAcct") : "Fund manager";
+      const out = document.getElementById("logoutBtn");
+      if (out) out.textContent = isInvestor ? t("login.signOut") : "Sign out";
+      mountLangToggle(isInvestor);
       if (profile.role === "manager") await renderManager();
       else await renderInvestor(profile);
     } catch (err) { showError("Could not load your account: " + err.message); }
+  }
+
+  /* One button, investor view only. Re-renders in place rather than
+     reloading, so nothing is refetched and the scroll position holds. */
+  function mountLangToggle(show) {
+    const host = document.querySelector(".portal-head") || document.getElementById("appView");
+    let btn = document.getElementById("langToggle");
+    if (!show) { if (btn) btn.remove(); return; }
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "langToggle";
+      btn.type = "button";
+      btn.className = "btn btn--ghost btn--sm lang-toggle";
+      const logout = document.getElementById("logoutBtn");
+      if (logout && logout.parentNode) logout.parentNode.insertBefore(btn, logout);
+      else if (host) host.appendChild(btn);
+    }
+    btn.textContent = I.t("lang.switch");
+    btn.setAttribute("aria-label", I.t("lang.label"));
+    btn.onclick = async () => {
+      I.set(I.other());
+      try { await showLiveApp(); } catch (_) { /* a failed re-render leaves the page as it was */ }
+    };
   }
 
   function bindLogout() {
@@ -368,24 +429,23 @@
     const paid = +d.paid_amount, tgt = +d.target_amount;
     const prof = +d.profit_amount, res = +d.reserve_delta;
     const month = new Date(String(d.period) + "T00:00:00")
-      .toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+      .toLocaleDateString(I.lang === "vi" ? "vi-VN" : "en-GB", { month: "long", year: "numeric" });
     const got = d.mode === "reinvest"
-      ? `<b>${money(paid)}</b> was added to your balance`
-      : `you were paid <b>${money(paid)}</b>`;
+      ? t("story.gotAdded", { amount: money(paid) })
+      : t("story.gotPaid",  { amount: money(paid) });
 
     let story;
     if (prof < 0 && paid < 0.5) {
-      story = `the fund <b>lost money</b> and your pot was empty, so there was <b>no payment</b> this month. ` +
-        `The full <b>${money(tgt)}</b> is owed to you and comes back out of later profit.`;
+      story = t("story.lossEmpty", { target: money(tgt) });
     } else if (prof < 0) {
-      story = `the fund <b>lost money</b>. Your pot covered what it could, so ${got}` +
-        (paid < tgt - 0.5 ? `, which is ${money(tgt - paid)} less than your target. That ${money(tgt - paid)} is owed to you and comes back out of later profit.` : ".");
+      story = t("story.lossPartial", { got })
+        + (paid < tgt - 0.5 ? t("story.lossShort", { gap: money(tgt - paid) }) : ".");
     } else if (res > 0.5) {
-      story = `the fund earned you <b>${money(prof)}</b>. Your target was ${money(tgt)}, so ${got} and the spare <b>${money(res)}</b> went into your pot.`;
+      story = t("story.surplus", { profit: money(prof), target: money(tgt), got, spare: money(res) });
     } else if (res < -0.5) {
-      story = `the fund earned you <b>${money(prof)}</b> — less than your ${money(tgt)} target. Your pot made up the missing <b>${money(-res)}</b>, so ${got} anyway.`;
+      story = t("story.toppedUp", { profit: money(prof), target: money(tgt), got, gap: money(-res) });
     } else {
-      story = `the fund earned you <b>${money(prof)}</b>, and ${got}.`;
+      story = t("story.exact", { profit: money(prof), got });
     }
     return `<div class="story"><span class="story__m">${month}</span> ${story}</div>`;
   }
@@ -393,10 +453,10 @@
   /* How full the reserve pot is, against its six-month cap. A bar says this
      faster than a number does. */
   function potNote(reserve, monthly) {
-    if (!(reserve > 0)) return "Your pot is empty right now. It fills up again the next time the fund beats your target.";
+    if (!(reserve > 0)) return t("pot.empty");
     const months = reserve / monthly;
-    if (months < 0.95) return `On its own that would cover about <b>${Math.round(months * 100)}%</b> of one month's payment.`;
-    return `On its own that would cover about <b>${months.toFixed(1)} months</b> of payments.`;
+    if (months < 0.95) return t("pot.coverPct", { n: Math.round(months * 100) });
+    return t("pot.coverMonths", { n: months.toFixed(1) });
   }
 
   function reserveBar(m) {
@@ -406,8 +466,8 @@
     return `
       <div class="pot">
         <div class="pot__head">
-          <span>Your pot holds <b>${F.fmtMoney(m.reserve, 0)}</b></span>
-          <span class="pot__cap">it can hold up to ${F.fmtMoney(cap, 0)}</span>
+          <span>${t("pot.holds", { amount: F.fmtMoney(m.reserve, 0) })}</span>
+          <span class="pot__cap">${t("pot.canHold", { amount: F.fmtMoney(cap, 0) })}</span>
         </div>
         <div class="pot__track"><div class="pot__fill" style="width:${pct.toFixed(1)}%"></div></div>
         <div class="pot__note">${potNote(m.reserve, cap / 6)}</div>
@@ -427,22 +487,22 @@
     return `
       <div class="panel reveal">
         <div class="panel__head">
-          <h2>Where your money went</h2>
-          <span class="panel__sub">Every line adds up to the one below it</span>
+          <h2>${t("flow.title")}</h2>
+          <span class="panel__sub">${t("flow.sub")}</span>
         </div>
         <table class="flow">
           <tbody>
-            ${row("You put in", "", money(m.totalDep, true), "pos")}
-            ${m.totalWith ? row("You took out", "", "−" + F.fmtMoney(m.totalWith, 2), "neg") : ""}
-            ${row("Your money in the fund", "", F.fmtMoney(m.netIn, 2), "", true)}
-            ${row("What the fund earned you", "", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
-            ${m.cashIncome ? row("Income already paid to you", "", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
-            ${m.reinvested ? row("Income added back in", "", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
-            ${row("Your balance today", "", F.fmtMoney(m.value, 2), "", true)}
+            ${row(t("flow.putIn"), "", money(m.totalDep, true), "pos")}
+            ${m.totalWith ? row(t("flow.tookOut"), "", "−" + F.fmtMoney(m.totalWith, 2), "neg") : ""}
+            ${row(t("flow.inFund"), "", F.fmtMoney(m.netIn, 2), "", true)}
+            ${row(t("flow.earned"), "", money(m.growth, true), m.growth >= 0 ? "pos" : "neg")}
+            ${m.cashIncome ? row(t("flow.incomePaid"), "", "−" + F.fmtMoney(m.cashIncome, 2), "neg") : ""}
+            ${m.reinvested ? row(t("flow.incomeBack"), "", F.fmtMoney(m.reinvested, 2) + " ↻", "muted") : ""}
+            ${row(t("flow.balance"), "", F.fmtMoney(m.value, 2), "", true)}
           </tbody>
         </table>
         <p class="portal__note">
-          ${m.cashIncome ? `${F.fmtMoney(m.cashIncome, 2)} of that is already in your bank. The rest is still working in the fund.` : "All of it is still in the fund, working."}
+          ${m.cashIncome ? t("flow.someInBank", { amount: F.fmtMoney(m.cashIncome, 2) }) : t("flow.allWorking")}
         </p>
       </div>`;
   }
@@ -455,20 +515,20 @@
     if (!m.dists.length) {
       return `
         <div class="panel reveal">
-          <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">Target ${ratePct}% a month</span></div>
+          <div class="panel__head"><h2>${t("income.title")}</h2><span class="panel__sub">${t("income.subTarget", { pct: ratePct })}</span></div>
           <div class="inc-cards">
             <div class="inc-card">
-              <div class="inc-card__l">Your target</div>
+              <div class="inc-card__l">${t("income.yourTarget")}</div>
               <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
-              <div class="inc-card__s">a month, at today's balance</div>
+              <div class="inc-card__s">${t("income.atBalance")}</div>
             </div>
             <div class="inc-card">
-              <div class="inc-card__l">Paid so far</div>
+              <div class="inc-card__l">${t("income.paidSoFar")}</div>
               <div class="inc-card__v">—</div>
-              <div class="inc-card__s">first payment not due yet</div>
+              <div class="inc-card__s">${t("income.notDue")}</div>
             </div>
           </div>
-          <p class="portal__note">A target, not a guarantee. You are paid from what the fund actually earns.</p>
+          <p class="portal__note">${t("income.notGuarantee")}</p>
         </div>`;
     }
 
@@ -484,36 +544,36 @@
 
     return `
       <div class="panel reveal">
-        <div class="panel__head"><h2>Monthly income</h2><span class="panel__sub">Target ${ratePct}% a month</span></div>
+        <div class="panel__head"><h2>${t("income.title")}</h2><span class="panel__sub">${t("income.subTarget", { pct: ratePct })}</span></div>
         ${lastMonthStory(m)}
         ${reserveBar(m)}
         <div class="inc-cards">
           <div class="inc-card">
-            <div class="inc-card__l">Your target</div>
+            <div class="inc-card__l">${t("income.yourTarget")}</div>
             <div class="inc-card__v">${targetNow != null ? F.fmtMoney(targetNow, 2) : "—"}</div>
-            <div class="inc-card__s">a month, at today's balance</div>
+            <div class="inc-card__s">${t("income.atBalance")}</div>
           </div>
           <div class="inc-card">
-            <div class="inc-card__l">This year so far</div>
+            <div class="inc-card__l">${t("income.thisYear")}</div>
             <div class="inc-card__v">${F.fmtMoney(m.ytdPaid, 0)}</div>
-            <div class="inc-card__s">most you can get in a year is ${targetNow != null ? F.fmtMoney(targetNow * 12, 0) : "—"}</div>
+            <div class="inc-card__s">${t("income.mostPerYear", { amount: targetNow != null ? F.fmtMoney(targetNow * 12, 0) : "—" })}</div>
           </div>
           <div class="inc-card">
-            <div class="inc-card__l">Last payment</div>
+            <div class="inc-card__l">${t("income.lastPayment")}</div>
             <div class="inc-card__v ${+last.paid_amount >= +last.target_amount - 0.005 ? "pos" : "warn"}">${F.fmtMoney(+last.paid_amount, 2)}</div>
-            <div class="inc-card__s">${String(last.period).slice(0, 7)}${last.mode === "reinvest" ? " · reinvested" : ""}</div>
+            <div class="inc-card__s">${String(last.period).slice(0, 7)}${last.mode === "reinvest" ? " · " + t("income.reinvested") : ""}</div>
           </div>
           ${anyOwed ? `
           <div class="inc-card">
-            <div class="inc-card__l">Owed to you</div>
+            <div class="inc-card__l">${t("income.owed")}</div>
             <div class="inc-card__v warn">${F.fmtMoney(m.shortfall, 2)}</div>
-            <div class="inc-card__s">paid back from later profit</div>
+            <div class="inc-card__s">${t("income.owedSub")}</div>
           </div>` : ""}
         </div>
 
         <div class="table-wrap" style="margin-top:18px"><table class="ttable">
           <thead><tr>
-            <th>Month</th><th>Target</th><th>Fund made you</th><th>You received</th><th>Your reserve</th>
+            <th>${t("income.thMonth")}</th><th>${t("income.thTarget")}</th><th>${t("income.thFundMade")}</th><th>${t("income.thReceived")}</th><th>${t("income.thReserve")}</th>
           </tr></thead>
           <tbody>${recent.map(d => {
             const a = after.get(d.period) || { res: 0 };
@@ -528,9 +588,7 @@
           }).join("")}</tbody>
         </table></div>
         <p class="portal__note">
-          A short month is topped up from your reserve pot. If the pot is empty, the rest is
-          owed to you and paid back from later profit. Once you have had your target and your
-          pot is full, anything the fund earns above that is kept by the fund manager${m.companyExcess > 0 ? " — " + F.fmtMoney(m.companyExcess, 0) + " so far" : ""}.${m.dists.some(d => d.mode === "reinvest") ? " ↻ added to your balance instead of paid out." : ""}
+          ${t("income.footer")}${m.companyExcess > 0 ? t("income.footerExcess", { amount: F.fmtMoney(m.companyExcess, 0) }) : ""}.${m.dists.some(d => d.mode === "reinvest") ? t("income.footerReinv") : ""}
         </p>
       </div>`;
   }
@@ -540,25 +598,22 @@
     if (m.value == null) return "";
     return `
       <details class="acct-more reveal">
-        <summary><span>How your balance is worked out</span><span class="acct-more__hint">the short version</span></summary>
+        <summary><span>${t("calc.summary")}</span><span class="acct-more__hint">${t("calc.hint")}</span></summary>
         <div class="panel" style="margin-top:0">
           <ol class="calc">
             <li>
-              <b>What you have earned.</b> Your balance now, less what you put in, plus
-              anything already paid out to you.<br />
+              <b>${t("calc.earned")}</b> ${t("calc.earnedBody")}<br />
               <span class="calc__m">${F.fmtMoney(m.value, 2)} − ${F.fmtMoney(m.totalDep, 2)} + ${F.fmtMoney(m.totalWith, 2)}${m.cashIncome ? " + " + F.fmtMoney(m.cashIncome, 2) : ""} = <b>${m.growth >= 0 ? "+" : "−"}${F.fmtMoney(Math.abs(m.growth), 2)}</b></span>
             </li>
             <li>
-              <b>Your return rate.</b> ${m.rate != null ? `<b>${pctStr(m.rate)} a year</b>, counting when each deposit arrived.` : "Shown once there is enough history to measure it fairly."}
+              <b>${t("calc.rate")}</b> ${m.rate != null ? t("calc.rateBody", { rate: pctStr(m.rate) }) : t("calc.rateNone")}
             </li>
             <li>
-              <b>Joining later costs you nothing.</b> Your deposit buys a share of the fund at
-              what it is worth the day it lands, and your reserve pot is your own.
+              <b>${t("calc.joinLater")}</b> ${t("calc.joinLaterBody")}
             </li>
           </ol>
           <p class="portal__note" style="margin-top:4px">
-            Every figure comes from your recorded deposits, withdrawals and the fund's
-            published valuation. If one looks wrong, message us below.
+            ${t("calc.footer")}
           </p>
         </div>
       </details>`;
@@ -566,7 +621,7 @@
 
   async function renderInvestor(profile) {
     const body = document.getElementById("portalBody");
-    body.innerHTML = `<div class="snap__loading">Loading your account…</div>`;
+    body.innerHTML = `<div class="snap__loading">${t("loading")}</div>`;
     const [account, latestNav, events, allNav, trades, positions, withdrawals, messages, distributions] = await Promise.all([
       DB.getMyAccount(), DB.getLatestNav(), DB.getMyCapitalEvents(),
       DB.getAllNavHistory(), DB.getTrades(60).catch(() => []), DB.getPositions().catch(() => []),
@@ -586,29 +641,29 @@
       <div>
         <div class="acct-hero reveal">
           <div class="acct-hero__main">
-            <div class="acct-hero__label">Your account is worth</div>
+            <div class="acct-hero__label">${t("hero.worth")}</div>
             <div class="acct-hero__value">${curVal != null ? F.fmtMoney(curVal, 2) : "—"}</div>
             ${gain != null && m.netIn > 0 ? `
               <div class="acct-hero__delta ${gain >= 0 ? "is-up" : "is-down"}">
                 ${gain >= 0 ? "▲" : "▼"} ${F.fmtMoney(Math.abs(gain), 2)}
-                <span>${gain >= 0 ? "earned" : "down"} since you joined</span>
+                <span>${gain >= 0 ? t("hero.earnedSince") : t("hero.downSince")}</span>
               </div>` : ""}
           </div>
           <div class="acct-hero__split">
             <div class="acct-fact">
-              <div class="acct-fact__l">You put in</div>
+              <div class="acct-fact__l">${t("hero.putIn")}</div>
               <div class="acct-fact__v">${F.fmtMoney(m.netIn, 2)}</div>
-              <div class="acct-fact__s">${m.totalWith > 0 ? F.fmtMoney(m.totalDep,0) + " deposited − " + F.fmtMoney(m.totalWith,0) + " withdrawn" : (firstDate ? "since " + firstDate : "no deposits yet")}</div>
+              <div class="acct-fact__s">${m.totalWith > 0 ? t("hero.depWd", { dep: F.fmtMoney(m.totalDep,0), wd: F.fmtMoney(m.totalWith,0) }) : (firstDate ? t("hero.since", { date: firstDate }) : t("hero.noDeposits"))}</div>
             </div>
             <div class="acct-fact">
-              <div class="acct-fact__l">You've earned</div>
+              <div class="acct-fact__l">${t("hero.earned")}</div>
               <div class="acct-fact__v ${gain != null && gain >= 0 ? "pos" : gain != null ? "neg" : ""}">${gain != null ? (gain >= 0 ? "+" : "−") + F.fmtMoney(Math.abs(gain), 2) : "—"}</div>
-              <div class="acct-fact__s">${m.totalDep > 0 ? "every $100 you put in has earned $" + (m.growth / m.totalDep * 100).toFixed(0) : "starts once your first deposit lands"}</div>
+              <div class="acct-fact__s">${m.totalDep > 0 ? t("hero.per100", { n: (m.growth / m.totalDep * 100).toFixed(0) }) : t("hero.startsOnDeposit")}</div>
             </div>
             <div class="acct-fact">
-              <div class="acct-fact__l">Income paid to you</div>
+              <div class="acct-fact__l">${t("hero.incomePaid")}</div>
               <div class="acct-fact__v">${m.paidTotal ? F.fmtMoney(m.paidTotal, 2) : "—"}</div>
-              <div class="acct-fact__s">${m.paidTotal ? (m.reinvested ? F.fmtMoney(m.cashIncome,0) + " cash · " + F.fmtMoney(m.reinvested,0) + " reinvested" : "paid in cash") : "no distributions yet"}</div>
+              <div class="acct-fact__s">${m.paidTotal ? (m.reinvested ? t("hero.cashReinv", { cash: F.fmtMoney(m.cashIncome,0), reinv: F.fmtMoney(m.reinvested,0) }) : t("hero.paidInCash")) : t("hero.noDistYet")}</div>
             </div>
           </div>
         </div>
@@ -619,49 +674,49 @@
 
         ${navSeries && units > 0 ? `
         <div class="panel reveal">
-          <div class="panel__head"><h2>How your money has grown</h2><span class="panel__sub">Your balance at each valuation</span></div>
+          <div class="panel__head"><h2>${t("chart.title")}</h2><span class="panel__sub">${t("chart.sub")}</span></div>
           <canvas id="acctChart" height="260"></canvas>
-        </div>` : `<p class="portal__note">Your growth chart appears once your first deposit is recorded.</p>`}
+        </div>` : `<p class="portal__note">${t("chart.none")}</p>`}
 
         ${howCalculatedPanel(m)}
 
-        ${pendingWd ? `<div class="demo-banner">You have ${pendingWd} withdrawal request${pendingWd>1?"s":""} awaiting review.</div>` : ""}
+        ${pendingWd ? `<div class="demo-banner">${pendingWd === 1 ? t("sec.pending1") : t("sec.pending", { n: pendingWd })}</div>` : ""}
 
         <details class="acct-more reveal">
-          <summary><span>Your deposits &amp; withdrawals</span><span class="acct-more__hint">${events.length} record${events.length!==1?"s":""}</span></summary>
+          <summary><span>${t("sec.deposits")}</span><span class="acct-more__hint">${events.length === 1 ? t("sec.record1") : t("sec.records", { n: events.length })}</span></summary>
           ${events.length ? `<div class="table-wrap"><table class="ttable">
-            <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead>
+            <thead><tr><th>${t("tbl.date")}</th><th>${t("tbl.type")}</th><th>${t("tbl.amount")}</th><th>${t("tbl.note")}</th></tr></thead>
             <tbody>${events.map(ev=>`<tr>
               <td class="mono">${ev.date}</td>
-              <td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${ev.type}</span></td>
+              <td><span class="pill ${ev.type==="deposit"?"pill--buy":"pill--sell"}">${t("type." + ev.type)}</span></td>
               <td class="mono">${F.fmtMoney(ev.amount,2)}</td>
               <td>${esc(ev.note||"")}</td></tr>`).join("")}</tbody>
-          </table></div>` : `<p class="portal__note">Nothing recorded yet.</p>`}
+          </table></div>` : `<p class="portal__note">${t("sec.nothingYet")}</p>`}
         </details>
 
         <details class="acct-more reveal">
-          <summary><span>Messages with the team</span><span class="acct-more__hint">${unreadMsgs ? unreadMsgs + " new" : messages.length + " message" + (messages.length!==1?"s":"")}</span></summary>
+          <summary><span>${t("sec.messages")}</span><span class="acct-more__hint">${unreadMsgs ? t("sec.newMsgs", { n: unreadMsgs }) : (messages.length === 1 ? t("sec.msg1") : t("sec.msgs", { n: messages.length }))}</span></summary>
           <div id="msgMount"></div>
         </details>
 
         <details class="acct-more reveal">
-          <summary><span>What the fund is trading</span><span class="acct-more__hint">${trades.length} recent</span></summary>
+          <summary><span>${t("sec.trading")}</span><span class="acct-more__hint">${t("sec.recent", { n: trades.length })}</span></summary>
           ${positionsPanel(positions)}
-          ${tradesPanel(trades, {title:"Recent trades", sub:"Every position we open"})}
+          ${tradesPanel(trades, {title:t("trade.recent"), sub:t("trade.everyOpen"), i18n:true})}
         </details>
 
         <details class="acct-more reveal">
-          <summary><span>Request a withdrawal</span><span class="acct-more__hint">${withdrawals.length ? withdrawals.length + " request" + (withdrawals.length!==1?"s":"") : "any time"}</span></summary>
+          <summary><span>${t("sec.withdraw")}</span><span class="acct-more__hint">${withdrawals.length ? (withdrawals.length === 1 ? t("sec.request1") : t("sec.requests", { n: withdrawals.length })) : t("sec.anytime")}</span></summary>
           <div id="wdMount"></div>
         </details>
 
         <details class="acct-more reveal">
-          <summary><span>Your risk preference</span><span class="acct-more__hint">${(RISK_OPTIONS.find(r=>r.key===(account&&account.risk_pref))||RISK_OPTIONS[1]).label}</span></summary>
+          <summary><span>${t("sec.risk")}</span><span class="acct-more__hint">${t("risk." + ((RISK_OPTIONS.find(r=>r.key===(account&&account.risk_pref))||RISK_OPTIONS[1]).key))}</span></summary>
           <div id="riskMount"></div>
         </details>
 
         <p class="portal__note">
-          Figures update as soon as the fund publishes a new valuation${latestNav ? " — last set " + latestNav.date : ""}.
+          ${t("foot.updates")}${latestNav ? t("foot.lastSet", { date: latestNav.date }) : ""}.
         </p>
       </div>`;
 
@@ -690,22 +745,22 @@
   function liveWithdrawPanelHtml(withdrawals) {
     return `
       <div class="panel reveal">
-        <div class="panel__head"><h2>Request a withdrawal</h2><span class="panel__sub">Reviewed by the fund manager</span></div>
+        <div class="panel__head"><h2>${t("wd.title")}</h2><span class="panel__sub">${t("wd.sub")}</span></div>
         <form class="mgr-form" id="liveWdForm">
-          <div class="field"><label>Amount ($)</label><input type="number" id="liveWdAmount" min="1" step="0.01" required placeholder="5000" /></div>
-          <div class="field field--full"><label>Note (optional)</label><input type="text" id="liveWdNote" placeholder="Reason or instructions" /></div>
-          <button type="submit" class="btn btn--ghost btn--sm">Submit request</button>
+          <div class="field"><label>${t("wd.amount")}</label><input type="number" id="liveWdAmount" min="1" step="0.01" required placeholder="5000" /></div>
+          <div class="field field--full"><label>${t("wd.note")}</label><input type="text" id="liveWdNote" placeholder="${t("wd.notePh")}" /></div>
+          <button type="submit" class="btn btn--ghost btn--sm">${t("wd.submit")}</button>
           <p class="cta__note" id="liveWdMsg" role="status" aria-live="polite"></p>
         </form>
         ${withdrawals.length ? `
         <div class="table-wrap" style="margin-top:14px"><table class="ttable">
-          <thead><tr><th>Requested</th><th>Amount</th><th>Note</th><th>Status</th></tr></thead>
+          <thead><tr><th>${t("wd.requested")}</th><th>${t("tbl.amount")}</th><th>${t("tbl.note")}</th><th>${t("wd.status")}</th></tr></thead>
           <tbody>${withdrawals.map(w => `
             <tr>
               <td class="mono">${(w.requested_at||"").slice(0,10)}</td>
               <td class="mono">${F.fmtMoney(w.amount,0)}</td>
               <td>${esc(w.note||"")}</td>
-              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "pending" ? "pending" : "closed"}">${w.status}</span></td>
+              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "pending" ? "pending" : "closed"}">${t("st." + w.status) }</span></td>
             </tr>`).join("")}</tbody></table></div>` : ""}
       </div>`;
   }
@@ -721,7 +776,7 @@
       try {
         await DB.requestWithdrawal({ amount, note: (document.getElementById("liveWdNote").value||"").trim() });
         msg.classList.remove("is-error");
-        msg.textContent = "✓ Request submitted — the manager will review it shortly.";
+        msg.textContent = t("wd.ok");
         form.reset();
       } catch (err) {
         msg.textContent = "Error: " + err.message;
@@ -743,15 +798,15 @@
     const rows = [...messages].sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
     return `
       <div class="panel reveal">
-        <div class="panel__head"><h2>Messages</h2><span class="panel__sub">${viewerRole === "investor" ? "Your conversation with " + esc(CFG.brand.full || "the fund") : "Investor thread"}</span></div>
+        <div class="panel__head"><h2>${viewerRole === "investor" ? t("msg.title") : "Messages"}</h2><span class="panel__sub">${viewerRole === "investor" ? t("msg.sub") : "Investor thread"}</span></div>
         <div class="msg-thread" id="liveMsgThread">
-          ${rows.length ? rows.map(r => msgBubbleHtml(dbMsgToBubble(r), viewerRole)).join("") : `<p class="portal__note">No messages yet — send the first one below.</p>`}
+          ${rows.length ? rows.map(r => msgBubbleHtml(dbMsgToBubble(r), viewerRole)).join("") : `<p class="portal__note">${viewerRole === "investor" ? t("msg.none") : "No messages yet — send the first one below."}</p>`}
         </div>
         <div class="msg-compose">
-          <div class="field"><label for="liveMsgSubject">Subject</label><input id="liveMsgSubject" type="text" placeholder="Question about my account…" /></div>
-          <div class="field"><label for="liveMsgBody">Message</label><textarea id="liveMsgBody" rows="3" placeholder="Write your message…"></textarea></div>
+          <div class="field"><label for="liveMsgSubject">${viewerRole === "investor" ? t("msg.subject") : "Subject"}</label><input id="liveMsgSubject" type="text" placeholder="${viewerRole === "investor" ? t("msg.subjectPh") : "Question about my account…"}" /></div>
+          <div class="field"><label for="liveMsgBody">${viewerRole === "investor" ? t("msg.body") : "Message"}</label><textarea id="liveMsgBody" rows="3" placeholder="${viewerRole === "investor" ? t("msg.bodyPh") : "Write your message…"}"></textarea></div>
           <div class="msg-compose__actions">
-            <button class="btn btn--primary btn--sm" id="liveSendBtn" data-thread="${threadInvestorId || ""}">Send</button>
+            <button class="btn btn--primary btn--sm" id="liveSendBtn" data-thread="${threadInvestorId || ""}">${viewerRole === "investor" ? t("msg.send") : "Send"}</button>
             <span class="cta__note" id="liveMsgNote" role="status" aria-live="polite"></span>
           </div>
         </div>
@@ -2131,18 +2186,18 @@
   function riskPanelHtml(current) {
     return `
       <div class="panel reveal" id="riskPanel">
-        <div class="panel__head"><h2>Portfolio risk preference</h2><span class="panel__sub">Request your risk profile — manager reviews and adjusts</span></div>
+        <div class="panel__head"><h2>${t("risk.title")}</h2><span class="panel__sub">${t("risk.sub")}</span></div>
         <div class="risk-grid">
           ${RISK_OPTIONS.map(r => `
           <div class="risk-card ${r.key===current?"is-selected":""}" data-risk="${r.key}" role="button" tabindex="0">
             <div class="risk-card__icon">${r.icon}</div>
-            <div class="risk-card__level">${r.label}</div>
-            <div class="risk-card__target">${r.target}</div>
-            <div class="risk-card__desc">${r.desc}</div>
+            <div class="risk-card__level">${t("risk." + r.key)}</div>
+            <div class="risk-card__target">${r.target.replace("/ yr", t("risk.perYear"))}</div>
+            <div class="risk-card__desc">${t("risk." + r.key + "D")}</div>
           </div>`).join("")}
         </div>
         <div class="risk-save-bar">
-          <button class="btn btn--ghost btn--sm" id="saveRiskBtn">Save preference</button>
+          <button class="btn btn--ghost btn--sm" id="saveRiskBtn">${t("risk.save")}</button>
           <span class="cta__note" id="riskNote" role="status" aria-live="polite"></span>
         </div>
       </div>`;
@@ -3329,11 +3384,16 @@
 
   function tradesPanel(trades, opts) {
     opts = opts||{};
+    // The manager view keeps English; the investor view passes i18n:true.
+    const T = opts.i18n ? t : (k) => ({
+      "trade.ticker":"Ticker","trade.side":"Side","trade.qty":"Qty",
+      "trade.price":"Price","trade.strategy":"Strategy","tbl.date":"Date",
+      "trade.none":"No trades recorded yet." }[k] || k);
     const rows = (trades||[]).map(normaliseTrade);
     return `
       <div class="panel reveal">
         <div class="panel__head"><h2>${esc(opts.title||"Trade activity")}</h2>${opts.sub?`<span class="panel__sub">${esc(opts.sub)}</span>`:""}</div>
-        ${rows.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Date</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Strategy</th></tr></thead><tbody>${rows.map(t=>`<tr><td class="mono">${t.t.toLocaleDateString()} ${t.t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td><td><b>${esc(t.sym)}</b></td><td><span class="pill ${t.side==="BUY"?"pill--buy":"pill--sell"}">${esc(t.side)}</span></td><td class="mono">${F.fmtNum(t.qty,0)}</td><td class="mono">${F.fmtMoney(t.px)}</td><td>${esc(t.strat)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No trades recorded yet.</p>`}
+        ${rows.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>${T("tbl.date")}</th><th>${T("trade.ticker")}</th><th>${T("trade.side")}</th><th>${T("trade.qty")}</th><th>${T("trade.price")}</th><th>${T("trade.strategy")}</th></tr></thead><tbody>${rows.map(t=>`<tr><td class="mono">${t.t.toLocaleDateString()} ${t.t.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td><td><b>${esc(t.sym)}</b></td><td><span class="pill ${t.side==="BUY"?"pill--buy":"pill--sell"}">${esc(t.side)}</span></td><td class="mono">${F.fmtNum(t.qty,0)}</td><td class="mono">${F.fmtMoney(t.px)}</td><td>${esc(t.strat)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">${T("trade.none")}</p>`}
       </div>`;
   }
 
@@ -3341,8 +3401,8 @@
     const list = positions||[];
     return `
       <div class="panel reveal">
-        <div class="panel__head"><h2>Open positions</h2></div>
-        ${list.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th></tr></thead><tbody>${list.map(p=>`<tr><td><b>${esc(p.symbol)}</b></td><td class="mono">${F.fmtNum(p.qty,0)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
+        <div class="panel__head"><h2>${t("pos.title")}</h2></div>
+        ${list.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>${t("pos.symbol")}</th><th>${t("trade.qty")}</th><th>${t("pos.avgCost")}</th></tr></thead><tbody>${list.map(p=>`<tr><td><b>${esc(p.symbol)}</b></td><td class="mono">${F.fmtNum(p.qty,0)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">${t("pos.none")}</p>`}
       </div>`;
   }
 
