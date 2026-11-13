@@ -31,13 +31,37 @@ jobs:
         env:
           SVC: ${{ secrets.SUPABASE_SERVICE_KEY }}
           APP: ${{ secrets.GMAIL_APP_PASSWORD }}
+          # Read the Variables tab too, only so the log can say when the
+          # values were put there by mistake. Nothing is ever sent from them.
+          VAR_SVC: ${{ vars.SUPABASE_SERVICE_KEY }}
+          VAR_APP: ${{ vars.GMAIL_APP_PASSWORD }}
         run: |
-          if [ -z "$SVC" ] || [ -z "$APP" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Secrets not set yet — skipping. Add SUPABASE_SERVICE_KEY and"
-            echo "GMAIL_APP_PASSWORD under Settings -> Secrets and variables -> Actions."
-          else
+          missing=""
+          [ -z "$SVC" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          [ -z "$APP" ] && missing="$missing GMAIL_APP_PASSWORD"
+          if [ -z "$missing" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Both secrets are present. Sending."
+            exit 0
+          fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          echo "NOT SENDING. Missing repository secret(s):$missing"
+          echo ""
+          if [ -n "$VAR_SVC" ] || [ -n "$VAR_APP" ]; then
+            echo "They are set under VARIABLES, not SECRETS."
+            echo "That settings page has two tabs and the workflow reads only Secrets."
+            echo "Delete them from the Variables tab and add them again under Secrets."
+            echo "This matters: a variable is not masked in logs, and a service_role"
+            echo "key stored there is effectively published."
+          else
+            echo "Settings -> Secrets and variables -> Actions -> 'Secrets' tab"
+            echo "  -> New repository secret."
+            echo "Names must match exactly, including case:"
+            echo "  SUPABASE_SERVICE_KEY   (Supabase -> Settings -> API -> service_role)"
+            echo "  GMAIL_APP_PASSWORD     (Google Account -> Security -> App passwords)"
+            echo ""
+            echo "If you added them under an Environment rather than the repository,"
+            echo "they will not resolve here either — this job declares no environment."
           fi
 
       - name: Send any new enquiries
