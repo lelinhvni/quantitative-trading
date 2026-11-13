@@ -38,6 +38,7 @@ Environment
 
 import json
 import os
+import re
 import smtplib
 import sys
 import urllib.error
@@ -142,7 +143,14 @@ def main():
     base = env("SUPABASE_URL", required=True).rstrip("/")
     service_key = env("SUPABASE_SERVICE_KEY", required=True)
     gmail_user = env("GMAIL_USER", required=True)
-    gmail_pass = env("GMAIL_APP_PASSWORD", required=True)
+    # Google shows an app password as "abcd efgh ijkl mnop" for readability,
+    # but the password itself is the 16 characters with no spaces. Pasting
+    # what is on screen is the usual reason login fails, so strip every
+    # space rather than only the ends.
+    gmail_pass = re.sub(r"\s+", "", env("GMAIL_APP_PASSWORD", required=True))
+    if len(gmail_pass) != 16:
+        print(f"note: the app password is {len(gmail_pass)} characters after removing spaces; "
+              f"a Google app password is 16. Check it was copied whole.")
     recipients = [a.strip() for a in env("ALERT_TO", gmail_user).split(",") if a.strip()]
 
     since = read_watermark(base, service_key)
@@ -156,8 +164,32 @@ def main():
     print(f"{len(leads)} new enquir{'y' if len(leads) == 1 else 'ies'}")
 
     sent, newest = 0, since
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=TIMEOUT) as smtp:
-        smtp.login(gmail_user, gmail_pass)
+    try:
+        smtp_conn = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=TIMEOUT)
+    except Exception as e:
+        sys.exit(f"error: could not reach smtp.gmail.com ({e}).")
+
+    with smtp_conn as smtp:
+        try:
+            smtp.login(gmail_user, gmail_pass)
+        except (smtplib.SMTPAuthenticationError, smtplib.SMTPServerDisconnected,
+                smtplib.SMTPNotSupportedError) as e:
+            sys.exit(
+                f"error: Gmail refused the login for {gmail_user} ({type(e).__name__}: {e}).\n"
+                "Check, in order:\n"
+                "  1. GMAIL_APP_PASSWORD is an App password, not the account password.\n"
+                "     Google Account -> Security -> 2-Step Verification -> App passwords.\n"
+                "     Spaces are stripped automatically; it must be 16 characters.\n"
+                "  2. 2-Step Verification is ON for this account. Without it Google does\n"
+                "     not offer app passwords at all.\n"
+                "  3. The app password belongs to " + gmail_user + " and not another\n"
+                "     Google account you were signed into when you created it.\n"
+                "  4. info@bpsquant.com is a real mailbox, not an alias or a group.\n"
+                "     You cannot authenticate as an alias.\n"
+                "  5. Your Workspace admin has not blocked SMTP AUTH:\n"
+                "     admin.google.com -> Security -> Access and data control ->\n"
+                "     Less secure apps / SMTP. Workspace can disable this org-wide."
+            )
         for lead in leads:
             try:
                 smtp.send_message(build_message(lead, gmail_user, recipients))
