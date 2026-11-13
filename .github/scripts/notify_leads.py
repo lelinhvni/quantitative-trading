@@ -164,32 +164,55 @@ def main():
     print(f"{len(leads)} new enquir{'y' if len(leads) == 1 else 'ies'}")
 
     sent, newest = 0, since
-    try:
-        smtp_conn = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=TIMEOUT)
-    except Exception as e:
-        sys.exit(f"error: could not reach smtp.gmail.com ({e}).")
+
+    # Try implicit TLS on 465 first, then STARTTLS on 587. Google drops the
+    # connection mid-AUTH on one port more often than the other from
+    # datacentre ranges like GitHub's, and a dropped connection is not the
+    # same as a rejected password — 587 sometimes succeeds where 465 does not.
+    smtp_conn, last_err, used = None, None, None
+    for port, mode in ((465, "SSL"), (587, "STARTTLS")):
+        try:
+            if mode == "SSL":
+                c = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=TIMEOUT)
+            else:
+                c = smtplib.SMTP("smtp.gmail.com", port, timeout=TIMEOUT)
+                c.ehlo(); c.starttls(); c.ehlo()
+            c.login(gmail_user, gmail_pass)
+            smtp_conn, used = c, f"{port} ({mode})"
+            break
+        except Exception as e:
+            last_err = f"{port} ({mode}): {type(e).__name__}: {e}"
+            print(f"  {last_err}")
+            try: c.close()
+            except Exception: pass
+
+    if smtp_conn is None:
+        sys.exit(
+            f"error: Gmail refused the login for {gmail_user}.\n"
+            "Check, in order:\n"
+            "  1. GMAIL_APP_PASSWORD is an App password, not the account password.\n"
+            "     Google Account -> Security -> 2-Step Verification -> App passwords.\n"
+            "     Spaces are stripped automatically; it must be 16 characters.\n"
+            "  2. 2-Step Verification is ON for this account. Without it Google does\n"
+            "     not offer app passwords at all.\n"
+            "  3. The app password belongs to " + gmail_user + " and not another\n"
+            "     Google account you were signed into when you created it.\n"
+            "  4. " + gmail_user + " is a real mailbox, not an alias or a group.\n"
+            "     You cannot authenticate as an alias.\n"
+            "  5. Your Workspace admin has not blocked SMTP AUTH:\n"
+            "     admin.google.com -> Security -> Access and data control ->\n"
+            "     Less secure apps / SMTP. Workspace can disable this org-wide.\n"
+            "\n"
+            "Both ports were refused. A connection dropped during AUTH, rather than\n"
+            "a password rejection, often means Google is refusing SMTP from this\n"
+            "network rather than objecting to the credential. If everything above\n"
+            "checks out, that is the likely cause and no change here will fix it —\n"
+            "use the Resend route instead, which sends over HTTPS.\n"
+            f"Last error: {last_err}"
+        )
 
     with smtp_conn as smtp:
-        try:
-            smtp.login(gmail_user, gmail_pass)
-        except (smtplib.SMTPAuthenticationError, smtplib.SMTPServerDisconnected,
-                smtplib.SMTPNotSupportedError) as e:
-            sys.exit(
-                f"error: Gmail refused the login for {gmail_user} ({type(e).__name__}: {e}).\n"
-                "Check, in order:\n"
-                "  1. GMAIL_APP_PASSWORD is an App password, not the account password.\n"
-                "     Google Account -> Security -> 2-Step Verification -> App passwords.\n"
-                "     Spaces are stripped automatically; it must be 16 characters.\n"
-                "  2. 2-Step Verification is ON for this account. Without it Google does\n"
-                "     not offer app passwords at all.\n"
-                "  3. The app password belongs to " + gmail_user + " and not another\n"
-                "     Google account you were signed into when you created it.\n"
-                "  4. info@bpsquant.com is a real mailbox, not an alias or a group.\n"
-                "     You cannot authenticate as an alias.\n"
-                "  5. Your Workspace admin has not blocked SMTP AUTH:\n"
-                "     admin.google.com -> Security -> Access and data control ->\n"
-                "     Less secure apps / SMTP. Workspace can disable this org-wide."
-            )
+        print(f"connected on port {used}")
         for lead in leads:
             try:
                 smtp.send_message(build_message(lead, gmail_user, recipients))
