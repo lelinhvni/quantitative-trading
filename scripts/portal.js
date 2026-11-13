@@ -892,6 +892,29 @@
         <b>${F.fmtMoney(aum,0)}</b> today — ${pnl>=0?"a gain of":"down"} <b>${F.fmtMoney(Math.abs(pnl),0)}</b>${netInv>0?`, or ${(Math.abs(pnl)/netInv*100).toFixed(1)}% on what they put in`:""}.
         ${latestNav ? `Unit price ${F.fmtNum(navPU,4)}, last set ${latestNav.date}.` : `No unit price published yet — set one below before recording any deposit.`}
       </div>
+
+      <div class="panel reveal">
+        <div class="panel__head">
+          <h2>Where the fund's money came from</h2>
+          <span class="panel__sub">Every line adds up to the one below it</span>
+        </div>
+        <table class="flow">
+          <tbody>
+            <tr><td><span class="flow__l">Deposits in</span></td>
+                <td class="mono flow__v pos">+${F.fmtMoney(dep,2)}</td></tr>
+            ${wd ? `<tr><td><span class="flow__l">Withdrawals out</span></td>
+                <td class="mono flow__v neg">−${F.fmtMoney(wd,2)}</td></tr>` : ""}
+            <tr class="flow__total"><td><span class="flow__l">Investors' money in the fund</span></td>
+                <td class="mono flow__v">${F.fmtMoney(netInv,2)}</td></tr>
+            <tr><td><span class="flow__l">Trading gains and losses</span>
+                    <span class="flow__s">what the book has made on it</span></td>
+                <td class="mono flow__v ${pnl>=0?"pos":"neg"}">${pnl>=0?"+":"−"}${F.fmtMoney(Math.abs(pnl),2)}</td></tr>
+            <tr class="flow__total"><td><span class="flow__l">Fund value today</span>
+                    <span class="flow__s">${F.fmtNum(totalUnits,4)} units at ${navPU!=null?F.fmtNum(navPU,4):"—"}</span></td>
+                <td class="mono flow__v">${F.fmtMoney(aum,2)}</td></tr>
+          </tbody>
+        </table>
+      </div>
       ${mgrNavPanel(navPU != null ? navPU : "", navHistory)}
       ${navHistory.length > 1 ? `
       <div class="panel reveal">
@@ -1113,7 +1136,11 @@
     ]);
     const navPU = latestNav ? +latestNav.nav_per_unit : null;
     const aum = navPU != null ? investors.reduce((a,i) => a + +i.units, 0) * navPU : 0;
-    const deployed = positions.reduce((a,pos) => a + +pos.qty * +pos.avg_cost, 0);
+    // Gross cost of the book. Contract size matters — an option leg is 100
+    // shares — and a short leg ties capital up just as a long one does, so
+    // it is counted on its absolute size rather than subtracted.
+    const deployed = positions.reduce(
+      (a, pos) => a + Math.abs(+pos.qty) * +pos.avg_cost * (+pos.multiplier || 1), 0);
     const reserved = pending.reduce((a,w) => a + +w.amount, 0);
     const cash = Math.max(0, aum - deployed);
     const deployable = Math.max(0, cash - reserved);
@@ -1122,8 +1149,8 @@
 
     el.innerHTML = `
       <div class="metricrow reveal">
-        <div class="metric"><div class="metric__v">${F.fmtMoney(cash,0)}</div><div class="metric__l">Cash (est.)</div></div>
-        <div class="metric"><div class="metric__v">${F.fmtMoney(deployed,0)}</div><div class="metric__l">Deployed (positions)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(cash,0)}</div><div class="metric__l">Cash (estimate)</div></div>
+        <div class="metric"><div class="metric__v">${F.fmtMoney(deployed,0)}</div><div class="metric__l">In positions (cost)</div></div>
         <div class="metric"><div class="metric__v">${F.fmtMoney(reserved,0)}</div><div class="metric__l">Reserved (withdrawals)</div></div>
         <div class="metric"><div class="metric__v pos">${F.fmtMoney(deployable,0)}</div><div class="metric__l">Deployable</div></div>
       </div>
@@ -1151,7 +1178,7 @@
             <td class="mono ${tot.net>=0?"pos":"neg"}"><b>${tot.net>=0?"+":""}${F.fmtMoney(tot.net,0)}</b></td>
           </tr></tfoot>
         </table></div>` : `<p class="portal__note">The statement appears once there is NAV history for this year.</p>`}
-        <p class="portal__note" style="margin-top:10px">Trading P&amp;L is derived from NAV changes × units outstanding. Management fee is an accrued memo — NAV is reported gross of fees. "Deployed" uses position cost basis; cash figures are estimates until brokerage cash is tracked directly.</p>
+        <p class="portal__note" style="margin-top:10px">Trading P&amp;L is derived from NAV changes × units outstanding, and the monthly rows sum to the fund's total P&amp;L. Management fee is an accrued memo — NAV is reported gross of fees. <b>"In positions" is the gross cost of the book</b> (quantity × average cost × contract size, shorts counted on their absolute size). It is cost, not margin, so for short options the capital actually tied up is higher. Cash and deployable follow from it and are estimates until brokerage cash is read directly.</p>
       </div>`;
 
     const btn = document.getElementById("liveCsvExportBtn");
@@ -3169,12 +3196,17 @@
     return `
       <div class="panel reveal">
         <div class="panel__head"><h2>Open positions</h2></div>
-        ${positions.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Updated</th></tr></thead><tbody>${positions.map(p=>`<tr><td><b>${p.symbol}</b></td><td class="mono">${F.fmtNum(p.qty,2)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td><td class="mono">${new Date(p.updated_at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
+        ${positions.length ? `<div class="table-wrap"><table class="ttable"><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>×</th><th>Cost</th><th>Updated</th></tr></thead><tbody>${positions.map(p=>`<tr><td><b>${p.symbol}</b></td><td class="mono">${F.fmtNum(p.qty,2)}</td><td class="mono">${F.fmtNum(p.avg_cost,2)}</td><td class="mono muted">${F.fmtNum(+p.multiplier||1,0)}</td><td class="mono">${F.fmtMoney(Math.abs(+p.qty)*+p.avg_cost*(+p.multiplier||1),0)}</td><td class="mono">${new Date(p.updated_at).toLocaleDateString()}</td></tr>`).join("")}</tbody></table></div>` : `<p class="portal__note">No open positions.</p>`}
         <details class="mgr-details"><summary>Update / add position</summary>
           <form class="mgr-form mgr-form--sm" id="posForm">
             <div class="field"><label>Symbol</label><select name="symbol">${(CFG.tickers||[]).map(t=>`<option>${t.symbol}</option>`).join("")}</select></div>
             <div class="field"><label>Qty</label><input type="number" name="qty" step="0.0001" required /></div>
             <div class="field"><label>Avg cost</label><input type="number" name="avgCost" step="0.0001" required /></div>
+            <div class="field"><label>Contract size</label>
+              <select name="multiplier">
+                <option value="100">100 — option contract</option>
+                <option value="1" selected>1 — shares / ETF</option>
+              </select></div>
             <button type="submit" class="btn btn--ghost btn--sm">Save</button>
             <p class="cta__note" id="posNote" role="status" aria-live="polite"></p>
           </form>
@@ -3221,7 +3253,7 @@
       const note = document.getElementById("posNote");
       try {
         const t = posForm.elements;
-        await DB.upsertPosition({symbol:t.symbol.value, qty:parseFloat(t.qty.value), avgCost:parseFloat(t.avgCost.value)});
+        await DB.upsertPosition({symbol:t.symbol.value, qty:parseFloat(t.qty.value), avgCost:parseFloat(t.avgCost.value), multiplier:parseFloat((t.multiplier&&t.multiplier.value)||1)});
         note.textContent = "✓ Position updated."; note.classList.remove("is-error");
       } catch(err) { note.textContent = "Error: "+err.message; note.classList.add("is-error"); }
     });

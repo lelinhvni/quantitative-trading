@@ -280,10 +280,14 @@
       if (error) throw error;
     },
 
-    async upsertPosition({ symbol, qty, avgCost }) {
+    async upsertPosition({ symbol, qty, avgCost, multiplier }) {
+      const row = { symbol, qty, avg_cost: avgCost, updated_at: new Date().toISOString() };
+      // Only send the column when it exists, so this still works on a
+      // database where the 2026-11-13 migration has not been run.
+      if (multiplier != null && isFinite(multiplier)) row.multiplier = multiplier;
       const { data, error } = await this._client
         .from("positions")
-        .upsert({ symbol, qty, avg_cost: avgCost, updated_at: new Date().toISOString() }, { onConflict: "symbol" })
+        .upsert(row, { onConflict: "symbol" })
         .select().single();
       if (error) throw error;
       return data;

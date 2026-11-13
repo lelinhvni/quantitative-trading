@@ -1,6 +1,6 @@
 # BPSQuant — project status
 
-Last updated: 8 November 2026. Live at **www.bpsquant.com**, served from `main`
+Last updated: 13 November 2026. Live at **www.bpsquant.com**, served from `main`
 via GitHub Pages. The working branch is `claude/website-perfection-c9jctk`;
 publishing is a fast-forward of `main` to it.
 
@@ -18,6 +18,16 @@ finishes it.
 |---|---|---|
 | 1 | `supabase/migrations/2026-11-07-distributions.sql` | The investor portal's Monthly income section, and the admin **Income** tab. Until then the Income tab tells you it is missing. |
 | 2 | `supabase/migrations/2026-11-08-trade-pnl.sql` | Per-trade profit and the **Realised P&L** panel. Additive and safe on a live table. |
+| 3 | `supabase/migrations/2026-11-13-position-multiplier.sql` | Correct "In positions" on Cash Flow. Without it an options book reports its cost 100x too small, and Cash and Deployable are wrong with it. |
+
+### Click one link
+
+FormSubmit recovered on 13 November and an **Activate Form** email is waiting in
+info@bpsquant.com. One click and contact-form emails start arriving. Until then
+enquiries are saved to the Inbox tab but nothing is emailed.
+
+After activating, FormSubmit issues a random alias; put it in `scripts/config.js`
+in place of the plain address so the inbox is not in the page source.
 
 ### Add two GitHub secrets
 
@@ -28,7 +38,9 @@ finishes it.
 | `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → **service_role** |
 | `GMAIL_APP_PASSWORD` | Google Account → Security → **App passwords** (needs 2-step verification) |
 
-Turns on enquiry emails from info@bpsquant.com, every 15 minutes.
+Turns on enquiry emails from info@bpsquant.com. The workflow asks for every 15
+minutes, but GitHub throttles scheduled runs on quiet repositories — in practice
+it fires every 4–6 hours.
 
 ### Decide three numbers
 
