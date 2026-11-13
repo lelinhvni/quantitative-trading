@@ -18,7 +18,8 @@ finishes it.
 |---|---|---|
 | 1 | `supabase/migrations/2026-11-07-distributions.sql` | The investor portal's Monthly income section, and the admin **Income** tab. Until then the Income tab tells you it is missing. |
 | 2 | `supabase/migrations/2026-11-08-trade-pnl.sql` | Per-trade profit and the **Realised P&L** panel. Additive and safe on a live table. |
-| 3 | `supabase/migrations/2026-11-13-position-multiplier.sql` | Correct "In positions" on Cash Flow. Without it an options book reports its cost 100x too small, and Cash and Deployable are wrong with it. |
+| 3 | `supabase/migrations/2026-11-13-app-settings.sql` | The notifier's high-water mark and the ops console's alert-email panel. **Without it the Gmail route resends the same enquiries every run.** |
+| 4 | `supabase/migrations/2026-11-13-position-multiplier.sql` | Correct "In positions" on Cash Flow. Without it an options book reports its cost 100x too small, and Cash and Deployable are wrong with it. |
 
 ### Click one link
 
