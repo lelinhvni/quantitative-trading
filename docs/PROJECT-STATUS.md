@@ -39,9 +39,12 @@ in place of the plain address so the inbox is not in the page source.
 | `SUPABASE_SERVICE_KEY` | Supabase → Settings → API → **service_role** |
 | `GMAIL_APP_PASSWORD` | Google Account → Security → **App passwords** (needs 2-step verification) |
 
-Turns on enquiry emails from info@bpsquant.com. The workflow asks for every 15
-minutes, but GitHub throttles scheduled runs on quiet repositories — in practice
-it fires every 4–6 hours.
+**Status 13 Nov: the secrets now resolve, but Gmail refuses the login.** Both
+465 and 587 drop the connection during AUTH rather than rejecting the password,
+which points at Google refusing SMTP from GitHub's runner range, not at the
+credential. The schedule is disabled so the failures stop emailing you; the
+workflow still runs on demand from the Actions tab. Enquiries reach
+info@bpsquant.com through FormSubmit meanwhile.
 
 ### Decide three numbers
 

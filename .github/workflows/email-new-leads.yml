@@ -10,9 +10,18 @@
 # shown in the portal's Inbox tab. This only adds the notification.
 name: Email new enquiries
 
+# The schedule is OFF. Gmail refuses SMTP AUTH from GitHub's runners on
+# both 465 and 587 — the connection is dropped mid-AUTH rather than the
+# password being rejected — so every scheduled run failed, and a failing
+# scheduled workflow emails the owner each time. Enquiries are reaching
+# info@bpsquant.com through FormSubmit meanwhile, so nothing is lost.
+#
+# Re-enable the schedule only once a run started from the Actions tab
+# actually sends. If Gmail stays refused, switch this to the Resend route,
+# which goes over HTTPS and is not subject to SMTP blocking.
 on:
-  schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes
+  # schedule:
+  #   - cron: "*/15 * * * *"
   workflow_dispatch: {}       # run on demand from the Actions tab
 
 # One run at a time, so a slow run cannot overlap the next and send twice.
