@@ -26,6 +26,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # TEMPORARY DIAGNOSTIC — remove once the secrets resolve.
+      # Prints only the NAMES GitHub has for this repository. Values are
+      # never printed; the keys alone settle whether a secret exists here
+      # at all, is under a different name, or is somewhere else entirely.
+      - name: Which secret names does this repository have
+        env:
+          ALL_SECRET_NAMES: ${{ toJSON(secrets) }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          d = json.loads(os.environ["ALL_SECRET_NAMES"])
+          names = sorted(k for k in d if k != "github_token")
+          print("Secret names this workflow can see:", len(names))
+          for n in names:
+              print("  -", n)
+          if not names:
+              print("  (none — nothing is set on this repository for Actions)")
+          EOF
+
       - name: Check the secrets are set
         id: gate
         env:
