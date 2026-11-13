@@ -25,6 +25,15 @@
     /* language switch */
     "lang.switch": "Tiếng Việt",
     "lang.label": "Language",
+    "nav.home": "Home",
+    "nav.quant": "Quant Finance",
+    "nav.markets": "Markets",
+    "nav.news": "News",
+    "nav.discussion": "Discussion",
+    "nav.portal": "Investor portal",
+    "nav.menu": "Toggle menu",
+    "foot.rights": "© {year} {brand}. For informational purposes only — not investment advice.",
+    "foot.disclaimer": "Performance figures may be simulated or illustrative. Investing involves risk of loss.",
 
     /* hero */
     "hero.worth": "Your account is worth",
@@ -194,6 +203,15 @@
   const VI = {
     "lang.switch": "English",
     "lang.label": "Ngôn ngữ",
+    "nav.home": "Trang chủ",
+    "nav.quant": "Tài chính định lượng",
+    "nav.markets": "Thị trường",
+    "nav.news": "Tin tức",
+    "nav.discussion": "Thảo luận",
+    "nav.portal": "Cổng nhà đầu tư",
+    "nav.menu": "Mở menu",
+    "foot.rights": "© {year} {brand}. Chỉ nhằm mục đích thông tin — không phải tư vấn đầu tư.",
+    "foot.disclaimer": "Các số liệu hiệu quả có thể là mô phỏng hoặc minh họa. Đầu tư có rủi ro mất vốn.",
 
     "hero.worth": "Tài khoản của bạn trị giá",
     "hero.earnedSince": "đã kiếm được từ khi bạn tham gia",

@@ -8,9 +8,18 @@
   const F   = window.JSS;
   const DB  = window.JSSDB;
   const CFG = window.JSS_CONFIG;
-  /* Investor-facing copy only; the manager view stays in English. */
-  const I   = window.JSSI18N || { t: (k) => k, lang: "en", other: () => "en", set() {}, onChange() {} };
-  const t   = (k, v) => I.t(k, v);
+  /* Resolved on every call, not captured once: if this file happens to load
+     before i18n.js, capturing would freeze a stub and every label would
+     render as its key. Without i18n present at all, English still renders. */
+  const NO_I18N = { t: (k) => k, lang: "en", other: () => "en", set() {}, onChange() {} };
+  const I = new Proxy({}, {
+    get(_, prop) {
+      const live = window.JSSI18N || NO_I18N;
+      const v = live[prop];
+      return typeof v === "function" ? v.bind(live) : v;
+    },
+  });
+  const t = (k, v) => I.t(k, v);
 
   let liveMode   = false;
   let _activeTab = "overview";
@@ -203,18 +212,6 @@
     if (btn) btn.textContent = I.t("lang.switch");
   }
 
-  function mountLoginLangToggle() {
-    const card = document.querySelector(".login-card");
-    if (!card || document.getElementById("loginLangBtn")) return;
-    const b = document.createElement("button");
-    b.id = "loginLangBtn"; b.type = "button";
-    b.className = "link-btn lang-toggle";
-    b.style.cssText = "display:block;margin:14px auto 0;";
-    b.onclick = () => { I.set(I.other()); applyLoginLang(); };
-    card.appendChild(b);
-    applyLoginLang();
-  }
-
   async function initLive() {
     document.getElementById("loginView").hidden = false;
     document.getElementById("appView").hidden   = true;
@@ -232,7 +229,14 @@
       if (session) await showLiveApp(); else showLogin();
     } catch { showLogin(); }
     bindLiveLogin(); bindLogout(); bindForgot();
-    mountLoginLangToggle();
+    applyLoginLang();
+    // The toggle lives in the site nav, so react to it from here.
+    I.onChange(async () => {
+      applyLoginLang();
+      const app = document.getElementById("appView");
+      if (app && !app.hidden) { try { await showLiveApp(); } catch (_) {} }
+    });
+
   }
 
   function bindForgot() {
@@ -281,33 +285,10 @@
         isInvestor ? t("login.investorAcct") : "Fund manager";
       const out = document.getElementById("logoutBtn");
       if (out) out.textContent = isInvestor ? t("login.signOut") : "Sign out";
-      mountLangToggle(isInvestor);
+
       if (profile.role === "manager") await renderManager();
       else await renderInvestor(profile);
     } catch (err) { showError("Could not load your account: " + err.message); }
-  }
-
-  /* One button, investor view only. Re-renders in place rather than
-     reloading, so nothing is refetched and the scroll position holds. */
-  function mountLangToggle(show) {
-    const host = document.querySelector(".portal-head") || document.getElementById("appView");
-    let btn = document.getElementById("langToggle");
-    if (!show) { if (btn) btn.remove(); return; }
-    if (!btn) {
-      btn = document.createElement("button");
-      btn.id = "langToggle";
-      btn.type = "button";
-      btn.className = "btn btn--ghost btn--sm lang-toggle";
-      const logout = document.getElementById("logoutBtn");
-      if (logout && logout.parentNode) logout.parentNode.insertBefore(btn, logout);
-      else if (host) host.appendChild(btn);
-    }
-    btn.textContent = I.t("lang.switch");
-    btn.setAttribute("aria-label", I.t("lang.label"));
-    btn.onclick = async () => {
-      I.set(I.other());
-      try { await showLiveApp(); } catch (_) { /* a failed re-render leaves the page as it was */ }
-    };
   }
 
   function bindLogout() {
