@@ -207,27 +207,48 @@
        batch so a mistaken import can be found and undone in one go. */
     async addTradesBulk(rows, importId) {
       if (!rows || !rows.length) return 0;
-      const payload = rows.map(r => ({
-        symbol: r.symbol || "—",
-        side: r.side || "BUY",
-        qty: r.qty != null ? r.qty : 0,
-        price: r.price != null ? r.price : 0,
-        pnl: r.pnlFinal != null ? r.pnlFinal : null,
-        fees: Math.abs(r.fees || 0),
-        multiplier: r.multiplier || 1,
-        group_label: r.strategy || null,
-        strategy: r.strategy || null,
-        status: "filled",
-        source: "import",
-        import_id: importId,
-        executed_at: r.date ? new Date(r.date + "T12:00:00Z").toISOString() : new Date().toISOString(),
-      }));
-      // Chunked: PostgREST rejects very large single payloads.
+      const PLACEHOLDER_NOTE =
+        "Imported with no buy/sell, quantity or price in the source. Those fields are placeholders (BUY, 0, 0); the P&L is as given.";
+      const payload = rows.map(r => {
+        // The trades table requires side, qty and price. When the source had
+        // none (a file that only carries P&L) the row still has to be stored,
+        // but it must not pass for a real BUY of 0 at $0 — so it says so.
+        const placeholder = !r.side || r.qty == null || r.price == null;
+        return {
+          symbol: r.symbol || "—",
+          side: r.side || "BUY",
+          qty: r.qty != null ? r.qty : 0,
+          price: r.price != null ? r.price : 0,
+          pnl: r.pnlFinal != null ? r.pnlFinal : null,
+          fees: Math.abs(r.fees || 0),
+          multiplier: r.multiplier || 1,
+          group_label: r.strategy || null,
+          strategy: r.strategy || null,
+          note: placeholder ? PLACEHOLDER_NOTE : null,
+          status: "filled",
+          source: "import",
+          import_id: importId,
+          executed_at: r.date ? new Date(r.date + "T12:00:00Z").toISOString() : new Date().toISOString(),
+        };
+      });
+      // Chunked, because PostgREST rejects very large single payloads — which
+      // also means a failure part-way leaves earlier chunks behind. So on any
+      // error, take back what this import already wrote and say plainly that
+      // nothing was saved, instead of leaving orphaned rows with no undo.
       let n = 0;
-      for (let i = 0; i < payload.length; i += 200) {
-        const { error } = await this._client.from("trades").insert(payload.slice(i, i + 200));
-        if (error) throw error;
-        n += payload.slice(i, i + 200).length;
+      try {
+        for (let i = 0; i < payload.length; i += 200) {
+          const chunk = payload.slice(i, i + 200);
+          const { error } = await this._client.from("trades").insert(chunk);
+          if (error) throw error;
+          n += chunk.length;
+        }
+      } catch (err) {
+        let undone = true;
+        try { await this.undoImport(importId); } catch (_) { undone = false; }
+        throw new Error(undone
+          ? `${err.message}. Nothing was saved — the ${n} rows written before the failure were removed.`
+          : `${err.message}. ${n} rows were saved before the failure and could not be removed automatically — use "Undo this import".`);
       }
       return n;
     },

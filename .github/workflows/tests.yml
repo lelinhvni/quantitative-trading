@@ -1,0 +1,18 @@
+# Runs the test suite on every push and pull request.
+# No dependencies to install: the tests use Node's built-in runner, and the
+# runner image already ships Node.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the suite
+        run: |
+          node --version
+          npm test

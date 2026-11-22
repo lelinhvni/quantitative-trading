@@ -102,39 +102,72 @@
     return map;
   }
 
-  /* "$1,234.56" -> 1234.56 ; "(89.10)" -> -89.10 ; "" -> null */
-  function num(v) {
+  /* "$1,234.56" -> 1234.56 ; "(89.10)" -> -89.10 ; "" -> null
+     Decimal commas ("1.234,56", "1,5") are read as such. A comma followed by
+     exactly three digits is ambiguous ("1,234"); it is treated as a US
+     thousands separator unless the caller says the file is European. */
+  function num(v, european) {
     if (v == null) return null;
     let s = String(v).trim();
     if (!s) return null;
     let neg = false;
     if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1); }
-    s = s.replace(/[$€£₫\s]/g, "").replace(/,/g, "");
+    s = s.replace(/[$€£₫\s]/g, "");
     if (s.startsWith("-")) { neg = true; s = s.slice(1); }
     if (s.startsWith("+")) s = s.slice(1);
+    const decimalComma = /,\d{1,2}$/.test(s) || (european && /,\d+$/.test(s));
+    s = decimalComma ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
     if (!/^\d*\.?\d+$/.test(s)) return null;
     const n = parseFloat(s);
     if (!isFinite(n)) return null;
     return neg ? -n : n;
   }
 
-  /* Accepts 2026-01-06, 01/06/2026, 6 Jan 2026, with or without a time. */
+  const MONTHS = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+
+  /* A real calendar date, or null. Built from its parts and never passed
+     through Date/toISOString: that converts local midnight to UTC, which
+     lands a day early anywhere east of Greenwich (Vietnam is UTC+7). */
+  function ymd(y, m, d) {
+    y = +y; m = +m; d = +d;
+    if (!(y >= 1900 && y <= 2200 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+    const dim = [31, (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (d > dim[m - 1]) return null;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+
+  /* 2026-01-06, 01/06/2026 (month first, as US brokers write it; a first
+     number above 12 can only be a day, so 13/01/2026 is read day-first),
+     6 Jan 2026, January 6, 2026 — with or without a time. */
   function dateOf(v) {
     const s = String(v || "").trim();
     if (!s) return null;
-    let m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-    m = s.match(/(\d{1,2})[/](\d{1,2})[/](\d{4})/);          // US month first
-    if (m) return `${m[3]}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
-    const d = new Date(s);
-    return isNaN(d) ? null : d.toISOString().slice(0, 10);
+    let m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return ymd(m[1], m[2], m[3]);
+    m = s.match(/(\d{1,2})[/.](\d{1,2})[/.](\d{4})/);
+    if (m) {
+      const a = +m[1], b = +m[2];
+      return a > 12 ? ymd(m[3], b, a) : ymd(m[3], a, b);
+    }
+    m = s.match(/(\d{1,2})\s+([A-Za-z]{3,})\.?,?\s+(\d{4})/);          // 6 Jan 2026
+    if (m) { const i = MONTHS.indexOf(m[2].slice(0, 3).toLowerCase()); return i >= 0 ? ymd(m[3], i + 1, m[1]) : null; }
+    m = s.match(/([A-Za-z]{3,})\.?\s+(\d{1,2}),?\s+(\d{4})/);          // January 6, 2026
+    if (m) { const i = MONTHS.indexOf(m[1].slice(0, 3).toLowerCase()); return i >= 0 ? ymd(m[3], i + 1, m[2]) : null; }
+    return null;
   }
 
+  const SELL_WORDS = new Set(["s","sell","sold","stc","sto","short","credit"]);
+  const BUY_WORDS  = new Set(["b","buy","bought","btc","bto","long","debit"]);
+
+  /* Whole words only. "Stock Buy" contains "sto", and a substring match read
+     it as a sale, inverting the cash flow. If a value has words from both
+     sides ("Buy or Sell") it is ambiguous, so say nothing rather than guess. */
   function sideOf(v) {
-    const s = norm(v);
-    if (!s) return null;
-    if (/\bsell|^s$|sold|sell to|stc|sto|short|credit\b/.test(s)) return "SELL";
-    if (/\bbuy|^b$|bought|buy to|btc|bto|long|debit\b/.test(s)) return "BUY";
+    const words = norm(v).split(/[^a-z]+/).filter(Boolean);
+    const sell = words.some(w => SELL_WORDS.has(w));
+    const buy  = words.some(w => BUY_WORDS.has(w));
+    if (sell && !buy) return "SELL";
+    if (buy && !sell) return "BUY";
     return null;
   }
 
@@ -155,7 +188,10 @@
                   headers: [], mapping: {}, rows: [], skipped: 0, summary: null };
 
     let raw = String(text || "").replace(/^﻿/, "").replace(/\r\n?/g, "\n");
-    const lines = raw.split("\n").map(l => l.trim()).filter(Boolean);
+    // Only drop lines that are blank. Do NOT trim the rest: for a
+    // tab-separated paste a leading or trailing tab is an empty cell, and
+    // trimming it shifts every column one place to the left.
+    const lines = raw.split("\n").filter(l => l.trim() !== "");
     if (lines.length < 2) {
       res.error = "Paste at least a header row and one trade.";
       return res;
@@ -175,14 +211,15 @@
       return res;
     }
 
+    const euro = delim === ";";                       // semicolon files are usually decimal-comma
     const at = (cells, i) => (i >= 0 && i < cells.length ? cells[i] : "");
     for (let i = 1; i < lines.length; i += 1) {
       const c = splitLine(lines[i], delim);
       if (c.every(x => !x)) continue;
       const symbol = at(c, map.symbol).toUpperCase();
-      const pnl = num(at(c, map.pnl));
-      const qty = num(at(c, map.qty));
-      const price = num(at(c, map.price));
+      const pnl = num(at(c, map.pnl), euro);
+      const qty = num(at(c, map.qty), euro);
+      const price = num(at(c, map.price), euro);
       // A row with no symbol and no usable number is a total line or a note.
       if (!symbol && pnl == null && qty == null) { res.skipped += 1; continue; }
       res.rows.push({
@@ -193,7 +230,7 @@
         qty: qty != null ? Math.abs(qty) : null,
         price,
         pnl,
-        fees: num(at(c, map.fees)) || 0,
+        fees: num(at(c, map.fees), euro) || 0,
         strategy: at(c, map.strategy) || "",
       });
     }

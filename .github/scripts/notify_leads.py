@@ -114,8 +114,11 @@ def fetch_leads(base, key, since):
 
 
 def build_message(lead, sender, recipients):
-    name = (lead.get("name") or "(no name)").strip()
-    addr = (lead.get("email") or "").strip()
+    # A name goes straight into the Subject header, and a newline in a header
+    # is both a send failure and a header-injection vector. Anyone can post a
+    # lead, so collapse all whitespace — newlines and tabs included.
+    name = re.sub(r"\s+", " ", (lead.get("name") or "(no name)")).strip() or "(no name)"
+    addr = re.sub(r"\s+", "", (lead.get("email") or ""))
     body = (lead.get("message") or "(no message)").strip()
     when = lead.get("created_at") or ""
 
@@ -215,7 +218,15 @@ def main():
         print(f"connected on port {used}")
         for lead in leads:
             try:
-                smtp.send_message(build_message(lead, gmail_user, recipients))
+                msg = build_message(lead, gmail_user, recipients)
+            except Exception as e:
+                # A malformed lead can never succeed. Retrying it on every run
+                # would block every enquiry after it, so log it and move on.
+                print(f"  SKIPPED {lead.get('id')}: cannot build a valid email ({e})")
+                newest = lead.get("created_at") or newest
+                continue
+            try:
+                smtp.send_message(msg)
                 sent += 1
                 newest = lead.get("created_at") or newest
                 print(f"  sent: {lead.get('name')} <{lead.get('email')}>")
@@ -225,7 +236,9 @@ def main():
                 print(f"  FAILED on {lead.get('id')}: {e}")
                 break
 
-    if sent:
+    # Advance past skipped leads as well as sent ones, or a skipped lead is
+    # re-read and re-skipped on every run.
+    if newest != since:
         write_watermark(base, service_key, newest)
     print(f"done — {sent} of {len(leads)} emailed")
 

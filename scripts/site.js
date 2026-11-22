@@ -90,6 +90,7 @@
     if (h) h.outerHTML = header();
     if (f) f.outerHTML = footer();
     bindLang();
+    listenForLanguage();
   }
 
   /* Re-render the chrome in place. The slots are gone after the first
@@ -110,7 +111,15 @@
     });
   }
 
-  I.onChange(() => remount());
+  /* Registered on first mount, not at load: if this file ever loads before
+     i18n.js, a load-time call would go to the no-op stub and be lost, and
+     the language button would silently do nothing. */
+  let _listening = false;
+  function listenForLanguage() {
+    if (_listening || !window.JSSI18N) return;
+    window.JSSI18N.onChange(() => remount());
+    _listening = true;
+  }
 
   /* ---------- nav behavior ---------- */
   let _scrollBound = false;

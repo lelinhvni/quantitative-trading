@@ -160,7 +160,7 @@
     "wd.submit": "Submit request",
     "wd.ok": "✓ Request submitted — the manager will review it shortly.",
     "wd.requested": "Requested", "wd.status": "Status",
-    "st.pending": "pending", "st.approved": "approved", "st.denied": "denied",
+    "st.pending": "pending", "st.approved": "approved", "st.denied": "denied", "st.cancelled": "cancelled",
 
     /* messages */
     "msg.title": "Messages",
@@ -330,7 +330,7 @@
     "wd.submit": "Gửi yêu cầu",
     "wd.ok": "✓ Đã gửi yêu cầu — quản lý quỹ sẽ xem xét trong thời gian ngắn.",
     "wd.requested": "Ngày yêu cầu", "wd.status": "Trạng thái",
-    "st.pending": "đang chờ", "st.approved": "đã duyệt", "st.denied": "bị từ chối",
+    "st.pending": "đang chờ", "st.approved": "đã duyệt", "st.denied": "bị từ chối", "st.cancelled": "đã hủy",
 
     "msg.title": "Tin nhắn",
     "msg.sub": "Cuộc trò chuyện của bạn với BPSQuant",

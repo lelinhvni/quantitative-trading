@@ -1,6 +1,6 @@
 # BPSQuant — project status
 
-Last updated: 13 November 2026. Live at **www.bpsquant.com**, served from `main`
+Last updated: 22 November 2026. Live at **www.bpsquant.com**, served from `main`
 via GitHub Pages. The working branch is `claude/website-perfection-c9jctk`;
 publishing is a fast-forward of `main` to it.
 
@@ -162,6 +162,39 @@ Messages, Inbox.
   detected rather than dictated; profit is read from the file when it is
   there and otherwise computed by netting each group. Every import is tagged
   so it can be undone. `scripts/tradeimport.js`, 32 tests.
+
+## Testing and releasing
+
+`npm test` runs 47 tests with no dependencies (Node's built-in runner). They also
+run in CI on every push (`.github/workflows/tests.yml`). They cover:
+
+- the **Clause 6 waterfall**, including a 500-trial conservation check;
+- the **trade importer**, on real broker and spreadsheet shapes;
+- **site guards** for mistakes that actually reached production: one cache
+  version across every page, `i18n.js` loading before `site.js`, every
+  translation key present in both languages, and every value the database can
+  hold (e.g. withdrawal `cancelled`) having a translation;
+- **regressions** for each defect found in the independent code review.
+
+To publish: `scripts/release.sh -m "message"`. It runs the tests, bumps the
+cache version only if scripts or styles changed, commits, fast-forwards `main`,
+then waits (bounded, ~5 min) and confirms the live site serves byte-identical
+files. `--dry-run` shows what it would do. It stops rather than force-pushing.
+
+## Decision needed: reinvested income
+
+An investor set to **reinvest** is recorded as income *paid*, but nothing issues
+them extra units or adjusts the unit price. The Income tab warns before saving
+a month that includes one. The right treatment depends on how you publish NAV:
+
+- If NAV is published **after** paying distributions out (cash leaves the fund),
+  a reinvesting investor's amount should be treated as paid out and then
+  re-subscribed — new units at the post-distribution unit price.
+- If reinvested income simply stays in the fund and NAV already reflects it,
+  issuing units as well would count it twice.
+
+Pick one, ideally with your accountant, and it is a small change to implement.
+Until then, keep reinvest investors out of recorded months or handle them by hand.
 
 ## Open design questions
 

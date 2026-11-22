@@ -95,10 +95,13 @@
         const draw = r2(Math.min(Math.max(0, need), reserve0));
         paid = r2(fromProfit + draw);
         reserveDelta = -draw;
-        // A gap the investor is owed — but not when the annual cap, rather
-        // than the fund, is what stopped the payment.
-        const gap = r2(target - paid);
-        if (gap > 0 && !cappedByAnnual) shortfallDelta = gap;
+        // What the investor is owed is the part of what was PAYABLE that the
+        // fund failed to cover. When the annual cap has lowered what is
+        // payable, the cap's own reduction is not owed — but a genuine fund
+        // shortfall against the reduced amount still is. Measuring against
+        // the full target dropped it entirely.
+        const gap = r2(payTarget - paid);
+        if (gap > 0) shortfallDelta = gap;
       }
 
       const reserveAfter = r2(reserve0 + reserveDelta);

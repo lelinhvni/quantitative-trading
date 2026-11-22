@@ -1634,6 +1634,7 @@
       <div class="tb-result">
         ${already ? `<div class="tb-warn">⚠ ${period.slice(0,7)} is already recorded. Saving will overwrite those rows.</div>` : ""}
         ${out.warnings.length ? `<div class="tb-warn">⚠ ${out.warnings.map(esc).join(" · ")}</div>` : ""}
+        ${t.reinvested > 0 ? `<div class="tb-warn">⚠ ${m(t.reinvested)} is for investors set to <b>reinvest</b>. Saving records it as income <b>paid</b>, but it does not yet issue them extra units or adjust the unit price — that step is still done by hand. Do not save a reinvesting month until you have decided how it should be handled (see docs/PROJECT-STATUS.md).</div>` : ""}
 
         <div class="inc-cards">
           <div class="inc-card">
@@ -2230,7 +2231,7 @@
               <td class="mono">${w.date}</td>
               <td class="mono">${F.fmtMoney(w.amount,0)}</td>
               <td>${esc(w.note||"")}</td>
-              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "denied" ? "closed" : "pending"}">${w.status}</span></td>
+              <td><span class="status-pill status-pill--${w.status === "approved" ? "active" : w.status === "pending" ? "pending" : "closed"}">${esc(w.status)}</span></td>
             </tr>`).join("")}</tbody></table></div>` : ""}
       </div>`;
   }
@@ -3351,8 +3352,14 @@
     requestAnimationFrame(() => document.querySelectorAll(".reveal").forEach(e => e.classList.add("is-visible")));
   }
 
+  /* Safe in text AND inside a quoted attribute. Quotes matter: several
+     values reach attributes (href="mailto:${esc(email)}", data-group="..."),
+     and the contact-form email is chosen by the public. An unescaped quote
+     there is a stored XSS in the manager's signed-in Inbox. */
   function esc(s) {
-    return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    return String(s == null ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
   }
 
   function normaliseTrade(raw) {

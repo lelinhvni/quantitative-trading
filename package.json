@@ -1,0 +1,10 @@
+{
+  "name": "bpsquant-site",
+  "private": true,
+  "description": "BPSQuant static site. No build step and no dependencies: the tests use Node's built-in runner.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "release": "scripts/release.sh"
+  },
+  "engines": { "node": ">=20" }
+}
