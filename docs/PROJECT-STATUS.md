@@ -21,6 +21,12 @@ finishes it.
 | 3 | `supabase/migrations/2026-11-13-app-settings.sql` | The notifier's high-water mark and the ops console's alert-email panel. **Without it the Gmail route resends the same enquiries every run.** |
 | 4 | `supabase/migrations/2026-11-13-position-multiplier.sql` | Correct "In positions" on Cash Flow. Without it an options book reports its cost 100x too small, and Cash and Deployable are wrong with it. |
 
+### Redeploy one Edge Function
+
+`supabase/functions/market-proxy/index.ts` now allows `cdn.cboe.com`. Paste it
+into the existing `market-proxy` function and Deploy, so the Options Lab's live
+option chain comes through our proxy rather than the public fallbacks.
+
 ### Click one link
 
 FormSubmit recovered on 13 November and an **Activate Form** email is waiting in
@@ -169,13 +175,27 @@ Messages, Inbox.
 condors, straddles, covered calls and more). Exact profit/loss at expiry, a
 "selected date" curve, breakevens, chance of profit, Greeks and a price-by-date
 grid, in English and Vietnamese. Black-Scholes maths in `scripts/optionsmath.js`
-(17 tests). Prices are theoretical and the page carries a disclaimer; it makes
-no return claims. All legs share one expiry (no calendars yet). Starting prices
-are placeholders unless a live quote loads.
+(20 tests). The page carries a disclaimer and makes no return claims. All legs
+share one expiry (no calendars yet).
+
+**Live chain (24 Nov 2026).** For SPY, QQQ and DIA the page loads Cboe's free
+delayed option chain (about 15 minutes behind, no key) through the same proxy
+chain as the price history (`JSS.getOptionChain` in `scripts/data.js`, parsed
+by `JSSOptions.parseCboeChain`). With it: real expirations, strikes snapped to
+listed ones, legs priced at the bid/ask midpoint with the quoted IV, an option
+chain table (tap a bid to sell, an ask to buy), an **optimizer** (single options
+and vertical spreads ranked by return on risk at a target price) and **saved
+trades** (this browser only, kept at their entry prices). The chain refreshes
+every minute. If it cannot load, the page falls back to model prices and says so.
+
+To serve the chain through our own proxy instead of the public ones, redeploy
+`supabase/functions/market-proxy` — its allow-list now includes `cdn.cboe.com`.
+Cboe's terms for showing its delayed data on a public site are worth a read
+before promoting the page.
 
 ## Testing and releasing
 
-`npm test` runs 67 tests with no dependencies (Node's built-in runner). They also
+`npm test` runs 70 tests with no dependencies (Node's built-in runner). They also
 run in CI on every push (`.github/workflows/tests.yml`). They cover:
 
 - the **Clause 6 waterfall**, including a 500-trial conservation check;

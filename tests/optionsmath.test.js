@@ -157,3 +157,55 @@ test("net greeks of a symmetric condor are near delta-neutral, short gamma and l
   assert.ok(g.theta > 0, "theta " + g.theta);
   assert.ok(g.vega < 0, "vega " + g.vega);
 });
+
+/* ---------- live chain and optimizer ---------- */
+const NOW = Date.UTC(2026, 10, 24, 17, 0);           // 24 Nov 2026, noon New York
+function fixture() {
+  const opts = [];
+  for (const [exp, T] of [["261127", 3 / 365], ["261218", 24 / 365], ["261124", 0.0001]]) {
+    for (let k = 680; k <= 750; k += 5) {
+      for (const ty of ["C", "P"]) {
+        const type = ty === "C" ? "call" : "put", m = O.price(type, 716, k, T, 0.2, 0.04, 0);
+        opts.push({ option: `SPY${exp}${ty}${String(k * 1000).padStart(8, "0")}`, bid: Math.max(0, m - 0.05), ask: m + 0.05, iv: 0.2, delta: 0.5, open_interest: 100, volume: 10 });
+      }
+    }
+  }
+  return { timestamp: "2026-11-24 17:00:00", data: { symbol: "SPY", current_price: 716, options: opts } };
+}
+
+test("OCC option symbols parse into expiry, type and strike", () => {
+  assert.deepEqual(O.parseOcc("SPY261127C00715000"), { root: "SPY", expiry: "2026-11-27", type: "call", strike: 715 });
+  assert.deepEqual(O.parseOcc("BRK.B270115P00412500"), { root: "BRK.B", expiry: "2027-01-15", type: "put", strike: 412.5 });
+  assert.equal(O.parseOcc("nonsense"), null);
+});
+
+test("a Cboe chain parses into expiries with matched call and put strikes", () => {
+  const c = O.parseCboeChain(fixture(), NOW);
+  assert.equal(c.spot, 716);
+  assert.deepEqual(c.expiries.map((e) => e.date), ["2026-11-27", "2026-12-18"], "same-day expiry is dropped");
+  near(c.expiries[0].days, 3.1667, 1e-3);
+  const e = c.chain["2026-11-27"];
+  assert.equal(e.strikes.length, 15);
+  const q = e.call[715];
+  near(q.mid, (q.bid + q.ask) / 2, 0.006);
+  near(O.atmIv(e, 716), 0.2, 1e-12);
+  assert.equal(O.nearestStrike(e.strikes, 717.4), 715);
+  assert.equal(O.parseCboeChain({ data: { options: [] } }, NOW), null);
+  assert.equal(O.parseCboeChain(null, NOW), null);
+});
+
+test("the optimizer keeps only trades that profit at the target, best first", () => {
+  const e = O.parseCboeChain(fixture(), NOW).chain["2026-12-18"];
+  const up = O.optimize(e, 716, 735, { limit: 20 });
+  assert.ok(up.length > 0);
+  for (let i = 1; i < up.length; i += 1) assert.ok(up[i - 1].ret >= up[i].ret, "sorted by return");
+  for (const r of up) {
+    near(r.pl, O.plAtExpiry(r.legs, 735), 1e-9);
+    assert.ok(r.pl > 0 && r.maxLoss < 0);
+    near(r.ret, r.pl / -r.maxLoss, 1e-12);
+  }
+  assert.ok(up.every((r) => r.kind !== "long_put" && r.kind !== "bear_put_spread"), "a rise to the target never favours bearish debit trades");
+  const down = O.optimize(e, 716, 690, { limit: 20 });
+  assert.ok(down.some((r) => r.kind === "long_put" || r.kind === "bear_put_spread"));
+  assert.deepEqual(O.optimize(null, 716, 735), []);
+});

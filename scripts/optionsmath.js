@@ -264,9 +264,121 @@
     });
   }
 
+  /* ---------- a market option chain ----------
+     Cboe publishes a free, delayed (about 15 minutes) chain per symbol:
+       { timestamp, data: { current_price, options: [ { option: "SPY261127C00715000",
+         bid, ask, iv, delta, open_interest, volume, ... } ] } }
+     The option field is the OCC symbol: root, YYMMDD, C or P, strike x 1000. */
+  const DAY_MS = 86400000;
+
+  function parseOcc(sym) {
+    const m = /^([A-Z0-9._]+?)(\d{2})(\d{2})(\d{2})([CP])(\d{8})$/.exec(String(sym || "").replace(/\s+/g, ""));
+    if (!m) return null;
+    return { root: m[1], expiry: `20${m[2]}-${m[3]}-${m[4]}`, type: m[5] === "C" ? "call" : "put", strike: +m[6] / 1000 };
+  }
+
+  /* Calendar days from `now` to 4pm New York on the expiry date (21:00 UTC,
+     close enough in both daylight and standard time for a day count). */
+  function daysTo(expiry, now) {
+    const [y, mo, d] = expiry.split("-").map(Number);
+    return (Date.UTC(y, mo - 1, d, 21, 0) - now) / DAY_MS;
+  }
+
+  const numOr = (v) => { const n = +v; return isFinite(n) ? n : 0; };
+
+  /* Returns null when the payload holds no usable chain. Expiries less than
+     half a day away are dropped: their model values are dominated by noise. */
+  function parseCboeChain(json, now) {
+    now = now || Date.now();
+    const d = json && (json.data || json);
+    const opts = d && Array.isArray(d.options) ? d.options : null;
+    const spot = d && (numOr(d.current_price) || numOr(d.close));
+    if (!opts || !opts.length || !(spot > 0)) return null;
+    const chain = {};
+    for (const o of opts) {
+      const p = parseOcc(o.option);
+      if (!p || !(p.strike > 0)) continue;
+      const bid = Math.max(0, numOr(o.bid)), ask = Math.max(0, numOr(o.ask));
+      const e = chain[p.expiry] || (chain[p.expiry] = { call: {}, put: {} });
+      e[p.type][p.strike] = {
+        bid, ask, mid: ask > 0 ? Math.round(((bid + ask) / 2) * 100) / 100 : 0,
+        iv: numOr(o.iv), delta: numOr(o.delta), oi: numOr(o.open_interest), volume: numOr(o.volume),
+      };
+    }
+    const expiries = [];
+    for (const date of Object.keys(chain).sort()) {
+      const days = daysTo(date, now);
+      if (days < 0.5) { delete chain[date]; continue; }
+      const e = chain[date];
+      e.strikes = Object.keys(e.call).map(Number).filter((k) => k in e.put).sort((a, b) => a - b);
+      if (!e.strikes.length) { delete chain[date]; continue; }
+      expiries.push({ date, days });
+    }
+    if (!expiries.length) return null;
+    return { symbol: d.symbol || null, spot, asOf: json.timestamp || null, expiries, chain };
+  }
+
+  function nearestStrike(strikes, x) {
+    let best = strikes[0];
+    for (const k of strikes) if (Math.abs(k - x) < Math.abs(best - x)) best = k;
+    return best;
+  }
+
+  /* The quoted volatility of the at-the-money strike, averaged over call and put. */
+  function atmIv(exp, spot) {
+    if (!exp || !exp.strikes.length) return null;
+    const k = nearestStrike(exp.strikes, spot);
+    const v = [exp.call[k], exp.put[k]].map((q) => q && q.iv).filter((x) => x > 0);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  }
+
+  /* ---------- optimizer ----------
+     Every single option and vertical spread near the money for one expiry,
+     priced at the market midpoint, ranked by profit at the target price at
+     expiry divided by the most it can lose. Only trades that make money at
+     the target are kept. */
+  function optimize(exp, spot, target, opts) {
+    opts = opts || {};
+    const limit = opts.limit || 15, band = opts.band || 0.1;
+    if (!exp || !(spot > 0) || !(target > 0)) return [];
+    const all = exp.strikes, near = all.filter((k) => Math.abs(k / spot - 1) <= band);
+    if (!near.length) return [];
+    const gap = near.length > 1 ? near[1] - near[0] : 1;
+    const step = Math.max(1, Math.round((spot * 0.005) / gap));
+    const leg = (type, side, k) => {
+      const q = exp[type][k];
+      return q && q.mid > 0 ? { type, side, strike: k, qty: 1, premium: q.mid, iv: q.iv } : null;
+    };
+    const out = [];
+    const consider = (kind, legs) => {
+      if (legs.some((l) => !l)) return;
+      const a = analyze(legs), pl = plAtExpiry(legs, target), risk = -a.maxLoss;
+      if (!(risk > 0) || !isFinite(risk) || !(pl > 0)) return;
+      out.push({ kind, legs, strikes: legs.map((l) => l.strike), cost: -a.netCash, maxLoss: a.maxLoss, maxProfit: a.maxProfit, pl, ret: pl / risk });
+    };
+    for (const k of near) {
+      consider("long_call", [leg("call", 1, k)]);
+      consider("long_put", [leg("put", 1, k)]);
+      const i = all.indexOf(k);
+      for (const w of [1, 2, 3, 5].map((m) => m * step)) {
+        const up = all[i + w], dn = all[i - w];
+        if (up != null) {
+          consider("bull_call_spread", [leg("call", 1, k), leg("call", -1, up)]);
+          consider("bear_call_spread", [leg("call", -1, k), leg("call", 1, up)]);
+        }
+        if (dn != null) {
+          consider("bear_put_spread", [leg("put", 1, k), leg("put", -1, dn)]);
+          consider("bull_put_spread", [leg("put", -1, k), leg("put", 1, dn)]);
+        }
+      }
+    }
+    return out.sort((a, b) => b.ret - a.ret).slice(0, limit);
+  }
+
   global.JSSOptions = {
     cdf, pdf, price, greeks, impliedVol,
     plAtExpiry, plAtTime, positionGreeks, netCash, analyze,
     buildTemplate, TEMPLATES, roundStrike, MULT,
+    parseOcc, daysTo, parseCboeChain, nearestStrike, atmIv, optimize,
   };
 })(typeof window !== "undefined" ? window : globalThis);

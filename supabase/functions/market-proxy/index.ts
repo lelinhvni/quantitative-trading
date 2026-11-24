@@ -25,6 +25,7 @@ const ALLOWED_HOSTS = [
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
   "stooq.com",
+  "cdn.cboe.com",          // delayed option chains for the Options Lab
 ];
 
 const CORS = {
