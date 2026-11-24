@@ -407,8 +407,28 @@
     ctx.closePath();
   }
 
+  /* ---------- option chain (Cboe delayed quotes) ----------
+     Free, no key, about 15 minutes behind. Same failover proxy chain as
+     the price history. Resolves null when nothing usable comes back, and
+     the Options Lab then falls back to model prices. */
+  async function getOptionChain(symbol) {
+    const parse = global.JSSOptions && global.JSSOptions.parseCboeChain;
+    if (!parse || !/^[A-Z.]{1,6}$/.test(symbol)) return null;
+    const base = `https://cdn.cboe.com/api/global/delayed_quotes/options/${symbol}.json`;
+    const proxies = ((CFG.data && (CFG.data.corsProxies || (CFG.data.corsProxy ? [CFG.data.corsProxy] : []))) || []).slice();
+    if (!proxies.length) proxies.push("");
+    for (const proxy of proxies) {
+      try {
+        const text = await fetchText(proxy ? proxy + encodeURIComponent(base) : base, 15000);
+        const chain = parse(JSON.parse(text));
+        if (chain) return Object.assign(chain, { source: "Cboe delayed quotes" });
+      } catch (e) { /* try the next proxy */ }
+    }
+    return null;
+  }
+
   global.JSS = {
-    fmtMoney, fmtPct, fmtNum, demoSeries, getHistory, getQuote, summarize, getNews,
+    fmtMoney, fmtPct, fmtNum, demoSeries, getHistory, getQuote, summarize, getNews, getOptionChain,
     chart: { lineChart, sparkline, donut, barChart },
   };
 })(window);

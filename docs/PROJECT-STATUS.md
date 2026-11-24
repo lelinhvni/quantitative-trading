@@ -21,6 +21,12 @@ finishes it.
 | 3 | `supabase/migrations/2026-11-13-app-settings.sql` | The notifier's high-water mark and the ops console's alert-email panel. **Without it the Gmail route resends the same enquiries every run.** |
 | 4 | `supabase/migrations/2026-11-13-position-multiplier.sql` | Correct "In positions" on Cash Flow. Without it an options book reports its cost 100x too small, and Cash and Deployable are wrong with it. |
 
+### Redeploy one Edge Function
+
+`supabase/functions/market-proxy/index.ts` now allows `cdn.cboe.com`. Paste it
+into the existing `market-proxy` function and Deploy, so the Options Lab's live
+option chain comes through our proxy rather than the public fallbacks.
+
 ### Click one link
 
 FormSubmit recovered on 13 November and an **Activate Form** email is waiting in
@@ -165,30 +171,43 @@ Messages, Inbox.
 
 ## Options Lab
 
-`options.html` — a strategy builder and profit calculator, English and
-Vietnamese. No live data: prices are theoretical Black-Scholes values, with a
-disclaimer and no return claims.
+`options.html` — a strategy builder and profit calculator (14 templates: spreads,
+condors, straddles, covered calls and more). Exact profit/loss at expiry, a
+"selected date" curve, breakevens, chance of profit, Greeks and a price-by-date
+grid, in English and Vietnamese. Black-Scholes maths in `scripts/optionsmath.js`
+(25 tests). The page carries a disclaimer and makes no return claims. All legs
+share one expiry (no calendars yet).
 
-- **Sliders everywhere a price is picked** — underlying price, volatility, days,
-  and each leg's strike and expiry — with a number box beside each for an exact value.
-- **16 templates**, including call and put calendars. Every leg has its own
-  expiry; with mixed expiries the position is measured on the first one and the
-  later legs are valued by the model.
-- **Entry prices** are editable; the volatility they imply is shown.
-- **P/L grid** by price and date, in $ or %. Percent is of what you pay, or of
-  the most you can lose on a credit.
-- **Model option chain** (collapsed), with Buy/Sell on every strike.
-- **Trade finder** — set a target price; it ranks single options and vertical
-  spreads by return on risk, with chance of profit alongside.
-- **Saved strategies**, in the browser only, at the prices you saved them with.
+**Live chain (24 Nov 2026).** For SPY, QQQ and DIA the page loads Cboe's free
+delayed option chain (about 15 minutes behind, no key) through the same proxy
+chain as the price history (`JSS.getOptionChain` in `scripts/data.js`, parsed
+by `JSSOptions.parseCboeChain`). With it: real expirations, strikes snapped to
+listed ones, legs priced at the bid/ask midpoint with the quoted IV, an option
+chain table (tap a bid to sell, an ask to buy), an **optimizer** (single options
+and vertical spreads ranked by return on risk at a target price) and **saved
+trades** (this browser only, kept at their entry prices). The chain refreshes
+every minute. If it cannot load, the page falls back to model prices and says so.
 
-Maths in `scripts/optionsmath.js` (22 tests). Exact when legs share an expiry,
-sampled when they do not. Live quotes would need a market-data provider and a
-key held in a Supabase Edge Function.
+**Slider pickers.** Every price on the page is picked with a slider and a number
+box beside it: underlying price, volatility, days (model mode), spread width,
+distance from price, each leg's strike (snapping to listed strikes when a chain
+is loaded) and the optimizer's target. A $ / % toggle on the profit and loss
+grid shows percent of what you pay, or of the most you can lose on a credit.
+
+**Held back.** `optionsmath.js` supports a separate expiry per leg (calendar
+and diagonal spreads, a sampled analysis for them, and `optimizeModel` for
+chain-less use; all tested), but the page prices every leg on one expiry, so
+the calendar templates are hidden from the strategy list. Showing them needs a
+decision on how per-leg expiry should work with the live chain.
+
+To serve the chain through our own proxy instead of the public ones, redeploy
+`supabase/functions/market-proxy` — its allow-list now includes `cdn.cboe.com`.
+Cboe's terms for showing its delayed data on a public site are worth a read
+before promoting the page.
 
 ## Testing and releasing
 
-`npm test` runs 72 tests with no dependencies (Node's built-in runner). They also
+`npm test` runs 75 tests with no dependencies (Node's built-in runner). They also
 run in CI on every push (`.github/workflows/tests.yml`). They cover:
 
 - the **Clause 6 waterfall**, including a 500-trial conservation check;

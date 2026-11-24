@@ -4,10 +4,6 @@
    The arithmetic lives in optionsmath.js and is tested there. This file
    only draws and listens. The whole page is rebuilt from `state` when the
    language changes, so nothing is stored in the DOM that is not in `state`.
-
-   Every price is picked with a slider (with a number box beside it for an
-   exact value): the underlying price, volatility, days, and each leg's
-   strike and expiry.
    ============================================================ */
 (function () {
   "use strict";
@@ -28,20 +24,23 @@
     DIA: { spot: 440, iv: 0.16, q: 0.017 },
     CUSTOM: { spot: 100, iv: 0.25, q: 0 },
   };
-  const STRATEGIES = Object.keys(O.TEMPLATES);
-  const SAVE_KEY = "jss_opt_saved";
+  const STRATEGIES = Object.keys(O.TEMPLATES).filter((n) => !/_calendar$/.test(n));
 
   const state = {
     symbol: "SPY", spot: SYMBOLS.SPY.spot, iv: SYMBOLS.SPY.iv, r: 0.04, q: SYMBOLS.SPY.q,
-    days: 35, farDays: 70, width: 6, offset: 12, strategy: "iron_condor",
-    legs: [], elapsed: 0, ivShift: 0, rangePct: 20, pnl: "$", target: 0,
+    days: 35, width: 6, offset: 12, strategy: "iron_condor",
+    legs: [], elapsed: 0, ivShift: 0, rangePct: 20,
+    chain: null, expiry: null, target: null, loading: false, label: null, pnl: "$",
   };
+  let spotBase = 0;                  // the price slider is centred here, and does not move while dragging
   let spotTouched = false;
-  let spotBase = state.spot;            // the slider for the price is centred here
-  let found = [];                       // last trade-finder result
+  let optResults = [];
+  const SAVE_KEY = "bps_opt_saved";
+  const readSaved = () => { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } };
+  const writeSaved = (v) => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(v)); } catch (_) { /* private mode */ } };
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   /* ---------- helpers ---------- */
-  const $ = (id) => document.getElementById(id);
   const num = (v, d) => { const n = parseFloat(v); return isFinite(n) ? n : d; };
   const round2 = (x) => Math.round(x * 100) / 100;
   const usd = (v, d) => {
@@ -55,57 +54,13 @@
     const d = new Date(); d.setDate(d.getDate() + n);
     return d.toLocaleDateString(I.lang === "vi" ? "vi-VN" : "en-GB", { day: "numeric", month: "short" });
   };
-  const step = () => (state.spot < 30 ? 0.5 : 1);
-  const snap = (x) => O.roundStrike(x, state.spot);
-  const isCalendar = (s) => /_calendar$/.test(s);
 
-  function defaultWidth() { return Math.max(1, Math.round(state.spot / 100)); }
-  /* Short strikes sit about 3/4 of an expected move from the price. */
-  function defaultOffset() { return Math.max(1, Math.round(0.75 * state.spot * state.iv * Math.sqrt(state.days / 365))); }
-  function resetDistances() { state.width = defaultWidth(); state.offset = defaultOffset(); }
-  function resetTarget() { state.target = snap(state.spot * 1.03); }
-
-  /* Auto-priced legs track the model whenever an input changes; a leg whose
-     price the user has typed keeps it. */
-  function repriceAuto() {
-    state.legs.forEach((l) => {
-      if (!l.auto) return;
-      if (l.type === "stock") { l.premium = round2(state.spot); l.iv = 0; return; }
-      l.premium = round2(O.price(l.type, state.spot, l.strike, l.dte / 365, state.iv, state.r, state.q));
-      l.iv = state.iv;
-    });
-  }
-
-  /* The volatility each leg is valued with: the global one for model-priced
-     legs, or whatever the typed price implies. */
-  function effectiveLegs() {
-    return state.legs.map((l) => {
-      let iv = state.iv;
-      if (l.type === "stock") iv = 0;
-      else if (!l.auto) {
-        const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, l.dte / 365, state.r, state.q);
-        if (imp) iv = imp;
-      }
-      return { type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv, dte: l.dte };
-    });
-  }
-
-  function build(name) {
-    state.strategy = name;
-    if (state.farDays <= state.days) state.farDays = state.days * 2;
-    state.legs = O.buildTemplate(name, state.spot, state.width, state.iv, state.days, state.r, state.q, state.offset, state.farDays);
-  }
-
-  /* ---------- page text ---------- */
-  function setHero() {
-    const set = (id, k) => { const e = $(id); if (e) e.textContent = t(k); };
-    set("optEyebrow", "opt.eyebrow"); set("optTitle", "opt.title"); set("optLede", "opt.lede");
-    document.title = t("nav.options") + " — BPSQuant";
-  }
-
-  /* A slider with a number box beside it. `id` is the number box, `id`+"R" the slider. */
+  const $ = (id) => document.getElementById(id);
+  const stepOf = () => (state.spot < 30 ? 0.5 : 1);
+  const snapK = (x) => O.roundStrike(x, state.spot);
+  /* A slider with a number box beside it. `id` is the box, `id`+"R" the slider. */
   function pick(id, label, o) {
-    return `<div class="opt-pick ${o.full ? "opt-pick--full" : ""}">
+    return `<div class="opt-pick opt-pick--full">
       <span>${label}: <b id="${id}V"></b></span>
       <div class="opt-pick__row">
         <input id="${id}R" type="range" min="${o.min}" max="${o.max}" step="${o.step}" value="${o.value}" aria-label="${label}" />
@@ -113,28 +68,106 @@
       </div></div>`;
   }
 
-  const spotRange = () => ({ min: Math.max(0.5, snap(spotBase * 0.7)), max: snap(spotBase * 1.3) });
+  function defaultWidth() { return Math.max(1, Math.round(state.spot / 100)); }
+  /* Short strikes sit about 3/4 of an expected move from the price. */
+  function defaultOffset() { return Math.max(1, Math.round(0.75 * state.spot * state.iv * Math.sqrt(state.days / 365))); }
+  function resetDistances() { state.width = defaultWidth(); state.offset = defaultOffset(); }
+
+  /* Auto-priced legs track the model whenever an input changes; a leg whose
+     price the user has typed keeps it. */
+  function repriceAuto() {
+    const T = state.days / 365;
+    state.legs.forEach((l) => {
+      if (!l.auto) return;
+      if (l.type === "stock") { l.premium = round2(state.spot); l.iv = 0; return; }
+      l.premium = round2(O.price(l.type, state.spot, l.strike, T, state.iv, state.r, state.q));
+      l.iv = state.iv;
+    });
+  }
+
+  /* ---------- live chain ----------
+     With a chain loaded, option legs take the market midpoint for the
+     selected expiry and the quoted volatility; their strikes snap to strikes
+     that exist. A leg whose price the visitor types stops being a market leg. */
+  const expData = () => (state.chain && state.expiry ? state.chain.chain[state.expiry] : null);
+  function marketize(l) {
+    const e = expData();
+    if (!e || l.type === "stock") { if (l.type === "stock") { l.premium = round2(state.spot); l.iv = 0; } return false; }
+    const k = O.nearestStrike(e.strikes, l.strike || state.spot), q = e[l.type][k];
+    l.strike = k;
+    if (!q || !(q.mid > 0)) return false;
+    l.premium = q.mid; l.iv = q.iv > 0 ? q.iv : state.iv; l.auto = false; l.mkt = true;
+    return true;
+  }
+  function pickExpiry(target) {
+    const ex = state.chain.expiries;
+    return ex.reduce((b, e) => (Math.abs(e.days - target) < Math.abs(b.days - target) ? e : b), ex[0]).date;
+  }
+  function setExpiry(date) {
+    const e = state.chain.expiries.find((x) => x.date === date) || state.chain.expiries[0];
+    state.expiry = e.date;
+    state.days = Math.max(1, Math.round(e.days));
+    state.elapsed = Math.min(state.elapsed, state.days);
+    const iv = O.atmIv(expData(), state.spot); if (iv) state.iv = round2(iv * 10000) / 10000;
+  }
+  // The time this page loaded the chain. Cboe's own timestamp has no stated
+  // time zone, so it is not shown; the quotes are about 15 minutes older.
+  const asOfText = () => {
+    const a = state.chain && state.chain.fetchedAt;
+    return a ? new Date(a).toLocaleTimeString(I.lang === "vi" ? "vi-VN" : "en-US", { hour: "numeric", minute: "2-digit" }) : "—";
+  };
+
+  /* The volatility each leg is repriced with: the global one for model-priced
+     legs, or whatever the typed price implies. */
+  function effectiveLegs() {
+    const T = state.days / 365;
+    return state.legs.map((l) => {
+      let iv = state.iv;
+      if (l.type === "stock") iv = 0;
+      else if (l.mkt && l.iv > 0) iv = l.iv;
+      else if (!l.auto) {
+        const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, T, state.r, state.q);
+        if (imp) iv = imp;
+      }
+      return { type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv };
+    });
+  }
+
+  function build(name) {
+    state.strategy = name; state.label = null;
+    state.legs = O.buildTemplate(name, state.spot, state.width, state.iv, state.days, state.r, state.q, state.offset);
+    if (expData()) state.legs.forEach(marketize);
+  }
+
+  /* ---------- page text ---------- */
+  function setHero() {
+    const set = (id, k) => { const e = document.getElementById(id); if (e) e.textContent = t(k); };
+    set("optEyebrow", "opt.eyebrow"); set("optTitle", "opt.title"); set("optLede", "opt.lede");
+    document.title = t("nav.options") + " — BPSQuant";
+  }
 
   /* ---------- static layout, built from state ---------- */
   function layout() {
+    if (!(spotBase > 0) || state.spot < spotBase * 0.7 || state.spot > spotBase * 1.3) spotBase = state.spot;
     const sym = (s) => `<option value="${s}" ${state.symbol === s ? "selected" : ""}>${s === "CUSTOM" ? "—" : s}</option>`;
-    const sr = spotRange();
     root.innerHTML = `
       <aside class="opt__side">
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.under")}</h2></div>
           <div class="opt-fields">
-            <label class="field opt-pick--full"><span>${t("opt.symbol")}</span>
+            <label class="field"><span>${t("opt.symbol")}</span>
               <select id="oSymbol">${Object.keys(SYMBOLS).map(sym).join("")}</select></label>
-            ${pick("oSpot", t("opt.spot"), { min: Math.min(sr.min, state.spot), max: Math.max(sr.max, state.spot), step: step(), value: state.spot, nmin: 0.01, full: true })}
-            ${pick("oIv", t("opt.iv"), { min: 5, max: 120, step: 0.5, value: round2(state.iv * 100), nmin: 1, nmax: 300, full: true })}
-            ${pick("oDays", t("opt.days"), { min: 1, max: 365, step: 1, value: state.days, nmax: 1000, full: true })}
+            ${pick("oSpot", t("opt.spot"), { min: Math.min(Math.max(0.5, snapK(spotBase * 0.7)), state.spot), max: Math.max(snapK(spotBase * 1.3), state.spot), step: stepOf(), value: state.spot, nmin: 0.01 })}
+            ${pick("oIv", t("opt.iv"), { min: 5, max: 120, step: 0.5, value: round2(state.iv * 100), nmin: 1, nmax: 300 })}
+            ${state.chain ? `<label class="field"><span>${t("opt.expiry")}</span>
+              <select id="oExpiry">${state.chain.expiries.map(e => `<option value="${esc(e.date)}" ${e.date === state.expiry ? "selected" : ""}>${esc(expLabel(e))}</option>`).join("")}</select></label>`
+            : pick("oDays", t("opt.days"), { min: 1, max: 365, step: 1, value: state.days, nmax: 1000 })}
             <label class="field"><span>${t("opt.rate")}</span>
               <input id="oRate" type="number" step="0.05" min="0" max="25" value="${round2(state.r * 100)}" inputmode="decimal" /></label>
             <label class="field"><span>${t("opt.div")}</span>
               <input id="oDiv" type="number" step="0.05" min="0" max="25" value="${round2(state.q * 100)}" inputmode="decimal" /></label>
           </div>
-          <p class="portal__note" style="margin:8px 0 0">${t("opt.priceNote")}</p>
+          <p class="portal__note opt-src" id="oSrc" style="margin:8px 0 0">${srcText()}</p>
         </div>
 
         <div class="panel">
@@ -142,9 +175,8 @@
           <label class="field"><span class="sr-only">${t("opt.strategy")}</span>
             <select id="oStrategy">${STRATEGIES.map(s => `<option value="${s}" ${state.strategy === s ? "selected" : ""}>${t("opt.s." + s)}</option>`).join("")}</select></label>
           <div class="opt-fields" style="margin-top:12px">
-            ${pick("oWidth", t("opt.width"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.15)), step: 1, value: state.width, nmin: 1, full: true })}
-            ${pick("oOffset", t("opt.offset"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.2)), step: 1, value: state.offset, nmin: 1, full: true })}
-            ${isCalendar(state.strategy) ? pick("oFar", t("opt.farDays"), { min: 2, max: 365, step: 1, value: state.farDays, nmax: 1000, full: true }) : ""}
+            ${pick("oWidth", t("opt.width"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.15)), step: 1, value: state.width, nmin: 1 })}
+            ${pick("oOffset", t("opt.offset"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.2)), step: 1, value: state.offset, nmin: 1 })}
           </div>
           <div class="opt-row opt-row--end"><button class="btn btn--primary btn--sm" id="oBuild" type="button">${t("opt.build")}</button></div>
         </div>
@@ -156,15 +188,14 @@
             <button class="btn btn--ghost btn--sm" id="oAdd" type="button">${t("opt.addLeg")}</button>
             <button class="btn btn--ghost btn--sm" id="oReprice" type="button">${t("opt.reprice")}</button>
             <button class="btn btn--ghost btn--sm" id="oClear" type="button">${t("opt.clear")}</button>
+            <button class="btn btn--ghost btn--sm" id="oSave" type="button">${t("opt.save")}</button>
           </div>
-          <p class="portal__note" style="margin:10px 0 0">${t("opt.modelNote")}</p>
+          <p class="portal__note" style="margin:10px 0 0">${state.chain ? t("opt.marketNote") : t("opt.modelNote")}</p>
         </div>
 
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.saved.title")}</h2></div>
-          <button class="btn btn--ghost btn--sm" id="oSave" type="button">${t("opt.saved.save")}</button>
-          <div class="opt-saved" id="oSaved"></div>
-          <p class="opt-note">${t("opt.saved.note")}</p>
+          <div id="oSaved"></div>
         </div>
       </aside>
 
@@ -173,13 +204,12 @@
 
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.chart.title")}</h2>
-            <span class="opt-legend"><i class="opt-key opt-key--exp"></i><span id="oExpLbl"></span>
+            <span class="opt-legend"><i class="opt-key opt-key--exp"></i>${t("opt.atExpiry")}
               <i class="opt-key opt-key--now"></i>${t("opt.onDate")}</span></div>
           <div class="opt-chart" id="oChartWrap">
             <svg id="oChart" role="img" aria-label="${t("opt.chart.aria")}" preserveAspectRatio="xMidYMid meet"></svg>
             <div class="opt-tip" id="oTip" hidden></div>
           </div>
-          <p class="opt-note" id="oMixed" hidden>${t("opt.mixed")}</p>
           <div class="opt-sliders">
             <label class="opt-slider"><span>${t("opt.date")}: <b id="oDateLbl"></b></span>
               <input id="oElapsed" type="range" min="0" max="${state.days}" step="1" value="${state.elapsed}" /></label>
@@ -204,52 +234,116 @@
           <div class="table-wrap" id="oHeat"></div>
         </div>
 
-        <details class="panel opt-details" id="oChainBox">
-          <summary><h2>${t("opt.chain.title")}</h2></summary>
-          <div class="opt-details__body">
-            <p class="opt-note" style="margin:0 0 10px" id="oChainSub"></p>
-            <div class="table-wrap" id="oChain"></div>
-          </div>
-        </details>
-
-        <div class="panel">
-          <div class="panel__head"><h2>${t("opt.find.title")}</h2></div>
-          <p class="opt-note" style="margin:0 0 12px">${t("opt.find.sub")}</p>
-          <div class="opt-find__bar">
-            ${pick("oTarget", t("opt.find.target"), { min: Math.max(0.5, snap(state.spot * 0.8)), max: snap(state.spot * 1.2), step: step(), value: state.target, nmin: 0.01 })}
-            <button class="btn btn--primary btn--sm" id="oFind" type="button">${t("opt.find.btn")}</button>
-          </div>
-          <div class="table-wrap" id="oFound" style="margin-top:12px"><p class="opt-note">${t("opt.find.hint")}</p></div>
-          <p class="opt-note">${t("opt.find.note")}</p>
+        ${state.chain ? `<div class="panel">
+          <div class="panel__head"><h2>${t("opt.chain.title")}</h2><span class="panel__sub">${t("opt.chain.sub")}</span></div>
+          <div class="table-wrap" id="oChain"></div>
         </div>
 
-        <p class="portal__note opt-disclaimer">${t("opt.disclaimer")}</p>
+        <div class="panel">
+          <div class="panel__head"><h2>${t("opt.optim.title")}</h2><span class="panel__sub">${t("opt.optim.sub")}</span></div>
+          <div class="opt-row">
+            ${pick("oTarget", t("opt.optim.target"), { min: Math.max(0.5, snapK(state.spot * 0.8)), max: snapK(state.spot * 1.2), step: stepOf(), value: state.target || snapK(state.spot * 1.03), nmin: 0.01 })}
+            <button class="btn btn--primary btn--sm" id="oOptimize" type="button">${t("opt.optim.run")}</button>
+          </div>
+          <div class="table-wrap" id="oOpt" style="margin-top:12px"></div>
+        </div>` : ""}
+
+        <p class="portal__note opt-disclaimer">${t(state.chain ? "opt.disclaimerLive" : "opt.disclaimer")}</p>
       </div>`;
     bind();
     legsHtml();
-    refresh();
+    chainHtml();
+    optHtml();
     savedHtml();
+    refresh();
+  }
+
+  function expLabel(e) {
+    const [y, m, d] = e.date.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d, 12));
+    return dt.toLocaleDateString(I.lang === "vi" ? "vi-VN" : "en-US", { month: "short", day: "numeric", year: y !== new Date().getFullYear() ? "2-digit" : undefined, timeZone: "UTC" }) + " · " + Math.max(1, Math.round(e.days)) + (I.lang === "vi" ? " ngày" : "d");
+  }
+  function srcText() {
+    if (state.loading) return t("opt.src.loading");
+    if (state.chain) return t("opt.src.live", { time: asOfText() });
+    return t("opt.priceNote");
+  }
+
+  /* ---------- option chain ---------- */
+  function chainHtml() {
+    const host = document.getElementById("oChain"), e = expData();
+    if (!host || !e) return;
+    const ks = e.strikes, ai = ks.indexOf(O.nearestStrike(ks, state.spot));
+    const rows = ks.slice(Math.max(0, ai - 12), ai + 13);
+    const f = (v, d) => (v > 0 ? v.toFixed(d) : "—");
+    const q2 = (side, type, k, v) => `<button class="opt-q" type="button" data-side="${side}" data-type="${type}" data-k="${k}" title="${t(side > 0 ? "opt.buy" : "opt.sell")}">${f(v, 2)}</button>`;
+    const half = (type, k) => {
+      const q = e[type][k];
+      if (!q) return `<td colspan="5" class="opt-c-none">—</td>`;
+      const cells = [`<td>${q.oi ? q.oi.toLocaleString("en-US") : "—"}</td>`, `<td>${q.iv > 0 ? (q.iv * 100).toFixed(1) + "%" : "—"}</td>`,
+        `<td>${q.delta ? q.delta.toFixed(2) : "—"}</td>`, `<td>${q2(-1, type, k, q.bid)}</td>`, `<td>${q2(1, type, k, q.ask)}</td>`];
+      return (type === "call" ? cells : cells.reverse()).join("");
+    };
+    const atm = ks[ai];
+    host.innerHTML = `<table class="ttable opt-chain"><thead>
+      <tr><th colspan="5">${t("opt.calls")}</th><th></th><th colspan="5">${t("opt.puts")}</th></tr>
+      <tr><th>${t("opt.chain.oi")}</th><th>IV</th><th>Δ</th><th>${t("opt.chain.bid")}</th><th>${t("opt.chain.ask")}</th><th>${t("opt.strike")}</th>
+      <th>${t("opt.chain.bid")}</th><th>${t("opt.chain.ask")}</th><th>Δ</th><th>IV</th><th>${t("opt.chain.oi")}</th></tr></thead>
+      <tbody>${rows.map(k => `<tr class="${k === atm ? "is-spot" : ""}">${half("call", k)}<th class="opt-c-k ${k < state.spot ? "itm-c" : "itm-p"}">${k}</th>${half("put", k)}</tr>`).join("")}</tbody></table>`;
+  }
+
+  /* ---------- optimizer ---------- */
+  function optHtml() {
+    const host = document.getElementById("oOpt");
+    if (!host) return;
+    if (state.target == null) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.optim.empty")}</p>`; return; }
+    if (!optResults.length) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.optim.none")}</p>`; return; }
+    host.innerHTML = `<table class="ttable opt-optim"><thead><tr><th>${t("opt.strategy")}</th><th>${t("opt.optim.cost")}</th><th>${t("opt.maxLoss")}</th><th>${t("opt.maxProfit")}</th><th>${t("opt.optim.pl")}</th><th>${t("opt.optim.ret")}</th><th></th></tr></thead>
+      <tbody>${optResults.map((r, i) => `<tr><th>${esc(t("opt.s." + r.kind))} <span class="opt-strikes">${r.strikes.join("/")}</span></th>
+        <td>${usd(r.cost, 0)}</td><td class="neg">${usd(r.maxLoss, 0)}</td><td class="pos">${r.maxProfit === Infinity ? t("opt.unlimited") : usd(r.maxProfit, 0)}</td>
+        <td>${usd(r.pl, 0)}</td><td><b>${Math.round(r.ret * 100)}%</b></td>
+        <td><button class="btn btn--ghost btn--sm" type="button" data-use="${i}">${t("opt.optim.use")}</button></td></tr>`).join("")}</tbody></table>`;
+  }
+
+  /* ---------- saved trades (this browser only) ---------- */
+  function savedHtml() {
+    const host = document.getElementById("oSaved");
+    if (!host) return;
+    const list = readSaved();
+    if (!list.length) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.saved.empty")}</p>`; return; }
+    host.innerHTML = list.map((s, i) => `<div class="opt-saved">
+        <div><b>${esc(s.name)}</b><span>${esc(new Date(s.at).toLocaleString(I.lang === "vi" ? "vi-VN" : "en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }))}</span></div>
+        <button class="btn btn--ghost btn--sm" type="button" data-load="${i}">${t("opt.saved.load")}</button>
+        <button class="opt-x" type="button" data-unsave="${i}" aria-label="${t("opt.remove")}">×</button></div>`).join("") +
+      `<p class="portal__note" style="margin:8px 0 0">${t("opt.saved.note")}</p>`;
   }
 
   /* ---------- legs editor ---------- */
+  const strikeText = (l) => "$" + l.strike + " · " + (l.strike >= state.spot ? "+" : "−") + Math.abs((l.strike / state.spot - 1) * 100).toFixed(1) + "%";
   function legNote(l) {
     if (l.type === "stock") return "";
+    if (l.mkt) return t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) });
     if (l.auto) return t("opt.model");
-    const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, l.dte / 365, state.r, state.q);
+    const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, state.days / 365, state.r, state.q);
     return t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
   }
-  const strikeText = (l) => "$" + l.strike + " · " + (l.strike >= state.spot ? "+" : "−") + Math.abs((l.strike / state.spot - 1) * 100).toFixed(1) + "%";
-  const expText = (l) => t("opt.expIn", { n: l.dte, date: dateIn(l.dte) });
-  function strikeBounds(l) {
-    return { min: Math.min(l.strike, Math.max(step(), snap(state.spot * 0.75))), max: Math.max(l.strike, snap(state.spot * 1.25)) };
-  }
-
   function legsHtml() {
-    const host = $("oLegs");
+    const host = document.getElementById("oLegs");
     if (!host) return;
     if (!state.legs.length) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.empty")}</p>`; return; }
+    const T = state.days / 365;
     host.innerHTML = state.legs.map((l, i) => {
-      const stock = l.type === "stock", b = strikeBounds(l);
+      const stock = l.type === "stock";
+      let note = "";
+      if (!stock) {
+        if (l.mkt) note = t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) });
+        else if (l.auto) note = t("opt.model");
+        else {
+          const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, T, state.r, state.q);
+          note = t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
+        }
+      }
+      const b = { min: Math.min(l.strike, Math.max(stepOf(), snapK(state.spot * 0.75))), max: Math.max(l.strike, snapK(state.spot * 1.25)) };
       return `
         <div class="opt-leg" data-i="${i}">
           <div class="opt-leg__top">
@@ -266,85 +360,124 @@
               <button type="button" data-f="qtyUp" aria-label="${t("opt.more")}">+</button></span>
             <button class="opt-x" data-f="remove" type="button" aria-label="${t("opt.remove")}">×</button>
           </div>
-          ${stock ? "" : `
-          <div>
+          ${stock ? "" : `<div>
             <span class="opt-leg__lbl">${t("opt.strike")}: <b data-o="strike">${strikeText(l)}</b></span>
             <div class="opt-pick__row">
-              <input type="range" data-f="strike" min="${b.min}" max="${b.max}" step="${step()}" value="${l.strike}" aria-label="${t("opt.strike")}" />
-              <input type="number" data-f="strike" step="${step()}" min="0.01" value="${l.strike}" inputmode="decimal" aria-label="${t("opt.strike")}" />
-            </div>
-          </div>
-          <div>
-            <span class="opt-leg__lbl"><b data-o="exp">${expText(l)}</b></span>
-            <input type="range" data-f="dte" min="1" max="365" step="1" value="${l.dte}" aria-label="${t("opt.expiry")}" />
-          </div>`}
+              <input type="range" data-f="strike" min="${b.min}" max="${b.max}" step="${stepOf()}" value="${l.strike}" aria-label="${t("opt.strike")}" />
+              <input type="number" data-f="strike" step="0.5" min="0.01" value="${l.strike}" inputmode="decimal" aria-label="${t("opt.strike")}" />
+            </div></div>`}
           <div class="opt-leg__price">
             <label>${t("opt.premium")} <input data-f="premium" type="number" step="0.01" min="0" value="${l.premium}" inputmode="decimal" /></label>
-            <span class="opt-leg__note" data-o="note">${legNote(l)}</span>
+            <span class="opt-leg__note" data-o="note">${note}</span>
           </div>
         </div>`;
     }).join("");
   }
 
   /* ---------- events ---------- */
-  /* Keep a slider and its number box in step, whichever one moved. */
-  function syncPair(id, v) { const a = $(id), b = $(id + "R"); if (a && a !== document.activeElement) a.value = v; if (b) b.value = v; }
-
   function bind() {
-    const onInput = (keep) => {
-      const oldDays = state.days;
+    const $ = (id) => document.getElementById(id);
+
+    const onInput = () => {
       state.spot = Math.max(0.01, num($("oSpot").value, state.spot));
       state.iv = Math.min(3, Math.max(0.01, num($("oIv").value, state.iv * 100) / 100));
-      state.days = Math.min(1000, Math.max(1, Math.round(num($("oDays").value, state.days))));
+      if ($("oDays")) state.days = Math.min(1000, Math.max(1, Math.round(num($("oDays").value, state.days))));
       state.r = Math.max(0, num($("oRate").value, state.r * 100) / 100);
       state.q = Math.max(0, num($("oDiv").value, state.q * 100) / 100);
-      if (state.days !== oldDays) state.legs.forEach((l) => { if (l.dte === oldDays) l.dte = state.days; });
+      state.elapsed = Math.min(state.elapsed, state.days);
+      const el = $("oElapsed"); el.max = state.days; el.value = state.elapsed;
       repriceAuto();
-      if (keep !== "legs") legsHtml(); else refreshLegsInPlace();
+      legsHtml();
       refresh();
     };
     const label = () => {
-      $("oSpotV").textContent = "$" + state.spot;
-      $("oIvV").textContent = round2(state.iv * 100) + "%";
-      $("oDaysV").textContent = state.days + " · " + dateIn(state.days);
+      if ($("oSpotV")) $("oSpotV").textContent = "$" + state.spot;
+      if ($("oIvV")) $("oIvV").textContent = round2(state.iv * 100) + "%";
+      if ($("oDaysV")) $("oDaysV").textContent = state.days + " · " + dateIn(state.days);
     };
-
-    // paired slider + box for the underlying
-    [["oSpot", 0], ["oIv", 0], ["oDays", 0]].forEach(([id]) => {
-      $(id + "R").addEventListener("input", (e) => {
-        if (id === "oSpot") spotTouched = true;
-        $(id).value = e.target.value; onInput("legs"); label();
-      });
+    ["oSpot", "oIv", "oDays", "oRate", "oDiv"].forEach((id) => {
+      if (!$(id)) return;
       $(id).addEventListener("input", (e) => {
-        if (id === "oSpot") { spotTouched = true; const v = num(e.target.value, 0); if (v > 0 && (v < spotBase * 0.7 || v > spotBase * 1.3)) { spotBase = v; const r = $("oSpotR"), sr = spotRange(); r.min = Math.min(sr.min, v); r.max = Math.max(sr.max, v); } }
-        $(id + "R").value = e.target.value; onInput("legs"); label();
+        if (id === "oSpot") {
+          spotTouched = true;
+          const v = num(e.target.value, 0);
+          if (v > 0 && (v < spotBase * 0.7 || v > spotBase * 1.3)) { spotBase = v; const r = $("oSpotR"); r.min = Math.max(0.5, snapK(v * 0.7)); r.max = snapK(v * 1.3); }
+        }
+        if ($(id + "R")) $(id + "R").value = e.target.value;
+        onInput(); label();
+      });
+      if ($(id + "R")) $(id + "R").addEventListener("input", (e) => {
+        if (id === "oSpot") spotTouched = true;
+        $(id).value = e.target.value; onInput(); label();
       });
     });
-    ["oRate", "oDiv"].forEach((id) => $(id).addEventListener("input", () => onInput("legs")));
     label();
+    // the other slider-and-box pairs
+    [["oWidth", "width", 1], ["oOffset", "offset", 1]].forEach(([id, key, min]) => {
+      const apply = (v) => { state[key] = Math.max(min, Math.round(num(v, state[key]))); $(id + "V").textContent = state[key]; };
+      $(id + "R").addEventListener("input", (e) => { $(id).value = e.target.value; apply(e.target.value); });
+      $(id).addEventListener("input", (e) => { $(id + "R").value = e.target.value; apply(e.target.value); });
+      $(id + "V").textContent = state[key];
+    });
+    if ($("oTarget")) {
+      const tgl = () => { $("oTargetV").textContent = "$" + num($("oTarget").value, 0); };
+      $("oTargetR").addEventListener("input", (e) => { $("oTarget").value = e.target.value; tgl(); });
+      $("oTarget").addEventListener("input", (e) => { $("oTargetR").value = e.target.value; tgl(); });
+      tgl();
+    }
+    document.querySelectorAll("[data-pnl]").forEach((b) => b.addEventListener("click", () => {
+      state.pnl = b.dataset.pnl;
+      document.querySelectorAll("[data-pnl]").forEach((x) => x.classList.toggle("is-on", x === b));
+      refresh();
+    }));
 
     $("oSymbol").addEventListener("change", (e) => {
       const d = SYMBOLS[e.target.value]; state.symbol = e.target.value;
-      state.spot = d.spot; spotBase = d.spot; state.iv = d.iv; state.q = d.q; resetDistances(); resetTarget(); spotTouched = false; found = [];
-      build(state.strategy); layout(); loadQuote();
+      state.spot = d.spot; state.iv = d.iv; state.q = d.q; resetDistances(); spotTouched = false;
+      state.chain = null; state.expiry = null; state.target = null; optResults = [];
+      build(state.strategy); layout(); loadMarket();
     });
     $("oStrategy").addEventListener("change", (e) => { build(e.target.value); layout(); });
-
-    // the strategy's own shape: rebuild when the Build button is pressed
-    const linked = (id, key, min) => {
-      const apply = (v) => { state[key] = Math.max(min, Math.round(v)); };
-      $(id + "R").addEventListener("input", (e) => { $(id).value = e.target.value; apply(num(e.target.value, state[key])); $(id + "V").textContent = state[key]; });
-      $(id).addEventListener("input", (e) => { $(id + "R").value = e.target.value; apply(num(e.target.value, state[key])); $(id + "V").textContent = state[key]; });
-      $(id + "V").textContent = state[key];
-    };
-    linked("oWidth", "width", 1); linked("oOffset", "offset", 1);
-    if ($("oFar")) linked("oFar", "farDays", 2);
     $("oBuild").addEventListener("click", () => { build(state.strategy); layout(); });
     $("oAdd").addEventListener("click", () => {
-      state.legs.push({ type: "call", side: 1, strike: snap(state.spot), qty: 1, premium: 0, iv: state.iv, dte: state.days, auto: true });
-      repriceAuto(); legsHtml(); refresh();
+      const k = O.roundStrike(state.spot, state.spot);
+      const l = { type: "call", side: 1, strike: k, qty: 1, premium: 0, iv: state.iv, auto: true };
+      state.legs.push(l); repriceAuto(); marketize(l); state.label = "opt.saved.custom"; legsHtml(); refresh();
     });
-    $("oReprice").addEventListener("click", () => { state.legs.forEach(l => { l.auto = true; }); repriceAuto(); legsHtml(); refresh(); });
+    $("oReprice").addEventListener("click", () => {
+      state.legs.forEach(l => { l.auto = true; l.mkt = false; }); repriceAuto(); state.legs.forEach(marketize); legsHtml(); refresh();
+    });
+    if ($("oExpiry")) $("oExpiry").addEventListener("change", (e) => {
+      setExpiry(e.target.value); repriceAuto(); state.legs.forEach(marketize); optResults = []; state.target = null; layout();
+    });
+    $("oSave").addEventListener("click", (e) => {
+      if (!state.legs.length) return;
+      const name = `${state.symbol === "CUSTOM" ? "—" : state.symbol} · ${t(state.label || "opt.s." + state.strategy)}${state.expiry ? " · " + state.expiry : ""}`;
+      const list = readSaved();
+      list.unshift({ name, sym: state.symbol, expiry: state.expiry, days: state.days, spot: state.spot, at: Date.now(),
+        legs: state.legs.map(l => ({ type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv: l.iv })) });
+      writeSaved(list.slice(0, 50)); savedHtml();
+      e.target.textContent = t("opt.saved.done"); setTimeout(() => { e.target.textContent = t("opt.save"); }, 1500);
+    });
+    if ($("oOptimize")) $("oOptimize").addEventListener("click", () => {
+      const tg = num($("oTarget").value, 0); if (!(tg > 0)) return;
+      state.target = tg; optResults = O.optimize(expData(), state.spot, tg, { limit: 15 }); optHtml();
+    });
+    root.onclick = (e) => {
+      const q = e.target.closest(".opt-q");
+      if (q) {
+        const l = { type: q.dataset.type, side: +q.dataset.side > 0 ? 1 : -1, strike: +q.dataset.k, qty: 1, premium: 0, iv: state.iv, auto: true };
+        state.legs.push(l); marketize(l); state.label = "opt.saved.custom"; legsHtml(); refresh();
+        const lg = $("oLegs"); if (lg && lg.scrollIntoView) lg.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return;
+      }
+      const u = e.target.closest("[data-use]");
+      if (u) { const r = optResults[+u.dataset.use]; if (r) { state.legs = r.legs.map(l => ({ ...l, auto: false, mkt: true })); state.label = "opt.s." + r.kind; legsHtml(); refresh(); } return; }
+      const ld = e.target.closest("[data-load]");
+      if (ld) { loadSaved(readSaved()[+ld.dataset.load]); return; }
+      const un = e.target.closest("[data-unsave]");
+      if (un) { const list = readSaved(); list.splice(+un.dataset.unsave, 1); writeSaved(list); savedHtml(); }
+    };
     $("oClear").addEventListener("click", () => { state.legs = []; legsHtml(); refresh(); });
 
     // one listener for every field of every leg
@@ -352,121 +485,81 @@
     legs.addEventListener("input", legChange);
     legs.addEventListener("change", legChange);
     legs.addEventListener("click", (e) => {
-      const b = e.target.closest("button[data-f]");
-      if (!b) return;
-      const i = +b.closest(".opt-leg").dataset.i, l = state.legs[i];
-      if (b.dataset.f === "remove") { state.legs.splice(i, 1); legsHtml(); refresh(); }
-      else if (b.dataset.f === "qtyUp" || b.dataset.f === "qtyDown") {
-        l.qty = Math.max(1, l.qty + (b.dataset.f === "qtyUp" ? 1 : -1));
-        b.parentElement.querySelector("input").value = l.qty; refresh();
+      const q = e.target.closest("[data-f=qtyUp],[data-f=qtyDown]");
+      if (q) {
+        const l = state.legs[+q.closest(".opt-leg").dataset.i];
+        l.qty = Math.max(1, l.qty + (q.dataset.f === "qtyUp" ? 1 : -1)); state.label = "opt.saved.custom";
+        q.parentElement.querySelector("input").value = l.qty; refresh(); return;
       }
+      const b = e.target.closest("[data-f=remove]");
+      if (!b) return;
+      state.legs.splice(+b.closest(".opt-leg").dataset.i, 1); state.label = "opt.saved.custom"; legsHtml(); refresh();
     });
 
     $("oElapsed").addEventListener("input", (e) => { state.elapsed = Math.round(num(e.target.value, 0)); refresh(); });
     $("oIvShift").addEventListener("input", (e) => { state.ivShift = num(e.target.value, 0); refresh(); });
     $("oRange").addEventListener("input", (e) => { state.rangePct = num(e.target.value, 20); refresh(); });
-    document.querySelectorAll("[data-pnl]").forEach((b) => b.addEventListener("click", () => {
-      state.pnl = b.dataset.pnl;
-      document.querySelectorAll("[data-pnl]").forEach(x => x.classList.toggle("is-on", x === b));
-      refresh();
-    }));
-
-    // trade finder
-    const tg = (v) => { state.target = Math.max(0.01, num(v, state.target)); $("oTargetV").textContent = "$" + state.target; };
-    $("oTargetR").addEventListener("input", (e) => { $("oTarget").value = e.target.value; tg(e.target.value); });
-    $("oTarget").addEventListener("input", (e) => { $("oTargetR").value = e.target.value; tg(e.target.value); });
-    tg(state.target);
-    $("oFind").addEventListener("click", runFinder);
-    $("oFound").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-open]"); if (!b) return;
-      const f = found[+b.dataset.open]; if (!f) return;
-      state.legs = f.legs.map(l => ({ type: l.type, side: l.side, strike: l.strike, qty: 1, premium: l.premium, iv: state.iv, dte: state.days, auto: true }));
-      legsHtml(); refresh(); root.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-
-    $("oSave").addEventListener("click", saveCurrent);
-    $("oSaved").addEventListener("click", onSavedClick);
-    $("oChainBox").addEventListener("toggle", chainHtml);
-    $("oChain").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-add]"); if (!b) return;
-      state.legs.push({ type: b.dataset.type, side: +b.dataset.add, strike: +b.dataset.k, qty: 1, premium: 0, iv: state.iv, dte: state.days, auto: true });
-      repriceAuto(); legsHtml(); refresh();
-    });
-  }
-
-  /* After the underlying moves, update each leg's price and note without
-     rebuilding the rows, so a slider being dragged is not interrupted. */
-  function refreshLegsInPlace() {
-    document.querySelectorAll("#oLegs .opt-leg").forEach((row) => {
-      const l = state.legs[+row.dataset.i]; if (!l) return;
-      const p = row.querySelector("[data-f=premium]"); if (p && p !== document.activeElement) p.value = l.premium;
-      const n = row.querySelector("[data-o=note]"); if (n) n.textContent = legNote(l);
-      const s = row.querySelector("[data-o=strike]"); if (s) s.textContent = strikeText(l);
-      const d = row.querySelector("input[data-f=dte]"); if (d) d.value = l.dte;
-      const x = row.querySelector("[data-o=exp]"); if (x) x.textContent = expText(l);
-    });
   }
 
   function legChange(e) {
-    const f = e.target.dataset.f; if (!f || f === "remove" || f.startsWith("qty") && e.target.tagName === "BUTTON") return;
+    const f = e.target.dataset.f; if (!f || f === "remove") return;
+    if (f !== "premium") state.label = "opt.saved.custom";
     const row = e.target.closest(".opt-leg"); const l = state.legs[+row.dataset.i]; if (!l) return;
     if (f === "side") l.side = +e.target.value > 0 ? 1 : -1;
     else if (f === "type") {
       l.type = e.target.value;
-      if (l.type === "stock") { l.strike = 0; l.auto = true; } else if (!l.strike) l.strike = snap(state.spot);
-      repriceAuto(); legsHtml(); refresh(); return;
+      if (l.type === "stock") { l.strike = 0; l.auto = true; l.mkt = false; } else if (!l.strike) l.strike = O.roundStrike(state.spot, state.spot);
+      repriceAuto(); marketize(l); if (e.type === "change") legsHtml();
     }
     else if (f === "qty") l.qty = Math.max(1, Math.round(num(e.target.value, 1)));
     else if (f === "strike") {
       l.strike = Math.max(0.01, num(e.target.value, l.strike));
+      const isSlider = e.target.type === "range";
+      if (expData() && (isSlider || e.type === "change")) {
+        marketize(l);
+        if (!isSlider) { legsHtml(); refresh(); return; }
+      } else if (l.auto) repriceAuto();
       row.querySelectorAll("[data-f=strike]").forEach((x) => { if (x !== e.target && x !== document.activeElement) x.value = l.strike; });
-      const rg = row.querySelector("input[type=range][data-f=strike]");
-      if (rg && (l.strike < +rg.min || l.strike > +rg.max)) { const b = strikeBounds(l); rg.min = b.min; rg.max = b.max; rg.value = l.strike; }
-      if (l.auto) repriceAuto();
+      const sl = row.querySelector("input[type=range][data-f=strike]");
+      if (sl && (l.strike < +sl.min || l.strike > +sl.max)) { sl.min = Math.min(l.strike, +sl.min); sl.max = Math.max(l.strike, +sl.max); }
+      const lab = row.querySelector("[data-o=strike]"); if (lab) lab.textContent = strikeText(l);
+      const pr = row.querySelector("[data-f=premium]"); if (pr && pr !== document.activeElement) pr.value = l.premium;
     }
-    else if (f === "dte") {
-      l.dte = Math.max(1, Math.round(num(e.target.value, l.dte)));
-      const x = row.querySelector("[data-o=exp]"); if (x) x.textContent = expText(l);
-      if (l.auto) repriceAuto();
+    else if (f === "premium") { l.premium = Math.max(0, num(e.target.value, 0)); l.auto = false; l.mkt = false; }
+    if (f === "premium" || f === "strike") {
+      const note = row.querySelector(".opt-leg__note");
+      if (note && l.type !== "stock") {
+        const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, state.days / 365, state.r, state.q);
+        note.textContent = l.mkt ? t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) }) : l.auto ? t("opt.model") : t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
+      }
+      if (f === "strike" && l.auto) { const p = row.querySelector("[data-f=premium]"); if (p) p.value = l.premium; }
     }
-    else if (f === "premium") { l.premium = Math.max(0, num(e.target.value, 0)); l.auto = false; }
-    // keep what the row shows in step with the model
-    const p = row.querySelector("[data-f=premium]"); if (p && f !== "premium" && l.auto) p.value = l.premium;
-    const n = row.querySelector("[data-o=note]"); if (n) n.textContent = legNote(l);
-    const s = row.querySelector("[data-o=strike]"); if (s && l.type !== "stock") s.textContent = strikeText(l);
     refresh();
   }
 
   /* ---------- everything that depends on the position ---------- */
   function refresh() {
-    if (!$("oStats")) return;
     const legs = effectiveLegs();
-    const hz = O.horizonDays(legs, state.days);
-    const mixed = O.isMixed(legs, state.days);
-    state.elapsed = Math.min(state.elapsed, hz);
+    const daysLeft = Math.max(0, state.days - state.elapsed);
     const ivShift = state.ivShift / 100;
 
-    const el = $("oElapsed"); el.max = hz; el.value = state.elapsed;
-    $("oDateLbl").textContent =
-      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= hz ? (mixed ? t("opt.atFirst") : t("opt.dateExpiry")) : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
-    $("oIvLbl").textContent = (state.ivShift > 0 ? "+" : "") + state.ivShift + " " + (I.lang === "vi" ? "điểm" : "pts");
-    $("oRangeLbl").textContent = "±" + state.rangePct + "%";
-    $("oExpLbl").textContent = mixed ? t("opt.atFirst") : t("opt.atExpiry");
-    $("oMixed").hidden = !mixed;
+    document.getElementById("oDateLbl").textContent =
+      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= state.days ? t("opt.dateExpiry") : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
+    document.getElementById("oIvLbl").textContent = (state.ivShift > 0 ? "+" : "") + state.ivShift + " " + (I.lang === "vi" ? "điểm" : "pts");
+    document.getElementById("oRangeLbl").textContent = "±" + state.rangePct + "%";
 
-    const a = O.analyze(legs, { spot: state.spot, days: hz, r: state.r, q: state.q, iv: state.iv });
+    const a = O.analyze(legs, { spot: state.spot, days: state.days, r: state.r, q: state.q, iv: state.iv });
     stats(a);
-    chart(legs, a, hz, ivShift);
-    greeks(legs, ivShift);
-    heat(legs, a, hz, ivShift);
-    chainSub();
+    chart(legs, a, daysLeft, ivShift);
+    greeks(legs, daysLeft, ivShift);
+    heat(legs, a, ivShift);
   }
 
   function stats(a) {
     const empty = !state.legs.length;
     const cash = a.netCash;
     const card = (l, v, s, cls) => `<div class="inc-card"><div class="inc-card__l">${l}</div><div class="inc-card__v ${cls || ""}">${v}</div>${s ? `<div class="inc-card__s">${s}</div>` : ""}</div>`;
-    $("oStats").innerHTML = empty ? "" : [
+    document.getElementById("oStats").innerHTML = empty ? "" : [
       card(cash >= 0 ? t("opt.netCredit") : t("opt.netDebit"), usd(Math.abs(cash), 0), "", cash >= 0 ? "pos" : ""),
       card(t("opt.maxProfit"), a.unlimitedProfit ? t("opt.unlimited") : usd(a.maxProfit, 0), "", "pos"),
       card(t("opt.maxLoss"), a.unlimitedLoss ? "−" + t("opt.unlimited") : usd(a.maxLoss, 0), "", a.maxLoss < 0 || a.unlimitedLoss ? "neg" : ""),
@@ -478,15 +571,15 @@
   /* nice axis ticks */
   function ticks(min, max, n) {
     const span = max - min, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const stp = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
-    const out = []; for (let v = Math.ceil(min / stp) * stp; v <= max + 1e-9; v += stp) out.push(+v.toFixed(8));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+    const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(8));
     return out;
   }
 
   let view = null;                    // geometry of the last chart, for the pointer handler
 
-  function chart(legs, a, hz, ivShift) {
-    const svg = $("oChart");
+  function chart(legs, a, daysLeft, ivShift) {
+    const svg = document.getElementById("oChart");
     const W = 820, H = 380, pl = 66, pr = 18, pt = 14, pb = 34;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     if (!legs.length) { svg.innerHTML = ""; view = null; return; }
@@ -496,15 +589,14 @@
     const xmin = Math.max(0.01, Math.min(state.spot - half, strikes.length ? Math.min(...strikes) * 0.97 : Infinity));
     const xmax = Math.max(state.spot + half, strikes.length ? Math.max(...strikes) * 1.03 : 0);
 
-    const at = (x, el, sh) => O.plAt(legs, x, el, sh, state.r, state.q, state.days);
-    // the curve at the first expiry: sampled, plus every strike so its corners stay sharp
-    const N = 160, xs = [];
-    for (let i = 0; i <= N; i += 1) xs.push(xmin + (xmax - xmin) * i / N);
-    strikes.forEach(k => { if (k > xmin && k < xmax) xs.push(k); });
-    xs.sort((p, q) => p - q);
-    const exp = xs.map(x => [x, at(x, hz, 0)]);
-    const showNow = state.elapsed < hz;
-    const now = showNow ? xs.map(x => [x, at(x, state.elapsed, ivShift)]) : [];
+    // expiry curve: exact, because it only bends at the strikes
+    const bends = [xmin, ...strikes.filter(k => k > xmin && k < xmax), xmax];
+    const exp = bends.map(x => [x, O.plAtExpiry(legs, x)]);
+    const N = 160, now = [];
+    for (let i = 0; i <= N; i += 1) {
+      const x = xmin + (xmax - xmin) * i / N;
+      now.push([x, daysLeft <= 0 ? O.plAtExpiry(legs, x) : O.plAtTime(legs, x, daysLeft, ivShift, state.r, state.q)]);
+    }
     let ymin = Math.min(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
     let ymax = Math.max(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
     const pad = (ymax - ymin || 1) * 0.08; ymin -= pad; ymax += pad;
@@ -529,41 +621,40 @@
       <line class="opt-spot" x1="${X(state.spot)}" x2="${X(state.spot)}" y1="${pt}" y2="${H - pb}"/>
       <text class="opt-spot-l" x="${X(state.spot) + 5}" y="${pt + 11}">${t("opt.now")} ${state.spot}</text>
       <path class="opt-line opt-line--exp" d="${path(exp)}"/>
-      ${showNow ? `<path class="opt-line opt-line--now" d="${path(now)}"/>` : ""}
+      ${daysLeft > 0 ? `<path class="opt-line opt-line--now" d="${path(now)}"/>` : ""}
       ${a.breakevens.filter(b => b > xmin && b < xmax).map(b => `<circle class="opt-be" cx="${X(b)}" cy="${y0}" r="4.5"/><text class="opt-be-l" x="${X(b)}" y="${y0 - 9}" text-anchor="middle">${b.toFixed(2)}</text>`).join("")}
       <line class="opt-guide" id="oGuide" y1="${pt}" y2="${H - pb}" x1="0" x2="0"/>
       <rect id="oHit" x="${pl}" y="${pt}" width="${W - pl - pr}" height="${H - pt - pb}" fill="transparent"/>`;
-    view = { W, H, pl, pr, xmin, xmax, legs, hz, ivShift, at };
+    view = { W, H, pl, pr, xmin, xmax, legs, daysLeft, ivShift };
 
-    const hit = $("oHit");
+    const hit = document.getElementById("oHit");
     hit.addEventListener("pointermove", hover);
-    hit.addEventListener("pointerleave", () => { $("oTip").hidden = true; $("oGuide").style.display = "none"; });
+    hit.addEventListener("pointerleave", () => { document.getElementById("oTip").hidden = true; document.getElementById("oGuide").style.display = "none"; });
   }
 
   function hover(e) {
     if (!view) return;
-    const svg = $("oChart"), r = svg.getBoundingClientRect();
+    const svg = document.getElementById("oChart"), r = svg.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width * view.W;
     const S = view.xmin + (px - view.pl) / (view.W - view.pl - view.pr) * (view.xmax - view.xmin);
     if (!(S >= view.xmin && S <= view.xmax)) return;
-    const exp = view.at(S, view.hz, 0);
-    const showNow = state.elapsed < view.hz;
-    const nowV = showNow ? view.at(S, state.elapsed, view.ivShift) : exp;
-    const g = $("oGuide"); g.style.display = "block"; g.setAttribute("x1", px); g.setAttribute("x2", px);
-    const tip = $("oTip"); tip.hidden = false;
+    const exp = O.plAtExpiry(view.legs, S);
+    const nowV = view.daysLeft <= 0 ? exp : O.plAtTime(view.legs, S, view.daysLeft, view.ivShift, state.r, state.q);
+    const g = document.getElementById("oGuide"); g.style.display = "block"; g.setAttribute("x1", px); g.setAttribute("x2", px);
+    const tip = document.getElementById("oTip"); tip.hidden = false;
     tip.innerHTML = `<b>${t("opt.hoverPrice")} $${S.toFixed(2)}</b>
       <span>${t("opt.hoverExpiry")}: <em class="${exp >= 0 ? "pos" : "neg"}">${sgn(exp)}${usd(exp)}</em></span>
-      ${showNow ? `<span>${t("opt.hoverDate")}: <em class="${nowV >= 0 ? "pos" : "neg"}">${sgn(nowV)}${usd(nowV)}</em></span>` : ""}`;
-    const wrap = $("oChartWrap").getBoundingClientRect();
+      ${view.daysLeft > 0 ? `<span>${t("opt.hoverDate")}: <em class="${nowV >= 0 ? "pos" : "neg"}">${sgn(nowV)}${usd(nowV)}</em></span>` : ""}`;
+    const wrap = document.getElementById("oChartWrap").getBoundingClientRect();
     const left = e.clientX - wrap.left + 14, flip = left > wrap.width - 190;
     tip.style.left = (flip ? e.clientX - wrap.left - 190 : left) + "px";
     tip.style.top = Math.max(6, e.clientY - wrap.top - 20) + "px";
   }
 
-  function greeks(legs, ivShift) {
-    const host = $("oGreeks");
+  function greeks(legs, daysLeft, ivShift) {
+    const host = document.getElementById("oGreeks");
     if (!legs.length) { host.innerHTML = ""; return; }
-    const g = O.positionGreeksAt(legs, state.spot, state.elapsed, ivShift, state.r, state.q, state.days);
+    const g = O.positionGreeks(legs, state.spot, daysLeft, ivShift, state.r, state.q);
     const card = (l, v, h) => `<div class="inc-card"><div class="inc-card__l">${l}</div><div class="inc-card__v">${v}</div><div class="inc-card__s">${h}</div></div>`;
     host.innerHTML = [
       card(t("opt.delta"), sgn(g.delta) + g.delta.toFixed(1), t("opt.deltaHelp")),
@@ -573,145 +664,100 @@
     ].join("");
   }
 
-  function heat(legs, a, hz, ivShift) {
-    const host = $("oHeat");
+  function heat(legs, a, ivShift) {
+    const host = document.getElementById("oHeat");
     if (!legs.length) { host.innerHTML = ""; return; }
     const strikes = legs.filter(l => l.type !== "stock").map(l => l.strike);
     const half = state.spot * state.rangePct / 100;
     const lo = Math.max(0.01, Math.min(state.spot - half, strikes.length ? Math.min(...strikes) * 0.97 : Infinity));
     const hi = Math.max(state.spot + half, strikes.length ? Math.max(...strikes) * 1.03 : 0);
-    const ROWS = 13, COLS = Math.min(7, hz + 1);
+    const ROWS = 13, COLS = Math.min(7, state.days + 1);
     const prices = Array.from({ length: ROWS }, (_, i) => hi - (hi - lo) * i / (ROWS - 1));
-    const cols = Array.from({ length: COLS }, (_, j) => Math.round(hz * j / (COLS - 1 || 1)));
-    const grid = prices.map(S => cols.map(d => O.plAt(legs, S, d, d >= hz ? 0 : ivShift, state.r, state.q, state.days)));
+    const cols = Array.from({ length: COLS }, (_, j) => Math.round(state.days * j / (COLS - 1 || 1)));
+    const grid = prices.map(S => cols.map(d => (d >= state.days ? O.plAtExpiry(legs, S) : O.plAtTime(legs, S, state.days - d, ivShift, state.r, state.q))));
     const maxAbs = Math.max(1, ...grid.flat().map(Math.abs));
-    const basis = O.riskBasis(a);
     const near = prices.reduce((b, p, i) => (Math.abs(p - state.spot) < Math.abs(prices[b] - state.spot) ? i : b), 0);
+    const basis = O.riskBasis(a);
     const cell = (v) => {
-      const k = Math.min(0.55, Math.abs(v) / maxAbs * 0.55);
-      const bg = v >= 0 ? `rgba(52,211,153,${k.toFixed(3)})` : `rgba(248,113,113,${k.toFixed(3)})`;
-      const txt = state.pnl === "%" ? Math.round(v / basis * 100).toLocaleString("en-US") + "%" : Math.round(v).toLocaleString("en-US");
-      return `<td style="background:${bg}">${txt}</td>`;
+      const a = Math.min(0.55, Math.abs(v) / maxAbs * 0.55);
+      const bg = v >= 0 ? `rgba(52,211,153,${a.toFixed(3)})` : `rgba(248,113,113,${a.toFixed(3)})`;
+      return `<td style="background:${bg}">${state.pnl === "%" ? Math.round(v / basis * 100).toLocaleString("en-US") + "%" : Math.round(v).toLocaleString("en-US")}</td>`;
     };
-    host.innerHTML = `<table class="ttable opt-heat"><thead><tr><th>${t("opt.heat.price")}</th>${cols.map(d => `<th>${d === 0 ? t("opt.dateToday") : d >= hz ? t("opt.dateExpiry") : dateIn(d)}</th>`).join("")}</tr></thead>
+    host.innerHTML = `<table class="ttable opt-heat"><thead><tr><th>${t("opt.heat.price")}</th>${cols.map(d => `<th>${d === 0 ? t("opt.dateToday") : d >= state.days ? t("opt.dateExpiry") : dateIn(d)}</th>`).join("")}</tr></thead>
       <tbody>${prices.map((S, i) => `<tr class="${i === near ? "is-spot" : ""}"><th>${S.toFixed(2)}</th>${grid[i].map(cell).join("")}</tr>`).join("")}</tbody></table>`;
   }
 
-  /* ---------- option chain (model prices) ---------- */
-  function chainSub() {
-    const e = $("oChainSub"); if (e) e.textContent = t("opt.chain.sub", { n: state.days });
-    if ($("oChainBox") && $("oChainBox").open) chainHtml();
-  }
-  function chainHtml() {
-    const box = $("oChainBox"), host = $("oChain");
-    if (!box || !host || !box.open) return;
-    const raw = state.spot * 0.16 / 20;
-    const stride = [0.5, 1, 2, 5, 10, 25].find(x => x >= raw * 0.8) || 25;
-    const atm = Math.round(state.spot / stride) * stride;
-    const T = state.days / 365;
-    const rows = [];
-    for (let i = -10; i <= 10; i += 1) {
-      const k = atm + i * stride; if (k <= 0) continue;
-      const row = { k };
-      ["call", "put"].forEach((ty) => {
-        row[ty] = O.price(ty, state.spot, k, T, state.iv, state.r, state.q);
-        row[ty + "D"] = O.greeks(ty, state.spot, k, T, state.iv, state.r, state.q).delta;
-      });
-      rows.push(row);
+  /* ---------- start ---------- */
+  /* Prefer the live chain: it brings the price, the real expiries and strikes
+     and a market price for every leg. Without it, fall back to the latest
+     close and model prices, and the page says so. Never overwrite a price
+     the visitor has already typed. */
+  async function loadMarket() {
+    const sym = state.symbol;
+    if (sym === "CUSTOM" || !window.JSS) return;
+    state.loading = true; const src = document.getElementById("oSrc"); if (src) src.textContent = srcText();
+    let chain = null;
+    try { chain = window.JSS.getOptionChain ? await window.JSS.getOptionChain(sym) : null; } catch (_) { chain = null; }
+    state.loading = false;
+    if (sym !== state.symbol) return;                       // the visitor switched symbol meanwhile
+    if (chain) {
+      chain.fetchedAt = Date.now();
+      state.chain = chain;
+      if (!spotTouched) state.spot = round2(chain.spot);
+      setExpiry(state.expiry && chain.chain[state.expiry] ? state.expiry : pickExpiry(35));
+      resetDistances(); build(state.strategy); layout();
+      return;
     }
-    const bs = (ty, k) => `<span class="bs"><button type="button" data-add="1" data-type="${ty}" data-k="${k}">${t("opt.buy")}</button><button type="button" data-add="-1" data-type="${ty}" data-k="${k}">${t("opt.sell")}</button></span>`;
-    host.innerHTML = `<table class="opt-chain"><thead>
-      <tr><th colspan="3" style="text-align:center">${t("opt.chain.calls")}</th><th></th><th colspan="3" style="text-align:center">${t("opt.chain.puts")}</th></tr>
-      <tr><th></th><th>${t("opt.premium")}</th><th>Δ</th><th style="text-align:center">${t("opt.strike")}</th><th>Δ</th><th>${t("opt.premium")}</th><th></th></tr></thead><tbody>
-      ${rows.map((r) => `<tr class="${r.k < state.spot ? "itm-c" : "itm-p"}${r.k === atm ? " is-atm" : ""}">
-        <td class="c">${bs("call", r.k)}</td><td class="c">${r.call.toFixed(2)}</td><td class="c">${r.callD.toFixed(2)}</td>
-        <td class="k">${r.k}</td>
-        <td class="p">${r.putD.toFixed(2)}</td><td class="p">${r.put.toFixed(2)}</td><td class="p">${bs("put", r.k)}</td></tr>`).join("")}
-      </tbody></table>`;
-  }
-
-  /* ---------- trade finder ---------- */
-  function runFinder() {
-    const host = $("oFound");
-    found = O.optimize({ spot: state.spot, target: state.target, days: state.days, iv: state.iv, r: state.r, q: state.q, top: 15 });
-    if (!found.length) { host.innerHTML = `<p class="opt-note">${t("opt.find.none")}</p>`; return; }
-    host.innerHTML = `<table class="opt-find"><thead><tr>
-      <th>${t("opt.strategy")}</th><th>${t("opt.find.cost")}</th><th>${t("opt.maxLoss")}</th><th>${t("opt.maxProfit")}</th>
-      <th>${t("opt.find.atTarget")}</th><th>${t("opt.find.ret")}</th><th>${t("opt.pop")}</th><th></th></tr></thead><tbody>
-      ${found.map((f, i) => `<tr><td>${t("opt.s." + f.kind)} ${f.strikes.join("/")}</td>
-        <td>${usd(f.cost, 0)}</td><td class="neg">${usd(f.maxLoss, 0)}</td><td class="pos">${usd(f.maxProfit, 0)}</td>
-        <td class="pos">${usd(f.pl, 0)}</td><td><b>${Math.round(f.ret * 100)}%</b></td>
-        <td>${f.pop == null ? "—" : Math.round(f.pop * 100) + "%"}</td>
-        <td><button class="btn btn--ghost btn--sm" type="button" data-open="${i}">${t("opt.find.open")}</button></td></tr>`).join("")}
-      </tbody></table>`;
-  }
-
-  /* ---------- saved strategies (this browser only) ---------- */
-  function readSaved() { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
-  function writeSaved(list) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(list.slice(0, 30))); } catch (_) { /* private mode: keep going */ } }
-  const clean = (x) => String(x == null ? "" : x).replace(/[<>&"']/g, "");
-
-  function saveCurrent() {
-    if (!state.legs.length) return;
-    const name = clean(state.symbol === "CUSTOM" ? "—" : state.symbol) + " " + t("opt.s." + state.strategy) + " · " + dateIn(0);
-    const item = {
-      name, at: Date.now(), symbol: state.symbol, strategy: state.strategy,
-      spot: state.spot, iv: state.iv, r: state.r, q: state.q, days: state.days,
-      // saved at fixed prices, so a loaded strategy shows profit since entry
-      legs: state.legs.map(l => ({ type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv: l.iv, dte: l.dte, auto: false })),
-    };
-    writeSaved([item, ...readSaved()]);
-    savedHtml();
-    const b = $("oSave"); if (b) { const old = b.textContent; b.textContent = t("opt.saved.done"); setTimeout(() => { if ($("oSave")) $("oSave").textContent = old; }, 1400); }
-  }
-  function savedHtml() {
-    const host = $("oSaved"); if (!host) return;
-    const list = readSaved();
-    host.innerHTML = list.length ? list.map((s, i) => `
-      <div class="opt-saved__row"><span title="${clean(s.name)}">${clean(s.name)}</span>
-        <span class="opt-saved__btns">
-          <button class="btn btn--ghost btn--sm" type="button" data-load="${i}">${t("opt.saved.load")}</button>
-          <button class="btn btn--ghost btn--sm" type="button" data-del="${i}" aria-label="${t("opt.saved.del")}">×</button></span></div>`).join("")
-      : `<p class="opt-note" style="margin:0">${t("opt.saved.empty")}</p>`;
-  }
-  function onSavedClick(e) {
-    const b = e.target.closest("button"); if (!b) return;
-    const list = readSaved();
-    if (b.dataset.del != null) { list.splice(+b.dataset.del, 1); writeSaved(list); savedHtml(); return; }
-    const s = list[+b.dataset.load]; if (!s) return;
-    const ok = (v) => typeof v === "number" && isFinite(v);
-    if (!ok(s.spot) || !ok(s.iv) || !Array.isArray(s.legs)) return;
-    state.symbol = SYMBOLS[s.symbol] ? s.symbol : "CUSTOM";
-    state.strategy = STRATEGIES.includes(s.strategy) ? s.strategy : state.strategy;
-    state.spot = s.spot; spotBase = s.spot; state.iv = s.iv; state.r = ok(s.r) ? s.r : state.r; state.q = ok(s.q) ? s.q : state.q;
-    state.days = ok(s.days) ? s.days : state.days; spotTouched = true;
-    state.legs = s.legs.filter(l => ["call", "put", "stock"].includes(l.type) && ok(l.premium) && ok(l.qty))
-      .map(l => ({ type: l.type, side: l.side < 0 ? -1 : 1, strike: ok(l.strike) ? l.strike : 0, qty: Math.max(1, Math.round(l.qty)), premium: l.premium, iv: ok(l.iv) ? l.iv : s.iv, dte: ok(l.dte) ? l.dte : state.days, auto: false }));
-    state.elapsed = 0; resetTarget(); found = [];
+    try {
+      const q = window.JSS.getQuote ? await window.JSS.getQuote(sym, 5) : null;
+      const close = q && +q.close;
+      if (sym === state.symbol && !spotTouched && isFinite(close) && close > 1) {
+        state.spot = round2(close); resetDistances(); build(state.strategy);
+      }
+    } catch (_) { /* keep the placeholder */ }
     layout();
   }
 
-  /* ---------- start ---------- */
-  /* A latest close is a better starting point than a made-up one, but it can
-     be delayed or sample data, and the page says to set it to the broker's
-     quote. Never overwrite a price the visitor has already typed. */
-  async function loadQuote() {
-    try {
-      if (!window.JSS || !window.JSS.getQuote || state.symbol === "CUSTOM") return;
-      const q = await window.JSS.getQuote(state.symbol, 5);
-      const close = q && +q.close;
-      if (!spotTouched && isFinite(close) && close > 1) {
-        state.spot = round2(close); spotBase = state.spot; resetDistances(); resetTarget();
-        build(state.strategy); layout();
-      }
-    } catch (_) { /* keep the placeholder */ }
+  /* Refresh the chain every minute while the tab is visible. Leg prices are
+     entry prices and stay put; the chain table and the volatility follow. */
+  setInterval(async () => {
+    if (!state.chain || document.hidden || !window.JSS || !window.JSS.getOptionChain) return;
+    const sym = state.symbol;
+    let chain = null; try { chain = await window.JSS.getOptionChain(sym); } catch (_) { return; }
+    if (!chain || sym !== state.symbol || !chain.chain[state.expiry]) return;
+    chain.fetchedAt = Date.now(); state.chain = chain;
+    if (!spotTouched) state.spot = round2(chain.spot);
+    const e = expData();
+    state.legs.forEach(l => { if (l.mkt && e[l.type] && e[l.type][l.strike] && e[l.type][l.strike].iv > 0) l.iv = e[l.type][l.strike].iv; });
+    const src = document.getElementById("oSrc"); if (src) src.textContent = srcText();
+    chainHtml(); refresh();
+  }, 60000);
+
+  /* A saved trade keeps its entry prices, so the page shows its result since
+     then. Its volatility is updated from today's chain when the contract is
+     still listed. */
+  async function loadSaved(sv) {
+    if (!sv) return;
+    if (sv.sym !== state.symbol && SYMBOLS[sv.sym]) {
+      state.symbol = sv.sym; const d = SYMBOLS[sv.sym]; state.spot = d.spot; state.iv = d.iv; state.q = d.q;
+      state.chain = null; state.expiry = null; spotTouched = false; await loadMarket();
+    }
+    if (state.chain && sv.expiry) {
+      if (!state.chain.chain[sv.expiry]) { const s = document.getElementById("oSrc"); if (s) s.textContent = t("opt.saved.expired"); return; }
+      setExpiry(sv.expiry);
+    } else if (sv.days) state.days = sv.days;
+    const e = expData();
+    state.legs = sv.legs.map(l => {
+      const q = e && l.type !== "stock" && e[l.type][l.strike];
+      return { ...l, auto: false, mkt: !!(q && q.iv > 0), iv: q && q.iv > 0 ? q.iv : l.iv };
+    });
+    layout();
   }
 
   resetDistances();
-  resetTarget();
   build(state.strategy);
   setHero();
   layout();
   I.onChange(() => { setHero(); layout(); });
-  loadQuote();
+  loadMarket();
 })();
