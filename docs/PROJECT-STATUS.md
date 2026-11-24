@@ -163,9 +163,19 @@ Messages, Inbox.
   there and otherwise computed by netting each group. Every import is tagged
   so it can be undone. `scripts/tradeimport.js`, 32 tests.
 
+## Options Lab
+
+`options.html` — a strategy builder and profit calculator (14 templates: spreads,
+condors, straddles, covered calls and more). Exact profit/loss at expiry, a
+"selected date" curve, breakevens, chance of profit, Greeks and a price-by-date
+grid, in English and Vietnamese. Black-Scholes maths in `scripts/optionsmath.js`
+(17 tests). Prices are theoretical and the page carries a disclaimer; it makes
+no return claims. All legs share one expiry (no calendars yet). Starting prices
+are placeholders unless a live quote loads.
+
 ## Testing and releasing
 
-`npm test` runs 47 tests with no dependencies (Node's built-in runner). They also
+`npm test` runs 67 tests with no dependencies (Node's built-in runner). They also
 run in CI on every push (`.github/workflows/tests.yml`). They cover:
 
 - the **Clause 6 waterfall**, including a 500-trial conservation check;

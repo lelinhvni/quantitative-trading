@@ -103,6 +103,11 @@ test("no Vietnamese string is empty or still the English text", () => {
   }
 });
 
+function templateNames() {
+  require("../scripts/optionsmath.js");
+  return Object.keys(globalThis.JSSOptions.TEMPLATES);
+}
+
 function schemaValues(table, column) {
   // The allowed values come from the database's own CHECK constraint, so a
   // new status added there fails this test until it is translated.
@@ -116,7 +121,7 @@ function schemaValues(table, column) {
 test("every t('key') used in the code exists in the dictionary", () => {
   const used = new Set();
   const dynamic = new Set();
-  for (const f of ["scripts/portal.js", "scripts/site.js"]) {
+  for (const f of ["scripts/portal.js", "scripts/site.js", "scripts/options.js"]) {
     for (const m of read(f).matchAll(/\bt\(\s*"([a-zA-Z0-9_.]+)"(\s*\+)?/g)) {
       (m[2] ? dynamic : used).add(m[1]);
     }
@@ -126,6 +131,7 @@ test("every t('key') used in the code exists in the dictionary", () => {
 
   // Keys built at runtime: check every value the database can actually hold.
   const expected = {
+    "opt.s.": templateNames(),
     "st.": schemaValues("withdrawal_requests", "status"),
     "type.": schemaValues("capital_events", "type"),
     "risk.": schemaValues("investor_accounts", "risk_pref"),
@@ -137,5 +143,26 @@ test("every t('key') used in the code exists in the dictionary", () => {
       assert.ok((prefix + v) in VI, `no Vietnamese for ${prefix}${v}`);
       if (prefix === "risk.") assert.ok((prefix + v + "D") in VI, `no Vietnamese description for ${prefix}${v}D`);
     }
+  }
+});
+
+test("the Options Lab page loads its maths before its interface", () => {
+  const s = read("options.html");
+  const m = s.indexOf("scripts/optionsmath.js"), u = s.indexOf("scripts/options.js");
+  assert.ok(m >= 0 && u > m, "optionsmath.js must load before options.js");
+});
+
+test("every strategy template has a name in both languages", () => {
+  require("../scripts/optionsmath.js");
+  for (const k of Object.keys(globalThis.JSSOptions.TEMPLATES)) {
+    assert.ok(("opt.s." + k) in EN, `no English name for ${k}`);
+    assert.ok(("opt.s." + k) in VI, `no Vietnamese name for ${k}`);
+  }
+});
+
+test("styles for every class the nav script emits exist in main.css", () => {
+  const css = fs.readFileSync(path.join(ROOT, "styles/main.css"), "utf8");
+  for (const cls of [".nav__lang", ".nav__lang--mobile", ".opt-tip[hidden]"]) {
+    assert.ok(css.includes(cls), cls + " is missing from main.css");
   }
 });

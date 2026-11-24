@@ -1639,3 +1639,104 @@ button { font: inherit; cursor: pointer; }
 /* ---------- language toggle (investor view) ---------- */
 .lang-toggle { margin-right: 8px; min-width: 86px; }
 @media (max-width: 560px) { .lang-toggle { min-width: 0; } }
+
+/* ============================================================
+   Options Lab
+   ============================================================ */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.page-hero--compact { padding-bottom: 8px; }
+.page-hero--compact .page-hero__lede { margin-bottom: 0; }
+
+.opt { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
+.opt__side, .opt__main { min-width: 0; }
+@media (max-width: 960px) { .opt { grid-template-columns: 1fr; } }
+
+/* labels wrap their control here, so style the span like the site's .field label */
+.opt .field > span { font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+.opt .field select, .opt-leg select {
+  width: 100%; background: var(--bg-2); color: var(--text); font: inherit; font-size: 0.9rem;
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 10px 12px;
+}
+.opt .field select:focus, .opt-leg select:focus, .opt-leg input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(94,234,212,0.15); }
+.opt-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.opt-row { display: flex; gap: 10px; align-items: flex-end; margin-top: 12px; }
+.opt-row .field { flex: 1; }
+.opt-row--end { flex-wrap: wrap; align-items: center; }
+
+.opt-leg {
+  display: grid; grid-template-columns: 1fr 1.5fr 0.8fr; gap: 6px 8px;
+  padding: 10px 0; border-bottom: 1px solid var(--border); align-items: center;
+}
+.opt-leg:last-of-type { border-bottom: none; }
+.opt-leg input {
+  width: 100%; min-width: 0; background: var(--bg-2); color: var(--text); font: inherit; font-size: 0.9rem;
+  border: 1px solid var(--border-2); border-radius: var(--radius-sm); padding: 9px 10px;
+}
+.opt-leg input:disabled { opacity: 0.4; }
+.opt-leg select { padding: 9px 8px; }
+.opt-x {
+  background: none; border: 1px solid var(--border-2); color: var(--muted); border-radius: 99px;
+  width: 30px; height: 30px; font-size: 1.1rem; line-height: 1; cursor: pointer; justify-self: end;
+}
+.opt-x:hover { color: var(--red); border-color: var(--red); }
+.opt-leg__note { grid-column: 1 / -1; font-size: 0.72rem; color: var(--faint); }
+
+.opt-legend { font-size: 0.78rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.opt-key { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--text); margin-left: 8px; border-radius: 2px; }
+.opt-key--exp { border-color: var(--teal); }
+.opt-key--now { border-top: 3px dashed var(--indigo); }
+
+.opt-chart { position: relative; }
+.opt-chart svg { width: 100%; height: auto; display: block; touch-action: pan-y; }
+.opt-grid { stroke: var(--border); stroke-width: 1; }
+.opt-tick { fill: var(--faint); font-size: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.opt-zero { stroke: var(--border-2); stroke-width: 1.5; }
+.opt-spot { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.opt-spot-l { fill: var(--muted); font-size: 11px; }
+.opt-line { fill: none; stroke-width: 2.6; stroke-linejoin: round; stroke-linecap: round; }
+.opt-line--exp { stroke: var(--teal); }
+.opt-line--now { stroke: var(--indigo); stroke-width: 2.2; stroke-dasharray: 7 5; }
+.opt-area--pos { fill: rgba(52,211,153,0.16); }
+.opt-area--neg { fill: rgba(248,113,113,0.16); }
+.opt-be { fill: var(--bg); stroke: var(--gold, #d8b874); stroke-width: 2.5; }
+.opt-be-l { fill: var(--gold, #d8b874); font-size: 11px; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.opt-guide { stroke: var(--muted); stroke-width: 1; }
+.opt-tip {
+  position: absolute; pointer-events: none; z-index: 3; min-width: 150px;
+  background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+  padding: 9px 12px; font-size: 0.8rem; display: grid; gap: 3px; box-shadow: var(--shadow);
+}
+.opt-tip em { font-style: normal; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.opt-tip .pos { color: var(--green); } .opt-tip .neg { color: var(--red); }
+
+.opt-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 22px; margin-top: 14px; }
+.opt-slider { display: grid; gap: 6px; font-size: 0.82rem; color: var(--muted); }
+.opt-slider b { color: var(--text); font-weight: 600; }
+.opt-slider input[type=range] { width: 100%; accent-color: var(--teal); }
+
+.opt-heat { font-size: 0.78rem; }
+.opt-heat th, .opt-heat td { text-align: right; padding: 7px 9px; white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.opt-heat thead th:first-child, .opt-heat tbody th { text-align: left; color: var(--muted); font-weight: 500; }
+.opt-heat tr.is-spot th { color: var(--teal); }
+.opt-heat tr.is-spot td { box-shadow: inset 0 1px 0 var(--teal), inset 0 -1px 0 var(--teal); }
+.opt-disclaimer { max-width: 70ch; }
+
+/* ---------- language switch in the site nav ---------- */
+.nav__lang {
+  background: none; border: 1px solid var(--border-2); color: var(--muted);
+  font: inherit; font-size: 0.82rem; padding: 5px 12px; border-radius: 99px;
+  cursor: pointer; transition: color .2s, border-color .2s;
+}
+.nav__lang:hover { color: var(--text); border-color: var(--teal); }
+.nav__lang--mobile { display: block; width: 100%; margin-top: 10px; text-align: center; padding: 10px 12px; }
+@media (max-width: 900px) { .nav__links .nav__lang { display: none; } }
+
+/* Options Lab fixes: [hidden] must beat display:grid, SVG ignores [hidden],
+   and number inputs must be allowed to shrink inside a narrow column. */
+.opt-tip[hidden] { display: none; }
+.opt-guide { display: none; }
+.opt .field input, .opt .field select { width: 100%; min-width: 0; box-sizing: border-box; }
+.opt-fields > *, .opt-row > * { min-width: 0; }
+.opt-row .btn { flex: none; }
+.opt-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.opt-build { width: 100%; margin-top: 12px; }

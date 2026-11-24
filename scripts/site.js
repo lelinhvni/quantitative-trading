@@ -23,6 +23,7 @@
     { id: "home",       key: "nav.home",       href: "index.html" },
     { id: "quant",      key: "nav.quant",      href: "performance.html" },
     { id: "markets",    key: "nav.markets",    href: "markets.html" },
+    { id: "options",    key: "nav.options",    href: "options.html" },
     { id: "news",       key: "nav.news",       href: "news.html" },
     { id: "discussion", key: "nav.discussion", href: "discussion.html" },
   ];
