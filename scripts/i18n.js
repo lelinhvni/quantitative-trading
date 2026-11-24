@@ -326,6 +326,11 @@
     "opt.pnlUsd": "$",
     "opt.pnlPct": "%",
     "opt.pnlSub": "Green is profit, red is loss. Percent is of what you pay, or of the most you can lose on a credit.",
+    "opt.expIn": "Expires in {n} days · {date}",
+    "opt.farDays": "Later expiry (days)",
+    "opt.farExp": "Later expiry (long leg)",
+    "opt.mixed": "These legs expire on different dates. The chart measures the position on the first expiry and values the longer-dated options with the model.",
+    "opt.atFirst": "At first expiry",
   };
 
   const VI = {
@@ -621,6 +626,11 @@
     "opt.pnlUsd": "$",
     "opt.pnlPct": "%",
     "opt.pnlSub": "Xanh là lãi, đỏ là lỗ. Phần trăm tính trên số tiền bạn bỏ ra, hoặc trên mức lỗ tối đa nếu thu phí trước.",
+    "opt.expIn": "Hết hạn sau {n} ngày · {date}",
+    "opt.farDays": "Hạn xa hơn (ngày)",
+    "opt.farExp": "Hạn xa hơn (vế mua dài hạn)",
+    "opt.mixed": "Các vế này hết hạn vào những ngày khác nhau. Biểu đồ đo vị thế vào lần hết hạn đầu tiên và định giá các quyền chọn dài hạn hơn bằng mô hình.",
+    "opt.atFirst": "Khi hết hạn lần đầu",
   };
 
   const DICT = { en: EN, vi: VI };

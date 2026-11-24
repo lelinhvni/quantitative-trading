@@ -194,11 +194,17 @@ distance from price, each leg's strike (snapping to listed strikes when a chain
 is loaded) and the optimizer's target. A $ / % toggle on the profit and loss
 grid shows percent of what you pay, or of the most you can lose on a credit.
 
-**Held back.** `optionsmath.js` supports a separate expiry per leg (calendar
-and diagonal spreads, a sampled analysis for them, and `optimizeModel` for
-chain-less use; all tested), but the page prices every leg on one expiry, so
-the calendar templates are hidden from the strategy list. Showing them needs a
-decision on how per-leg expiry should work with the live chain.
+**Per-leg expiry and calendars.** Every option leg has its own expiry: a
+dropdown of the listed expiries when a chain is loaded (strike snaps to that
+expiry's listed strikes and the price becomes its midpoint), or a days slider
+without one. Call and put calendars are in the strategy list; the long leg's
+expiry is chosen in the strategy panel. The top "Expiration" selector moves
+only the legs that sit on it, and also sets where the chain table, optimizer
+and new legs go. With mixed expiries the page measures the position on the
+first expiry, values the longer-dated legs with the model (using their quoted
+volatility), and says so under the chart. Extremes, breakevens and chance of
+profit are then sampled rather than exact. Saved trades keep each leg's expiry.
+The optimizer ranks single-expiry trades only.
 
 To serve the chain through our own proxy instead of the public ones, redeploy
 `supabase/functions/market-proxy` — its allow-list now includes `cdn.cboe.com`.

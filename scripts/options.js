@@ -24,13 +24,14 @@
     DIA: { spot: 440, iv: 0.16, q: 0.017 },
     CUSTOM: { spot: 100, iv: 0.25, q: 0 },
   };
-  const STRATEGIES = Object.keys(O.TEMPLATES).filter((n) => !/_calendar$/.test(n));
+  const STRATEGIES = Object.keys(O.TEMPLATES);
 
   const state = {
     symbol: "SPY", spot: SYMBOLS.SPY.spot, iv: SYMBOLS.SPY.iv, r: 0.04, q: SYMBOLS.SPY.q,
     days: 35, width: 6, offset: 12, strategy: "iron_condor",
     legs: [], elapsed: 0, ivShift: 0, rangePct: 20,
     chain: null, expiry: null, target: null, loading: false, label: null, pnl: "$",
+    farDays: 70, farExp: null,
   };
   let spotBase = 0;                  // the price slider is centred here, and does not move while dragging
   let spotTouched = false;
@@ -76,11 +77,10 @@
   /* Auto-priced legs track the model whenever an input changes; a leg whose
      price the user has typed keeps it. */
   function repriceAuto() {
-    const T = state.days / 365;
     state.legs.forEach((l) => {
       if (!l.auto) return;
       if (l.type === "stock") { l.premium = round2(state.spot); l.iv = 0; return; }
-      l.premium = round2(O.price(l.type, state.spot, l.strike, T, state.iv, state.r, state.q));
+      l.premium = round2(O.price(l.type, state.spot, l.strike, (l.dte || state.days) / 365, state.iv, state.r, state.q));
       l.iv = state.iv;
     });
   }
@@ -90,8 +90,24 @@
      selected expiry and the quoted volatility; their strikes snap to strikes
      that exist. A leg whose price the visitor types stops being a market leg. */
   const expData = () => (state.chain && state.expiry ? state.chain.chain[state.expiry] : null);
+  /* Every option leg has its own expiry: `dte` days, and with a chain loaded
+     `exp`, the listed expiry date it sits on. */
+  const legData = (l) => (state.chain && l.exp ? state.chain.chain[l.exp] : null);
+  const expInfo = (date) => (state.chain ? state.chain.expiries.find((x) => x.date === date) : null);
+  function setLegExp(l, date) { const e = expInfo(date); if (e) { l.exp = e.date; l.dte = Math.max(1, Math.round(e.days)); } return l; }
+  /* A new leg starts on the page's current expiry. */
+  function stamp(l) { if (l.type !== "stock") { l.dte = state.days; if (state.expiry) l.exp = state.expiry; } return l; }
+  const isCalendar = (n) => /_calendar$/.test(n);
+  /* The later expiry a calendar's long leg sits on. */
+  function farInfo() {
+    if (!state.chain) return null;
+    const ex = state.chain.expiries, near = expInfo(state.expiry);
+    const later = ex.filter((e) => near && e.days > near.days + 0.5);
+    if (!later.length) return null;
+    return later.find((e) => e.date === state.farExp) || later.reduce((b, e) => (Math.abs(e.days - state.days * 2) < Math.abs(b.days - state.days * 2) ? e : b), later[0]);
+  }
   function marketize(l) {
-    const e = expData();
+    const e = l.exp ? legData(l) : expData();
     if (!e || l.type === "stock") { if (l.type === "stock") { l.premium = round2(state.spot); l.iv = 0; } return false; }
     const k = O.nearestStrike(e.strikes, l.strike || state.spot), q = e[l.type][k];
     l.strike = k;
@@ -120,8 +136,8 @@
   /* The volatility each leg is repriced with: the global one for model-priced
      legs, or whatever the typed price implies. */
   function effectiveLegs() {
-    const T = state.days / 365;
     return state.legs.map((l) => {
+      const T = (l.dte || state.days) / 365;
       let iv = state.iv;
       if (l.type === "stock") iv = 0;
       else if (l.mkt && l.iv > 0) iv = l.iv;
@@ -129,14 +145,34 @@
         const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, T, state.r, state.q);
         if (imp) iv = imp;
       }
-      return { type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv };
+      return { type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv, dte: l.type === "stock" ? undefined : (l.dte || state.days) };
     });
   }
 
   function build(name) {
     state.strategy = name; state.label = null;
-    state.legs = O.buildTemplate(name, state.spot, state.width, state.iv, state.days, state.r, state.q, state.offset);
-    if (expData()) state.legs.forEach(marketize);
+    // A calendar sells the near expiry and buys a later one. When the selected
+    // expiry is the last one listed there is nothing later, so it becomes the
+    // long leg and the short leg moves to an earlier expiry.
+    let cal = null;
+    if (isCalendar(name) && state.chain) {
+      const cur = expInfo(state.expiry), far = farInfo();
+      if (far) cal = { near: cur, far };
+      else {
+        const earlier = state.chain.expiries.filter((e) => e.days < cur.days - 0.5);
+        if (earlier.length) cal = { near: earlier.reduce((b, e) => (Math.abs(e.days - cur.days / 2) < Math.abs(b.days - cur.days / 2) ? e : b), earlier[0]), far: cur };
+      }
+    }
+    const nearDays = cal ? Math.max(1, Math.round(cal.near.days)) : state.days;
+    const farDays = cal ? Math.max(1, Math.round(cal.far.days)) : state.farDays;
+    state.legs = O.buildTemplate(name, state.spot, state.width, state.iv, nearDays, state.r, state.q, state.offset, farDays);
+    if (state.chain) {
+      state.legs.forEach((l) => {
+        if (l.type === "stock") return;
+        if (cal) setLegExp(l, l.dte === farDays ? cal.far.date : cal.near.date); else stamp(l);
+      });
+    }                                          // without a chain the template already carries each leg's days
+    if (state.chain) state.legs.forEach(marketize);
   }
 
   /* ---------- page text ---------- */
@@ -178,6 +214,9 @@
             ${pick("oWidth", t("opt.width"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.15)), step: 1, value: state.width, nmin: 1 })}
             ${pick("oOffset", t("opt.offset"), { min: 1, max: Math.max(5, Math.round(state.spot * 0.2)), step: 1, value: state.offset, nmin: 1 })}
           </div>
+          ${isCalendar(state.strategy) ? `<div class="opt-fields" style="margin-top:12px">${state.chain
+            ? `<label class="field opt-pick--full"><span>${t("opt.farExp")}</span><select id="oFar">${state.chain.expiries.filter((e) => e.days > (expInfo(state.expiry) || { days: 0 }).days + 0.5).map((e) => `<option value="${esc(e.date)}" ${farInfo() && e.date === farInfo().date ? "selected" : ""}>${esc(expLabel(e))}</option>`).join("")}</select></label>`
+            : pick("oFar", t("opt.farDays"), { min: 2, max: 365, step: 1, value: Math.max(state.farDays, state.days + 1), nmax: 1000 })}</div>` : ""}
           <div class="opt-row opt-row--end"><button class="btn btn--primary btn--sm" id="oBuild" type="button">${t("opt.build")}</button></div>
         </div>
 
@@ -204,12 +243,13 @@
 
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.chart.title")}</h2>
-            <span class="opt-legend"><i class="opt-key opt-key--exp"></i>${t("opt.atExpiry")}
+            <span class="opt-legend"><i class="opt-key opt-key--exp"></i><span id="oExpLbl">${t("opt.atExpiry")}</span>
               <i class="opt-key opt-key--now"></i>${t("opt.onDate")}</span></div>
           <div class="opt-chart" id="oChartWrap">
             <svg id="oChart" role="img" aria-label="${t("opt.chart.aria")}" preserveAspectRatio="xMidYMid meet"></svg>
             <div class="opt-tip" id="oTip" hidden></div>
           </div>
+          <p class="opt-note" id="oMixed" hidden>${t("opt.mixed")}</p>
           <div class="opt-sliders">
             <label class="opt-slider"><span>${t("opt.date")}: <b id="oDateLbl"></b></span>
               <input id="oElapsed" type="range" min="0" max="${state.days}" step="1" value="${state.elapsed}" /></label>
@@ -320,29 +360,21 @@
 
   /* ---------- legs editor ---------- */
   const strikeText = (l) => "$" + l.strike + " · " + (l.strike >= state.spot ? "+" : "−") + Math.abs((l.strike / state.spot - 1) * 100).toFixed(1) + "%";
+  const expText = (l) => t("opt.expIn", { n: l.dte || state.days, date: dateIn(l.dte || state.days) });
   function legNote(l) {
     if (l.type === "stock") return "";
     if (l.mkt) return t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) });
     if (l.auto) return t("opt.model");
-    const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, state.days / 365, state.r, state.q);
+    const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, (l.dte || state.days) / 365, state.r, state.q);
     return t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
   }
   function legsHtml() {
     const host = document.getElementById("oLegs");
     if (!host) return;
     if (!state.legs.length) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.empty")}</p>`; return; }
-    const T = state.days / 365;
     host.innerHTML = state.legs.map((l, i) => {
       const stock = l.type === "stock";
-      let note = "";
-      if (!stock) {
-        if (l.mkt) note = t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) });
-        else if (l.auto) note = t("opt.model");
-        else {
-          const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, T, state.r, state.q);
-          note = t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
-        }
-      }
+      const note = legNote(l);
       const b = { min: Math.min(l.strike, Math.max(stepOf(), snapK(state.spot * 0.75))), max: Math.max(l.strike, snapK(state.spot * 1.25)) };
       return `
         <div class="opt-leg" data-i="${i}">
@@ -366,6 +398,9 @@
               <input type="range" data-f="strike" min="${b.min}" max="${b.max}" step="${stepOf()}" value="${l.strike}" aria-label="${t("opt.strike")}" />
               <input type="number" data-f="strike" step="0.5" min="0.01" value="${l.strike}" inputmode="decimal" aria-label="${t("opt.strike")}" />
             </div></div>`}
+          ${stock ? "" : state.chain
+            ? `<div><span class="opt-leg__lbl">${t("opt.expiry")}</span><select data-f="exp" aria-label="${t("opt.expiry")}">${state.chain.expiries.map((e) => `<option value="${esc(e.date)}" ${e.date === l.exp ? "selected" : ""}>${esc(expLabel(e))}</option>`).join("")}</select></div>`
+            : `<div><span class="opt-leg__lbl"><b data-o="exp">${expText(l)}</b></span><input type="range" data-f="dte" min="1" max="365" step="1" value="${l.dte || state.days}" aria-label="${t("opt.days")}" /></div>`}
           <div class="opt-leg__price">
             <label>${t("opt.premium")} <input data-f="premium" type="number" step="0.01" min="0" value="${l.premium}" inputmode="decimal" /></label>
             <span class="opt-leg__note" data-o="note">${note}</span>
@@ -379,13 +414,13 @@
     const $ = (id) => document.getElementById(id);
 
     const onInput = () => {
+      const oldDays = state.days;
       state.spot = Math.max(0.01, num($("oSpot").value, state.spot));
       state.iv = Math.min(3, Math.max(0.01, num($("oIv").value, state.iv * 100) / 100));
       if ($("oDays")) state.days = Math.min(1000, Math.max(1, Math.round(num($("oDays").value, state.days))));
       state.r = Math.max(0, num($("oRate").value, state.r * 100) / 100);
       state.q = Math.max(0, num($("oDiv").value, state.q * 100) / 100);
-      state.elapsed = Math.min(state.elapsed, state.days);
-      const el = $("oElapsed"); el.max = state.days; el.value = state.elapsed;
+      if (state.days !== oldDays) state.legs.forEach((l) => { if (l.type !== "stock" && l.dte === oldDays) l.dte = state.days; });
       repriceAuto();
       legsHtml();
       refresh();
@@ -419,6 +454,15 @@
       $(id).addEventListener("input", (e) => { $(id + "R").value = e.target.value; apply(e.target.value); });
       $(id + "V").textContent = state[key];
     });
+    if ($("oFar")) {
+      if ($("oFar").tagName === "SELECT") $("oFar").addEventListener("change", (e) => { state.farExp = e.target.value; });
+      else {
+        const apply = (v) => { state.farDays = Math.max(2, Math.round(num(v, state.farDays))); $("oFarV").textContent = state.farDays + " · " + dateIn(state.farDays); };
+        $("oFarR").addEventListener("input", (e) => { $("oFar").value = e.target.value; apply(e.target.value); });
+        $("oFar").addEventListener("input", (e) => { $("oFarR").value = e.target.value; apply(e.target.value); });
+        apply($("oFar").value);
+      }
+    }
     if ($("oTarget")) {
       const tgl = () => { $("oTargetV").textContent = "$" + num($("oTarget").value, 0); };
       $("oTargetR").addEventListener("input", (e) => { $("oTarget").value = e.target.value; tgl(); });
@@ -441,21 +485,24 @@
     $("oBuild").addEventListener("click", () => { build(state.strategy); layout(); });
     $("oAdd").addEventListener("click", () => {
       const k = O.roundStrike(state.spot, state.spot);
-      const l = { type: "call", side: 1, strike: k, qty: 1, premium: 0, iv: state.iv, auto: true };
+      const l = stamp({ type: "call", side: 1, strike: k, qty: 1, premium: 0, iv: state.iv, auto: true });
       state.legs.push(l); repriceAuto(); marketize(l); state.label = "opt.saved.custom"; legsHtml(); refresh();
     });
     $("oReprice").addEventListener("click", () => {
       state.legs.forEach(l => { l.auto = true; l.mkt = false; }); repriceAuto(); state.legs.forEach(marketize); legsHtml(); refresh();
     });
     if ($("oExpiry")) $("oExpiry").addEventListener("change", (e) => {
-      setExpiry(e.target.value); repriceAuto(); state.legs.forEach(marketize); optResults = []; state.target = null; layout();
+      const old = state.expiry;
+      setExpiry(e.target.value);
+      state.legs.forEach((l) => { if (l.type !== "stock" && l.exp === old) setLegExp(l, state.expiry); });
+      state.farExp = null; repriceAuto(); state.legs.forEach(marketize); optResults = []; state.target = null; layout();
     });
     $("oSave").addEventListener("click", (e) => {
       if (!state.legs.length) return;
       const name = `${state.symbol === "CUSTOM" ? "—" : state.symbol} · ${t(state.label || "opt.s." + state.strategy)}${state.expiry ? " · " + state.expiry : ""}`;
       const list = readSaved();
       list.unshift({ name, sym: state.symbol, expiry: state.expiry, days: state.days, spot: state.spot, at: Date.now(),
-        legs: state.legs.map(l => ({ type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv: l.iv })) });
+        legs: state.legs.map(l => ({ type: l.type, side: l.side, strike: l.strike, qty: l.qty, premium: l.premium, iv: l.iv, exp: l.exp, dte: l.dte })) });
       writeSaved(list.slice(0, 50)); savedHtml();
       e.target.textContent = t("opt.saved.done"); setTimeout(() => { e.target.textContent = t("opt.save"); }, 1500);
     });
@@ -466,13 +513,13 @@
     root.onclick = (e) => {
       const q = e.target.closest(".opt-q");
       if (q) {
-        const l = { type: q.dataset.type, side: +q.dataset.side > 0 ? 1 : -1, strike: +q.dataset.k, qty: 1, premium: 0, iv: state.iv, auto: true };
+        const l = stamp({ type: q.dataset.type, side: +q.dataset.side > 0 ? 1 : -1, strike: +q.dataset.k, qty: 1, premium: 0, iv: state.iv, auto: true });
         state.legs.push(l); marketize(l); state.label = "opt.saved.custom"; legsHtml(); refresh();
         const lg = $("oLegs"); if (lg && lg.scrollIntoView) lg.scrollIntoView({ block: "nearest", behavior: "smooth" });
         return;
       }
       const u = e.target.closest("[data-use]");
-      if (u) { const r = optResults[+u.dataset.use]; if (r) { state.legs = r.legs.map(l => ({ ...l, auto: false, mkt: true })); state.label = "opt.s." + r.kind; legsHtml(); refresh(); } return; }
+      if (u) { const r = optResults[+u.dataset.use]; if (r) { state.legs = r.legs.map(l => stamp({ ...l, auto: false, mkt: true })); state.label = "opt.s." + r.kind; legsHtml(); refresh(); } return; }
       const ld = e.target.closest("[data-load]");
       if (ld) { loadSaved(readSaved()[+ld.dataset.load]); return; }
       const un = e.target.closest("[data-unsave]");
@@ -508,10 +555,17 @@
     if (f === "side") l.side = +e.target.value > 0 ? 1 : -1;
     else if (f === "type") {
       l.type = e.target.value;
-      if (l.type === "stock") { l.strike = 0; l.auto = true; l.mkt = false; } else if (!l.strike) l.strike = O.roundStrike(state.spot, state.spot);
+      if (l.type === "stock") { l.strike = 0; l.auto = true; l.mkt = false; l.dte = undefined; l.exp = undefined; } else { if (!l.strike) l.strike = O.roundStrike(state.spot, state.spot); if (!l.dte) stamp(l); }
       repriceAuto(); marketize(l); if (e.type === "change") legsHtml();
     }
     else if (f === "qty") l.qty = Math.max(1, Math.round(num(e.target.value, 1)));
+    else if (f === "exp") { setLegExp(l, e.target.value); marketize(l); legsHtml(); refresh(); return; }
+    else if (f === "dte") {
+      l.dte = Math.max(1, Math.round(num(e.target.value, l.dte)));
+      const x = row.querySelector("[data-o=exp]"); if (x) x.textContent = expText(l);
+      if (l.auto) repriceAuto();
+      const pr = row.querySelector("[data-f=premium]"); if (pr && l.auto) pr.value = l.premium;
+    }
     else if (f === "strike") {
       l.strike = Math.max(0.01, num(e.target.value, l.strike));
       const isSlider = e.target.type === "range";
@@ -526,40 +580,40 @@
       const pr = row.querySelector("[data-f=premium]"); if (pr && pr !== document.activeElement) pr.value = l.premium;
     }
     else if (f === "premium") { l.premium = Math.max(0, num(e.target.value, 0)); l.auto = false; l.mkt = false; }
-    if (f === "premium" || f === "strike") {
-      const note = row.querySelector(".opt-leg__note");
-      if (note && l.type !== "stock") {
-        const imp = O.impliedVol(l.type, l.premium, state.spot, l.strike, state.days / 365, state.r, state.q);
-        note.textContent = l.mkt ? t("opt.marketLeg", { iv: round2((l.iv || 0) * 100) }) : l.auto ? t("opt.model") : t("opt.manual") + (imp ? " · " + t("opt.impliedAt", { iv: round2(imp * 100) }) : "");
-      }
-      if (f === "strike" && l.auto) { const p = row.querySelector("[data-f=premium]"); if (p) p.value = l.premium; }
-    }
+    const nt = row.querySelector(".opt-leg__note"); if (nt) nt.textContent = legNote(l);
+    if ((f === "strike" || f === "dte") && l.auto) { const p = row.querySelector("[data-f=premium]"); if (p && p !== document.activeElement) p.value = l.premium; }
     refresh();
   }
 
   /* ---------- everything that depends on the position ---------- */
   function refresh() {
+    if (!$("oStats")) return;
     const legs = effectiveLegs();
-    const daysLeft = Math.max(0, state.days - state.elapsed);
+    const hz = O.horizonDays(legs, state.days);
+    const mixed = O.isMixed(legs, state.days);
+    state.elapsed = Math.min(state.elapsed, hz);
     const ivShift = state.ivShift / 100;
 
-    document.getElementById("oDateLbl").textContent =
-      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= state.days ? t("opt.dateExpiry") : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
-    document.getElementById("oIvLbl").textContent = (state.ivShift > 0 ? "+" : "") + state.ivShift + " " + (I.lang === "vi" ? "điểm" : "pts");
-    document.getElementById("oRangeLbl").textContent = "±" + state.rangePct + "%";
+    const el = $("oElapsed"); el.max = hz; el.value = state.elapsed;
+    $("oDateLbl").textContent =
+      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= hz ? (mixed ? t("opt.atFirst") : t("opt.dateExpiry")) : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
+    $("oIvLbl").textContent = (state.ivShift > 0 ? "+" : "") + state.ivShift + " " + (I.lang === "vi" ? "điểm" : "pts");
+    $("oRangeLbl").textContent = "±" + state.rangePct + "%";
+    $("oExpLbl").textContent = mixed ? t("opt.atFirst") : t("opt.atExpiry");
+    $("oMixed").hidden = !mixed;
 
-    const a = O.analyze(legs, { spot: state.spot, days: state.days, r: state.r, q: state.q, iv: state.iv });
+    const a = O.analyze(legs, { spot: state.spot, days: hz, r: state.r, q: state.q, iv: state.iv });
     stats(a);
-    chart(legs, a, daysLeft, ivShift);
-    greeks(legs, daysLeft, ivShift);
-    heat(legs, a, ivShift);
+    chart(legs, a, hz, ivShift);
+    greeks(legs, ivShift);
+    heat(legs, a, hz, ivShift);
   }
 
   function stats(a) {
     const empty = !state.legs.length;
     const cash = a.netCash;
     const card = (l, v, s, cls) => `<div class="inc-card"><div class="inc-card__l">${l}</div><div class="inc-card__v ${cls || ""}">${v}</div>${s ? `<div class="inc-card__s">${s}</div>` : ""}</div>`;
-    document.getElementById("oStats").innerHTML = empty ? "" : [
+    $("oStats").innerHTML = empty ? "" : [
       card(cash >= 0 ? t("opt.netCredit") : t("opt.netDebit"), usd(Math.abs(cash), 0), "", cash >= 0 ? "pos" : ""),
       card(t("opt.maxProfit"), a.unlimitedProfit ? t("opt.unlimited") : usd(a.maxProfit, 0), "", "pos"),
       card(t("opt.maxLoss"), a.unlimitedLoss ? "−" + t("opt.unlimited") : usd(a.maxLoss, 0), "", a.maxLoss < 0 || a.unlimitedLoss ? "neg" : ""),
@@ -571,15 +625,15 @@
   /* nice axis ticks */
   function ticks(min, max, n) {
     const span = max - min, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
-    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
-    const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(8));
+    const stp = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw) || raw;
+    const out = []; for (let v = Math.ceil(min / stp) * stp; v <= max + 1e-9; v += stp) out.push(+v.toFixed(8));
     return out;
   }
 
   let view = null;                    // geometry of the last chart, for the pointer handler
 
-  function chart(legs, a, daysLeft, ivShift) {
-    const svg = document.getElementById("oChart");
+  function chart(legs, a, hz, ivShift) {
+    const svg = $("oChart");
     const W = 820, H = 380, pl = 66, pr = 18, pt = 14, pb = 34;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     if (!legs.length) { svg.innerHTML = ""; view = null; return; }
@@ -589,14 +643,15 @@
     const xmin = Math.max(0.01, Math.min(state.spot - half, strikes.length ? Math.min(...strikes) * 0.97 : Infinity));
     const xmax = Math.max(state.spot + half, strikes.length ? Math.max(...strikes) * 1.03 : 0);
 
-    // expiry curve: exact, because it only bends at the strikes
-    const bends = [xmin, ...strikes.filter(k => k > xmin && k < xmax), xmax];
-    const exp = bends.map(x => [x, O.plAtExpiry(legs, x)]);
-    const N = 160, now = [];
-    for (let i = 0; i <= N; i += 1) {
-      const x = xmin + (xmax - xmin) * i / N;
-      now.push([x, daysLeft <= 0 ? O.plAtExpiry(legs, x) : O.plAtTime(legs, x, daysLeft, ivShift, state.r, state.q)]);
-    }
+    const at = (x, el, sh) => O.plAt(legs, x, el, sh, state.r, state.q, state.days);
+    // the curve at the first expiry: sampled, plus every strike so its corners stay sharp
+    const N = 160, xs = [];
+    for (let i = 0; i <= N; i += 1) xs.push(xmin + (xmax - xmin) * i / N);
+    strikes.forEach(k => { if (k > xmin && k < xmax) xs.push(k); });
+    xs.sort((p, q) => p - q);
+    const exp = xs.map(x => [x, at(x, hz, 0)]);
+    const showNow = state.elapsed < hz;
+    const now = showNow ? xs.map(x => [x, at(x, state.elapsed, ivShift)]) : [];
     let ymin = Math.min(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
     let ymax = Math.max(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
     const pad = (ymax - ymin || 1) * 0.08; ymin -= pad; ymax += pad;
@@ -621,40 +676,41 @@
       <line class="opt-spot" x1="${X(state.spot)}" x2="${X(state.spot)}" y1="${pt}" y2="${H - pb}"/>
       <text class="opt-spot-l" x="${X(state.spot) + 5}" y="${pt + 11}">${t("opt.now")} ${state.spot}</text>
       <path class="opt-line opt-line--exp" d="${path(exp)}"/>
-      ${daysLeft > 0 ? `<path class="opt-line opt-line--now" d="${path(now)}"/>` : ""}
+      ${showNow ? `<path class="opt-line opt-line--now" d="${path(now)}"/>` : ""}
       ${a.breakevens.filter(b => b > xmin && b < xmax).map(b => `<circle class="opt-be" cx="${X(b)}" cy="${y0}" r="4.5"/><text class="opt-be-l" x="${X(b)}" y="${y0 - 9}" text-anchor="middle">${b.toFixed(2)}</text>`).join("")}
       <line class="opt-guide" id="oGuide" y1="${pt}" y2="${H - pb}" x1="0" x2="0"/>
       <rect id="oHit" x="${pl}" y="${pt}" width="${W - pl - pr}" height="${H - pt - pb}" fill="transparent"/>`;
-    view = { W, H, pl, pr, xmin, xmax, legs, daysLeft, ivShift };
+    view = { W, H, pl, pr, xmin, xmax, legs, hz, ivShift, at };
 
-    const hit = document.getElementById("oHit");
+    const hit = $("oHit");
     hit.addEventListener("pointermove", hover);
-    hit.addEventListener("pointerleave", () => { document.getElementById("oTip").hidden = true; document.getElementById("oGuide").style.display = "none"; });
+    hit.addEventListener("pointerleave", () => { $("oTip").hidden = true; $("oGuide").style.display = "none"; });
   }
 
   function hover(e) {
     if (!view) return;
-    const svg = document.getElementById("oChart"), r = svg.getBoundingClientRect();
+    const svg = $("oChart"), r = svg.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width * view.W;
     const S = view.xmin + (px - view.pl) / (view.W - view.pl - view.pr) * (view.xmax - view.xmin);
     if (!(S >= view.xmin && S <= view.xmax)) return;
-    const exp = O.plAtExpiry(view.legs, S);
-    const nowV = view.daysLeft <= 0 ? exp : O.plAtTime(view.legs, S, view.daysLeft, view.ivShift, state.r, state.q);
-    const g = document.getElementById("oGuide"); g.style.display = "block"; g.setAttribute("x1", px); g.setAttribute("x2", px);
-    const tip = document.getElementById("oTip"); tip.hidden = false;
+    const exp = view.at(S, view.hz, 0);
+    const showNow = state.elapsed < view.hz;
+    const nowV = showNow ? view.at(S, state.elapsed, view.ivShift) : exp;
+    const g = $("oGuide"); g.style.display = "block"; g.setAttribute("x1", px); g.setAttribute("x2", px);
+    const tip = $("oTip"); tip.hidden = false;
     tip.innerHTML = `<b>${t("opt.hoverPrice")} $${S.toFixed(2)}</b>
       <span>${t("opt.hoverExpiry")}: <em class="${exp >= 0 ? "pos" : "neg"}">${sgn(exp)}${usd(exp)}</em></span>
-      ${view.daysLeft > 0 ? `<span>${t("opt.hoverDate")}: <em class="${nowV >= 0 ? "pos" : "neg"}">${sgn(nowV)}${usd(nowV)}</em></span>` : ""}`;
-    const wrap = document.getElementById("oChartWrap").getBoundingClientRect();
+      ${showNow ? `<span>${t("opt.hoverDate")}: <em class="${nowV >= 0 ? "pos" : "neg"}">${sgn(nowV)}${usd(nowV)}</em></span>` : ""}`;
+    const wrap = $("oChartWrap").getBoundingClientRect();
     const left = e.clientX - wrap.left + 14, flip = left > wrap.width - 190;
     tip.style.left = (flip ? e.clientX - wrap.left - 190 : left) + "px";
     tip.style.top = Math.max(6, e.clientY - wrap.top - 20) + "px";
   }
 
-  function greeks(legs, daysLeft, ivShift) {
-    const host = document.getElementById("oGreeks");
+  function greeks(legs, ivShift) {
+    const host = $("oGreeks");
     if (!legs.length) { host.innerHTML = ""; return; }
-    const g = O.positionGreeks(legs, state.spot, daysLeft, ivShift, state.r, state.q);
+    const g = O.positionGreeksAt(legs, state.spot, state.elapsed, ivShift, state.r, state.q, state.days);
     const card = (l, v, h) => `<div class="inc-card"><div class="inc-card__l">${l}</div><div class="inc-card__v">${v}</div><div class="inc-card__s">${h}</div></div>`;
     host.innerHTML = [
       card(t("opt.delta"), sgn(g.delta) + g.delta.toFixed(1), t("opt.deltaHelp")),
@@ -664,26 +720,27 @@
     ].join("");
   }
 
-  function heat(legs, a, ivShift) {
-    const host = document.getElementById("oHeat");
+  function heat(legs, a, hz, ivShift) {
+    const host = $("oHeat");
     if (!legs.length) { host.innerHTML = ""; return; }
     const strikes = legs.filter(l => l.type !== "stock").map(l => l.strike);
     const half = state.spot * state.rangePct / 100;
     const lo = Math.max(0.01, Math.min(state.spot - half, strikes.length ? Math.min(...strikes) * 0.97 : Infinity));
     const hi = Math.max(state.spot + half, strikes.length ? Math.max(...strikes) * 1.03 : 0);
-    const ROWS = 13, COLS = Math.min(7, state.days + 1);
+    const ROWS = 13, COLS = Math.min(7, hz + 1);
     const prices = Array.from({ length: ROWS }, (_, i) => hi - (hi - lo) * i / (ROWS - 1));
-    const cols = Array.from({ length: COLS }, (_, j) => Math.round(state.days * j / (COLS - 1 || 1)));
-    const grid = prices.map(S => cols.map(d => (d >= state.days ? O.plAtExpiry(legs, S) : O.plAtTime(legs, S, state.days - d, ivShift, state.r, state.q))));
+    const cols = Array.from({ length: COLS }, (_, j) => Math.round(hz * j / (COLS - 1 || 1)));
+    const grid = prices.map(S => cols.map(d => O.plAt(legs, S, d, d >= hz ? 0 : ivShift, state.r, state.q, state.days)));
     const maxAbs = Math.max(1, ...grid.flat().map(Math.abs));
-    const near = prices.reduce((b, p, i) => (Math.abs(p - state.spot) < Math.abs(prices[b] - state.spot) ? i : b), 0);
     const basis = O.riskBasis(a);
+    const near = prices.reduce((b, p, i) => (Math.abs(p - state.spot) < Math.abs(prices[b] - state.spot) ? i : b), 0);
     const cell = (v) => {
-      const a = Math.min(0.55, Math.abs(v) / maxAbs * 0.55);
-      const bg = v >= 0 ? `rgba(52,211,153,${a.toFixed(3)})` : `rgba(248,113,113,${a.toFixed(3)})`;
-      return `<td style="background:${bg}">${state.pnl === "%" ? Math.round(v / basis * 100).toLocaleString("en-US") + "%" : Math.round(v).toLocaleString("en-US")}</td>`;
+      const k = Math.min(0.55, Math.abs(v) / maxAbs * 0.55);
+      const bg = v >= 0 ? `rgba(52,211,153,${k.toFixed(3)})` : `rgba(248,113,113,${k.toFixed(3)})`;
+      const txt = state.pnl === "%" ? Math.round(v / basis * 100).toLocaleString("en-US") + "%" : Math.round(v).toLocaleString("en-US");
+      return `<td style="background:${bg}">${txt}</td>`;
     };
-    host.innerHTML = `<table class="ttable opt-heat"><thead><tr><th>${t("opt.heat.price")}</th>${cols.map(d => `<th>${d === 0 ? t("opt.dateToday") : d >= state.days ? t("opt.dateExpiry") : dateIn(d)}</th>`).join("")}</tr></thead>
+    host.innerHTML = `<table class="ttable opt-heat"><thead><tr><th>${t("opt.heat.price")}</th>${cols.map(d => `<th>${d === 0 ? t("opt.dateToday") : d >= hz ? t("opt.dateExpiry") : dateIn(d)}</th>`).join("")}</tr></thead>
       <tbody>${prices.map((S, i) => `<tr class="${i === near ? "is-spot" : ""}"><th>${S.toFixed(2)}</th>${grid[i].map(cell).join("")}</tr>`).join("")}</tbody></table>`;
   }
 
@@ -727,8 +784,7 @@
     if (!chain || sym !== state.symbol || !chain.chain[state.expiry]) return;
     chain.fetchedAt = Date.now(); state.chain = chain;
     if (!spotTouched) state.spot = round2(chain.spot);
-    const e = expData();
-    state.legs.forEach(l => { if (l.mkt && e[l.type] && e[l.type][l.strike] && e[l.type][l.strike].iv > 0) l.iv = e[l.type][l.strike].iv; });
+    state.legs.forEach(l => { const e = legData(l); if (l.mkt && e && e[l.type] && e[l.type][l.strike] && e[l.type][l.strike].iv > 0) l.iv = e[l.type][l.strike].iv; });
     const src = document.getElementById("oSrc"); if (src) src.textContent = srcText();
     chainHtml(); refresh();
   }, 60000);
@@ -742,14 +798,18 @@
       state.symbol = sv.sym; const d = SYMBOLS[sv.sym]; state.spot = d.spot; state.iv = d.iv; state.q = d.q;
       state.chain = null; state.expiry = null; spotTouched = false; await loadMarket();
     }
-    if (state.chain && sv.expiry) {
-      if (!state.chain.chain[sv.expiry]) { const s = document.getElementById("oSrc"); if (s) s.textContent = t("opt.saved.expired"); return; }
-      setExpiry(sv.expiry);
+    const gone = (l) => l.type !== "stock" && state.chain && !state.chain.chain[l.exp || sv.expiry];
+    if (state.chain && (sv.expiry || sv.legs.some((l) => l.exp))) {
+      if (sv.legs.some(gone) || (sv.expiry && !state.chain.chain[sv.expiry])) { const s = document.getElementById("oSrc"); if (s) s.textContent = t("opt.saved.expired"); return; }
+      setExpiry(sv.expiry || sv.legs.find((l) => l.exp).exp);
     } else if (sv.days) state.days = sv.days;
-    const e = expData();
     state.legs = sv.legs.map(l => {
-      const q = e && l.type !== "stock" && e[l.type][l.strike];
-      return { ...l, auto: false, mkt: !!(q && q.iv > 0), iv: q && q.iv > 0 ? q.iv : l.iv };
+      const e = l.type !== "stock" && state.chain ? state.chain.chain[l.exp || sv.expiry] : null;
+      const q = e && e[l.type][l.strike];
+      const out = { ...l, auto: false, mkt: !!(q && q.iv > 0), iv: q && q.iv > 0 ? q.iv : l.iv };
+      if (l.type === "stock") return out;
+      if (state.chain) setLegExp(out, l.exp || sv.expiry); else out.dte = l.dte || sv.days || state.days;
+      return out;
     });
     layout();
   }
