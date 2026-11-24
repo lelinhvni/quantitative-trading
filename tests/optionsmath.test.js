@@ -131,7 +131,8 @@ test("templates open at roughly zero profit, because they are priced by the same
     const legs = O.buildTemplate(name, spot, 5, iv, days, r, q);
     assert.ok(legs.length >= 1, name);
     // cents rounding on at most four legs: a few dollars at the very most
-    assert.ok(Math.abs(O.plAtTime(legs, spot, days, 0, r, q)) < 3, `${name} opens at ${O.plAtTime(legs, spot, days, 0, r, q)}`);
+    const open = O.plAt(legs, spot, 0, 0, r, q, days);   // each leg valued on its own expiry
+    assert.ok(Math.abs(open) < 3, `${name} opens at ${open}`);
   }
 });
 
@@ -156,4 +157,60 @@ test("net greeks of a symmetric condor are near delta-neutral, short gamma and l
   assert.ok(g.gamma < 0, "gamma " + g.gamma);
   assert.ok(g.theta > 0, "theta " + g.theta);
   assert.ok(g.vega < 0, "vega " + g.vega);
+});
+
+test("plAt equals plAtTime when every leg shares one expiry", () => {
+  const legs = O.buildTemplate("iron_condor", 100, 5, 0.2, 30, 0.04, 0.01);
+  for (const S of [90, 100, 108]) for (const el of [0, 10, 29]) {
+    near(O.plAt(legs, S, el, 0.02, 0.04, 0.01, 30), O.plAtTime(legs, S, 30 - el, 0.02, 0.04, 0.01), 1e-9);
+  }
+});
+
+test("a calendar spread: bounded loss equal to the debit, two breakevens, measured on the first expiry", () => {
+  const legs = O.buildTemplate("call_calendar", 100, 5, 0.22, 30, 0.04, 0, 5, 60);
+  assert.equal(legs.length, 2);
+  assert.notEqual(legs[0].dte, legs[1].dte);
+  assert.ok(O.isMixed(legs, 30));
+  assert.equal(O.horizonDays(legs, 30), 30);
+  const a = O.analyze(legs, { spot: 100, days: 30, r: 0.04, q: 0, iv: 0.22 });
+  assert.ok(a.approx);
+  const debit = -a.netCash;
+  assert.ok(debit > 0, "a calendar is a debit");
+  near(a.maxLoss, -debit, 1, "worst case is losing the debit");
+  assert.ok(a.maxProfit > 0 && isFinite(a.maxProfit));
+  assert.equal(a.breakevens.length, 2);
+  assert.ok(a.breakevens[0] < 100 && a.breakevens[1] > 100, "profit tent straddles the strike");
+  assert.ok(a.pop > 0 && a.pop < 1);
+  // best result is near the strike at the first expiry
+  assert.ok(O.plAt(legs, 100, 30, 0, 0.04, 0, 30) > O.plAt(legs, 80, 30, 0, 0.04, 0, 30));
+});
+
+test("legs that share an expiry still use the exact analysis", () => {
+  const legs = O.buildTemplate("iron_condor", 100, 5, 0.2, 30, 0.04, 0, 5);
+  assert.ok(!O.isMixed(legs, 30));
+  assert.ok(!O.analyze(legs, { spot: 100, days: 30, r: 0.04, q: 0, iv: 0.2 }).approx);
+});
+
+test("riskBasis: the debit for a debit, the most you can lose for a credit", () => {
+  const debit = O.analyze(O.buildTemplate("bull_call_spread", 100, 5, 0.2, 30, 0.04, 0), { spot: 100, days: 30 });
+  near(O.riskBasis(debit), -debit.netCash, 1e-9);
+  const credit = O.analyze(O.buildTemplate("iron_condor", 100, 5, 0.2, 30, 0.04, 0, 5), { spot: 100, days: 30 });
+  near(O.riskBasis(credit), -credit.maxLoss, 1e-9);
+  assert.ok(O.riskBasis({ netCash: 0, maxLoss: -Infinity }) > 0);
+});
+
+test("trade finder: only profitable ideas at the target, best return first, risk is real", () => {
+  const res = O.optimize({ spot: 100, target: 104, days: 30, iv: 0.2, r: 0.04, q: 0, top: 10 });
+  assert.ok(res.length > 0 && res.length <= 10);
+  for (let i = 0; i < res.length; i += 1) {
+    const x = res[i];
+    assert.ok(x.pl > 0, "profits at target");
+    assert.ok(x.maxLoss < 0, "has a finite, positive risk");
+    near(x.pl, O.plAtExpiry(x.legs, 104), 1e-9);
+    near(x.ret, x.pl / -x.maxLoss, 1e-9);
+    if (i) assert.ok(res[i - 1].ret >= x.ret, "sorted");
+  }
+  // an upward target never ranks a bearish structure
+  assert.ok(res.every(x => !/bear_call|long_put|bull_put/.test(x.kind) || x.pl > 0));
+  assert.deepEqual(O.optimize({ spot: 100, target: 100, days: 30, iv: 0.2, r: 0.04, q: 0, top: 5 }).filter(x => x.pl <= 0), []);
 });

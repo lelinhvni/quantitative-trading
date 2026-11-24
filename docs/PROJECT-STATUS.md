@@ -165,17 +165,30 @@ Messages, Inbox.
 
 ## Options Lab
 
-`options.html` — a strategy builder and profit calculator (14 templates: spreads,
-condors, straddles, covered calls and more). Exact profit/loss at expiry, a
-"selected date" curve, breakevens, chance of profit, Greeks and a price-by-date
-grid, in English and Vietnamese. Black-Scholes maths in `scripts/optionsmath.js`
-(17 tests). Prices are theoretical and the page carries a disclaimer; it makes
-no return claims. All legs share one expiry (no calendars yet). Starting prices
-are placeholders unless a live quote loads.
+`options.html` — a strategy builder and profit calculator, English and
+Vietnamese. No live data: prices are theoretical Black-Scholes values, with a
+disclaimer and no return claims.
+
+- **Sliders everywhere a price is picked** — underlying price, volatility, days,
+  and each leg's strike and expiry — with a number box beside each for an exact value.
+- **16 templates**, including call and put calendars. Every leg has its own
+  expiry; with mixed expiries the position is measured on the first one and the
+  later legs are valued by the model.
+- **Entry prices** are editable; the volatility they imply is shown.
+- **P/L grid** by price and date, in $ or %. Percent is of what you pay, or of
+  the most you can lose on a credit.
+- **Model option chain** (collapsed), with Buy/Sell on every strike.
+- **Trade finder** — set a target price; it ranks single options and vertical
+  spreads by return on risk, with chance of profit alongside.
+- **Saved strategies**, in the browser only, at the prices you saved them with.
+
+Maths in `scripts/optionsmath.js` (22 tests). Exact when legs share an expiry,
+sampled when they do not. Live quotes would need a market-data provider and a
+key held in a Supabase Edge Function.
 
 ## Testing and releasing
 
-`npm test` runs 67 tests with no dependencies (Node's built-in runner). They also
+`npm test` runs 72 tests with no dependencies (Node's built-in runner). They also
 run in CI on every push (`.github/workflows/tests.yml`). They cover:
 
 - the **Clause 6 waterfall**, including a 500-trial conservation check;

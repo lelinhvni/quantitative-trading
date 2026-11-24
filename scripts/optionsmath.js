@@ -15,10 +15,12 @@
      qty is contracts for options and 100-share lots for stock, so
      every leg is multiplied by 100.
 
-   All legs of a position share one expiry. A calendar or diagonal
-   spread is out of scope: its "at expiry" curve is not piecewise
-   linear and the exact breakeven and probability maths below would
-   not hold.
+   A leg may carry its own `dte` (days to expiry). When every option
+   leg shares one expiry the expiry curve is piecewise linear and the
+   maths below is exact. When expiries differ (calendars, diagonals) the
+   position is measured on the first expiry, longer-dated options are
+   valued by the model, and the extremes, breakevens and chance of profit
+   are found by sampling the curve instead.
 
    window.JSSOptions
    ============================================================ */
@@ -152,6 +154,100 @@
     return legs.reduce((a, l) => a - legMult(l) * l.premium, 0);
   }
 
+
+  /* ---------- legs with their own expiry ---------- */
+  const optionLegs = (legs) => legs.filter(l => l.type !== "stock");
+  const legDte = (l, fallback) => (isFinite(l.dte) ? l.dte : fallback);
+
+  /* Days until the first option expires: where the position is measured. */
+  function horizonDays(legs, fallback) {
+    const d = optionLegs(legs).map(l => legDte(l, fallback)).filter(isFinite);
+    return d.length ? Math.min(...d) : (isFinite(fallback) ? fallback : 0);
+  }
+  function isMixed(legs, fallback) {
+    const d = optionLegs(legs).map(l => legDte(l, fallback));
+    return d.some(x => Math.abs(x - d[0]) > 1e-9);
+  }
+
+  /* Profit or loss in dollars after `elapsed` days, each leg valued with its
+     own time left. ivShift is added to every leg's volatility. */
+  function plAt(legs, S, elapsed, ivShift, r, q, fallbackDays) {
+    let t = 0;
+    for (const l of legs) {
+      const left = Math.max(legDte(l, fallbackDays) - elapsed, 0);
+      const sig = Math.max((l.iv || 0) + (ivShift || 0), 0.01);
+      t += legMult(l) * (price(l.type, S, l.strike, left / 365, sig, r, q) - l.premium);
+    }
+    return t;
+  }
+
+  function positionGreeksAt(legs, S, elapsed, ivShift, r, q, fallbackDays) {
+    const out = { delta: 0, gamma: 0, theta: 0, vega: 0 };
+    for (const l of legs) {
+      const left = Math.max(legDte(l, fallbackDays) - elapsed, 0);
+      const sig = Math.max((l.iv || 0) + (ivShift || 0), 0.01);
+      const g = greeks(l.type, S, l.strike, left / 365, sig, r, q);
+      const m = legMult(l);
+      out.delta += m * g.delta; out.gamma += m * g.gamma;
+      out.theta += m * g.theta; out.vega += m * g.vega;
+    }
+    return out;
+  }
+
+  /* Sampled analysis, for positions whose legs expire on different dates. */
+  function analyzeAt(legs, elapsed, opts) {
+    const S0 = opts.spot, r = opts.r || 0, q = opts.q || 0, fb = opts.days;
+    const strikes = optionLegs(legs).map(l => l.strike);
+    const top = Math.max(S0, ...strikes) * 3, N = 3000;
+    const pts = [0.01];
+    for (let i = 1; i <= N; i += 1) pts.push(top * i / N);
+    strikes.forEach(k => pts.push(k)); pts.push(S0);
+    pts.sort((a, b) => a - b);
+    const v = pts.map(x => plAt(legs, x, elapsed, 0, r, q, fb));
+    let maxP = -Infinity, maxL = Infinity;
+    for (const x of v) { if (x > maxP) maxP = x; if (x < maxL) maxL = x; }
+    const n = pts.length;
+    const slope = (v[n - 1] - v[n - 2]) / (pts[n - 1] - pts[n - 2]);
+    const roots = [];
+    for (let i = 1; i < n; i += 1) {
+      const a = v[i - 1], b = v[i];
+      if ((a < -1e-9 && b > 1e-9) || (a > 1e-9 && b < -1e-9)) {
+        const x = pts[i - 1] + (0 - a) * (pts[i] - pts[i - 1]) / (b - a);
+        if (!roots.some(z => Math.abs(z - x) < 1e-3)) roots.push(x);
+      }
+    }
+    const T = Math.max(elapsed, 0) / 365;
+    const sigs = optionLegs(legs).map(l => l.iv).filter(x => x > 0);
+    const sigma = sigs.length ? sigs.reduce((a, b) => a + b, 0) / sigs.length : (opts.iv || 0.2);
+    let pop = null;
+    if (S0 > 0) {
+      if (!(T > 0)) pop = v[pts.indexOf(S0)] > 1e-9 ? 1 : 0;
+      else {
+        const mu = r - q - 0.5 * sigma * sigma;
+        const F = (x) => x <= 0 ? 0 : cdf((Math.log(x / S0) - mu * T) / (sigma * Math.sqrt(T)));
+        let p = 0;
+        for (let i = 1; i < n; i += 1) if ((v[i] + v[i - 1]) / 2 > 1e-9) p += F(pts[i]) - F(pts[i - 1]);
+        p += (v[n - 1] > 1e-9) ? 1 - F(pts[n - 1]) : 0;
+        pop = Math.min(1, Math.max(0, p));
+      }
+    }
+    const up = slope > 0.5, dn = slope < -0.5;
+    return {
+      netCash: netCash(legs),
+      maxProfit: up ? Infinity : maxP, maxLoss: dn ? -Infinity : maxL,
+      unlimitedProfit: up, unlimitedLoss: dn,
+      breakevens: roots.sort((a, b) => a - b), pop, approx: true, horizon: elapsed,
+    };
+  }
+
+  /* What the percentage view is a percentage of: what you pay, or for a
+     credit, the most you can lose. */
+  function riskBasis(a) {
+    if (a.netCash < 0) return -a.netCash;
+    if (isFinite(a.maxLoss) && a.maxLoss < 0) return -a.maxLoss;
+    return Math.abs(a.netCash) || 1;
+  }
+
   /* ---------- exact analysis of the expiry curve ----------
      At expiry every leg is piecewise linear in S, bending only at the
      strikes. So the extremes sit at S = 0 or a strike, the breakevens are
@@ -162,6 +258,7 @@
     if (!legs || !legs.length) {
       return { netCash: 0, maxProfit: 0, maxLoss: 0, unlimitedProfit: false, unlimitedLoss: false, breakevens: [], pop: null };
     }
+    if (isMixed(legs, opts.days)) return analyzeAt(legs, horizonDays(legs, opts.days), opts);
     const strikes = [...new Set(legs.filter(l => l.type !== "stock").map(l => l.strike))].sort((a, b) => a - b);
     const pts = [0, ...strikes];
     const f = (S) => plAtExpiry(legs, S);
@@ -246,27 +343,72 @@
     short_straddle:   (a, w, o) => [["call", -1, a], ["put", -1, a]],
     long_strangle:    (a, w, o) => [["put", 1, a - o], ["call", 1, a + o]],
     long_butterfly:   (a, w, o) => [["call", 1, a - w], ["call", -2, a], ["call", 1, a + w]],
+    // a fourth item marks a leg on the later expiry
+    call_calendar:    (a, w, o) => [["call", -1, a], ["call", 1, a, true]],
+    put_calendar:     (a, w, o) => [["put", -1, a], ["put", 1, a, true]],
   };
 
   /* Legs for a template, priced by the model at the given volatility. */
-  function buildTemplate(name, spot, width, iv, days, r, q, offset) {
+  function buildTemplate(name, spot, width, iv, days, r, q, offset, farDays) {
     const make = TEMPLATES[name];
     if (!make) return [];
     const atm = roundStrike(spot, spot);
     const w = Math.max(width || STRIKE_STEP(spot), STRIKE_STEP(spot));
     const o = offset > 0 ? offset : w;
-    const T = days / 365;
-    return make(atm, w, o).map(([type, side, k]) => {
+    const far = farDays > days ? farDays : Math.round(days * 2);
+    return make(atm, w, o).map(([type, side, k, later]) => {
       const strike = type === "stock" ? 0 : roundStrike(k, spot);
       const qty = Math.abs(side) === 2 ? 2 : 1;
-      const prem = type === "stock" ? spot : Math.round(price(type, spot, strike, T, iv, r, q) * 100) / 100;
-      return { type, side: side > 0 ? 1 : -1, strike, qty, premium: prem, iv: type === "stock" ? 0 : iv, auto: true };
+      const dte = later ? far : days;
+      const prem = type === "stock" ? spot : Math.round(price(type, spot, strike, dte / 365, iv, r, q) * 100) / 100;
+      return { type, side: side > 0 ? 1 : -1, strike, qty, premium: prem, iv: type === "stock" ? 0 : iv, dte, auto: true };
     });
+  }
+
+
+  /* ---------- trade finder ----------
+     Given where you expect the price to be at expiry, rank single options and
+     vertical spreads by profit at that price relative to the money at risk.
+     Prices are the model's, so this ranks ideas; it does not find mispricing. */
+  function optimize(o) {
+    const spot = o.spot, target = o.target, days = o.days, iv = o.iv, r = o.r || 0, q = o.q || 0;
+    const step = STRIKE_STEP(spot), atm = roundStrike(spot, spot);
+    const reach = Math.max(1, Math.round(spot * 0.1 / step));
+    const ks = []; for (let i = -reach; i <= reach; i += 1) { const k = atm + i * step; if (k > 0) ks.push(k); }
+    const p = (type, k) => Math.round(price(type, spot, k, days / 365, iv, r, q) * 100) / 100;
+    const leg = (type, side, k) => ({ type, side, strike: k, qty: 1, premium: p(type, k), iv, dte: days });
+    const out = [];
+    const tryIt = (kind, strikes, legs) => {
+      if (legs.some(l => !(l.premium >= 0.01))) return;
+      const a = analyze(legs, { spot, days, r, q, iv });
+      const risk = isFinite(a.maxLoss) ? -a.maxLoss : 0;
+      const pl = plAtExpiry(legs, target);
+      if (risk > 0 && pl > 0) out.push({ kind, strikes, legs, cost: -a.netCash, maxLoss: a.maxLoss, maxProfit: a.maxProfit, pl, ret: pl / risk, pop: a.pop });
+    };
+    const widths = [1, 2, 3, 5, 10].map(m => m * step);
+    for (const k of ks) {
+      tryIt("long_call", [k], [leg("call", 1, k)]);
+      tryIt("long_put", [k], [leg("put", 1, k)]);
+      for (const w of widths) {
+        const hi = roundStrike(k + w, spot), lo = roundStrike(k - w, spot);
+        if (ks.includes(hi)) {
+          tryIt("bull_call_spread", [k, hi], [leg("call", 1, k), leg("call", -1, hi)]);
+          tryIt("bear_call_spread", [k, hi], [leg("call", -1, k), leg("call", 1, hi)]);
+        }
+        if (lo > 0 && ks.includes(lo)) {
+          tryIt("bear_put_spread", [k, lo], [leg("put", 1, k), leg("put", -1, lo)]);
+          tryIt("bull_put_spread", [k, lo], [leg("put", -1, k), leg("put", 1, lo)]);
+        }
+      }
+    }
+    out.sort((a, b) => b.ret - a.ret);
+    return out.slice(0, o.top || 15);
   }
 
   global.JSSOptions = {
     cdf, pdf, price, greeks, impliedVol,
     plAtExpiry, plAtTime, positionGreeks, netCash, analyze,
+    plAt, positionGreeksAt, horizonDays, isMixed, riskBasis, optimize,
     buildTemplate, TEMPLATES, roundStrike, MULT,
   };
 })(typeof window !== "undefined" ? window : globalThis);
