@@ -175,7 +175,7 @@ Messages, Inbox.
 condors, straddles, covered calls and more). Exact profit/loss at expiry, a
 "selected date" curve, breakevens, chance of profit, Greeks and a price-by-date
 grid, in English and Vietnamese. Black-Scholes maths in `scripts/optionsmath.js`
-(25 tests). The page carries a disclaimer and makes no return claims. All legs
+(29 tests). The page carries a disclaimer and makes no return claims. All legs
 share one expiry (no calendars yet).
 
 **Live chain (24 Nov 2026).** For SPY, QQQ and DIA the page loads Cboe's free
@@ -206,6 +206,20 @@ volatility), and says so under the chart. Extremes, breakevens and chance of
 profit are then sampled rather than exact. Saved trades keep each leg's expiry.
 The optimizer ranks single-expiry trades only.
 
+**More than one expiry.** Beyond calendars: call and put **diagonals** and a
+**double calendar** (four legs, two expiries). The profit and loss chart draws a
+curve for each expiry in the position (up to three after the first), the date
+slider runs to the last of them, and the hover shows every one. The option chain
+has expiry chips, so legs can be added from any listed expiry without moving the
+top selector; a **term structure** table shows each expiry's at-the-money
+volatility, straddle price and implied move. The optimizer can search **all
+expiries**: each contributes its best trades in turn (otherwise the shortest
+expiries would fill the list, since the same move pays more on a nearer, cheaper
+option), judged at the target price on its own expiry date. Note that the curve
+for the last expiry of a calendar is flat at the debit once every leg has
+expired, which is correct for "hold both to expiry" but not how the trade is
+normally managed.
+
 To serve the chain through our own proxy instead of the public ones, redeploy
 `supabase/functions/market-proxy` — its allow-list now includes `cdn.cboe.com`.
 Cboe's terms for showing its delayed data on a public site are worth a read
@@ -213,7 +227,7 @@ before promoting the page.
 
 ## Testing and releasing
 
-`npm test` runs 75 tests with no dependencies (Node's built-in runner). They also
+`npm test` runs 79 tests with no dependencies (Node's built-in runner). They also
 run in CI on every push (`.github/workflows/tests.yml`). They cover:
 
 - the **Clause 6 waterfall**, including a 500-trial conservation check;

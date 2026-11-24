@@ -331,6 +331,20 @@
     "opt.farExp": "Later expiry (long leg)",
     "opt.mixed": "These legs expire on different dates. The chart measures the position on the first expiry and values the longer-dated options with the model.",
     "opt.atFirst": "At first expiry",
+    "opt.s.call_diagonal": "Call diagonal",
+    "opt.s.put_diagonal": "Put diagonal",
+    "opt.s.double_calendar": "Double calendar",
+    "opt.onExpiry": "On {date}",
+    "opt.atLast": "At last expiry",
+    "opt.term.title": "Term structure",
+    "opt.term.sub": "At-the-money volatility and straddle price for each expiry.",
+    "opt.term.days": "Days",
+    "opt.term.iv": "ATM volatility",
+    "opt.term.straddle": "ATM straddle",
+    "opt.term.move": "Implied move",
+    "opt.optim.scope": "Search",
+    "opt.optim.one": "Selected expiry",
+    "opt.optim.all": "All expiries",
   };
 
   const VI = {
@@ -631,6 +645,20 @@
     "opt.farExp": "Hạn xa hơn (vế mua dài hạn)",
     "opt.mixed": "Các vế này hết hạn vào những ngày khác nhau. Biểu đồ đo vị thế vào lần hết hạn đầu tiên và định giá các quyền chọn dài hạn hơn bằng mô hình.",
     "opt.atFirst": "Khi hết hạn lần đầu",
+    "opt.s.call_diagonal": "Diagonal quyền mua (Call)",
+    "opt.s.put_diagonal": "Diagonal quyền bán (Put)",
+    "opt.s.double_calendar": "Calendar kép",
+    "opt.onExpiry": "Vào {date}",
+    "opt.atLast": "Khi hết hạn cuối",
+    "opt.term.title": "Cấu trúc kỳ hạn",
+    "opt.term.sub": "Độ biến động và giá straddle tại giá hiện tại cho từng ngày đáo hạn.",
+    "opt.term.days": "Ngày",
+    "opt.term.iv": "Độ biến động ATM",
+    "opt.term.straddle": "Straddle ATM",
+    "opt.term.move": "Biên độ hàm ý",
+    "opt.optim.scope": "Tìm trong",
+    "opt.optim.one": "Ngày đáo hạn đã chọn",
+    "opt.optim.all": "Mọi ngày đáo hạn",
   };
 
   const DICT = { en: EN, vi: VI };

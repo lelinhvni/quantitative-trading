@@ -31,7 +31,7 @@
     days: 35, width: 6, offset: 12, strategy: "iron_condor",
     legs: [], elapsed: 0, ivShift: 0, rangePct: 20,
     chain: null, expiry: null, target: null, loading: false, label: null, pnl: "$",
-    farDays: 70, farExp: null,
+    farDays: 70, farExp: null, chainExp: null, optScope: "one",
   };
   let spotBase = 0;                  // the price slider is centred here, and does not move while dragging
   let spotTouched = false;
@@ -97,7 +97,7 @@
   function setLegExp(l, date) { const e = expInfo(date); if (e) { l.exp = e.date; l.dte = Math.max(1, Math.round(e.days)); } return l; }
   /* A new leg starts on the page's current expiry. */
   function stamp(l) { if (l.type !== "stock") { l.dte = state.days; if (state.expiry) l.exp = state.expiry; } return l; }
-  const isCalendar = (n) => /_calendar$/.test(n);
+  const isCalendar = (n) => O.isMultiExpiry(n);   // calendars, diagonals, double calendar
   /* The later expiry a calendar's long leg sits on. */
   function farInfo() {
     if (!state.chain) return null;
@@ -121,7 +121,7 @@
   }
   function setExpiry(date) {
     const e = state.chain.expiries.find((x) => x.date === date) || state.chain.expiries[0];
-    state.expiry = e.date;
+    state.expiry = e.date; state.chainExp = null;
     state.days = Math.max(1, Math.round(e.days));
     state.elapsed = Math.min(state.elapsed, state.days);
     const iv = O.atmIv(expData(), state.spot); if (iv) state.iv = round2(iv * 10000) / 10000;
@@ -244,7 +244,7 @@
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.chart.title")}</h2>
             <span class="opt-legend"><i class="opt-key opt-key--exp"></i><span id="oExpLbl">${t("opt.atExpiry")}</span>
-              <i class="opt-key opt-key--now"></i>${t("opt.onDate")}</span></div>
+              <i class="opt-key opt-key--now"></i>${t("opt.onDate")}<span id="oLegendX"></span></span></div>
           <div class="opt-chart" id="oChartWrap">
             <svg id="oChart" role="img" aria-label="${t("opt.chart.aria")}" preserveAspectRatio="xMidYMid meet"></svg>
             <div class="opt-tip" id="oTip" hidden></div>
@@ -276,13 +276,22 @@
 
         ${state.chain ? `<div class="panel">
           <div class="panel__head"><h2>${t("opt.chain.title")}</h2><span class="panel__sub">${t("opt.chain.sub")}</span></div>
+          <div class="opt-chips" id="oChips"></div>
           <div class="table-wrap" id="oChain"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__head"><h2>${t("opt.term.title")}</h2><span class="panel__sub">${t("opt.term.sub")}</span></div>
+          <div class="table-wrap" id="oTerm"></div>
         </div>
 
         <div class="panel">
           <div class="panel__head"><h2>${t("opt.optim.title")}</h2><span class="panel__sub">${t("opt.optim.sub")}</span></div>
           <div class="opt-row">
             ${pick("oTarget", t("opt.optim.target"), { min: Math.max(0.5, snapK(state.spot * 0.8)), max: snapK(state.spot * 1.2), step: stepOf(), value: state.target || snapK(state.spot * 1.03), nmin: 0.01 })}
+            <label class="field"><span>${t("opt.optim.scope")}</span>
+              <select id="oScope"><option value="one" ${state.optScope === "one" ? "selected" : ""}>${t("opt.optim.one")}</option>
+                <option value="all" ${state.optScope === "all" ? "selected" : ""}>${t("opt.optim.all")}</option></select></label>
             <button class="btn btn--primary btn--sm" id="oOptimize" type="button">${t("opt.optim.run")}</button>
           </div>
           <div class="table-wrap" id="oOpt" style="margin-top:12px"></div>
@@ -293,6 +302,7 @@
     bind();
     legsHtml();
     chainHtml();
+    termHtml();
     optHtml();
     savedHtml();
     refresh();
@@ -310,9 +320,12 @@
   }
 
   /* ---------- option chain ---------- */
+  const chainExp = () => (state.chain && state.chain.chain[state.chainExp] ? state.chainExp : state.expiry);
   function chainHtml() {
-    const host = document.getElementById("oChain"), e = expData();
+    const host = document.getElementById("oChain"), e = state.chain ? state.chain.chain[chainExp()] : null;
     if (!host || !e) return;
+    const chips = $("oChips");
+    if (chips) chips.innerHTML = state.chain.expiries.map((x) => `<button type="button" class="opt-chip ${x.date === chainExp() ? "is-on" : ""}" data-chainexp="${esc(x.date)}">${esc(expLabel(x))}</button>`).join("");
     const ks = e.strikes, ai = ks.indexOf(O.nearestStrike(ks, state.spot));
     const rows = ks.slice(Math.max(0, ai - 12), ai + 13);
     const f = (v, d) => (v > 0 ? v.toFixed(d) : "—");
@@ -332,14 +345,24 @@
       <tbody>${rows.map(k => `<tr class="${k === atm ? "is-spot" : ""}">${half("call", k)}<th class="opt-c-k ${k < state.spot ? "itm-c" : "itm-p"}">${k}</th>${half("put", k)}</tr>`).join("")}</tbody></table>`;
   }
 
+  /* ---------- term structure: one row per expiry ---------- */
+  function termHtml() {
+    const host = $("oTerm"); if (!host || !state.chain) return;
+    const rows = O.termStructure(state.chain, state.spot);
+    host.innerHTML = `<table class="ttable opt-term"><thead><tr><th>${t("opt.expiry")}</th><th>${t("opt.term.days")}</th><th>${t("opt.term.iv")}</th><th>${t("opt.term.straddle")}</th><th>${t("opt.term.move")}</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><th>${esc(expLabel({ date: r.date, days: r.days }))}</th><td>${Math.max(1, Math.round(r.days))}</td>
+        <td>${r.iv ? (r.iv * 100).toFixed(1) + "%" : "—"}</td><td>${r.straddle ? usd(r.straddle, 2) : "—"}</td><td>${r.move ? "±" + (r.move * 100).toFixed(1) + "%" : "—"}</td></tr>`).join("")}</tbody></table>`;
+  }
+
   /* ---------- optimizer ---------- */
   function optHtml() {
     const host = document.getElementById("oOpt");
     if (!host) return;
     if (state.target == null) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.optim.empty")}</p>`; return; }
     if (!optResults.length) { host.innerHTML = `<p class="portal__note" style="margin:0">${t("opt.optim.none")}</p>`; return; }
-    host.innerHTML = `<table class="ttable opt-optim"><thead><tr><th>${t("opt.strategy")}</th><th>${t("opt.optim.cost")}</th><th>${t("opt.maxLoss")}</th><th>${t("opt.maxProfit")}</th><th>${t("opt.optim.pl")}</th><th>${t("opt.optim.ret")}</th><th></th></tr></thead>
+    host.innerHTML = `<table class="ttable opt-optim"><thead><tr><th>${t("opt.strategy")}</th><th>${t("opt.expiry")}</th><th>${t("opt.optim.cost")}</th><th>${t("opt.maxLoss")}</th><th>${t("opt.maxProfit")}</th><th>${t("opt.optim.pl")}</th><th>${t("opt.optim.ret")}</th><th></th></tr></thead>
       <tbody>${optResults.map((r, i) => `<tr><th>${esc(t("opt.s." + r.kind))} <span class="opt-strikes">${r.strikes.join("/")}</span></th>
+        <td>${r.expiry && expInfo(r.expiry) ? esc(expLabel(expInfo(r.expiry))) : "—"}</td>
         <td>${usd(r.cost, 0)}</td><td class="neg">${usd(r.maxLoss, 0)}</td><td class="pos">${r.maxProfit === Infinity ? t("opt.unlimited") : usd(r.maxProfit, 0)}</td>
         <td>${usd(r.pl, 0)}</td><td><b>${Math.round(r.ret * 100)}%</b></td>
         <td><button class="btn btn--ghost btn--sm" type="button" data-use="${i}">${t("opt.optim.use")}</button></td></tr>`).join("")}</tbody></table>`;
@@ -508,18 +531,25 @@
     });
     if ($("oOptimize")) $("oOptimize").addEventListener("click", () => {
       const tg = num($("oTarget").value, 0); if (!(tg > 0)) return;
-      state.target = tg; optResults = O.optimize(expData(), state.spot, tg, { limit: 15 }); optHtml();
+      state.target = tg; state.optScope = $("oScope") ? $("oScope").value : "one";
+      optResults = state.optScope === "all"
+        ? O.optimizeAll(state.chain, state.spot, tg, { limit: 30, perExpiry: 3 })
+        : O.optimize(expData(), state.spot, tg, { limit: 15 }).map((r) => Object.assign({ expiry: state.expiry }, r));
+      optHtml();
     });
     root.onclick = (e) => {
       const q = e.target.closest(".opt-q");
       if (q) {
         const l = stamp({ type: q.dataset.type, side: +q.dataset.side > 0 ? 1 : -1, strike: +q.dataset.k, qty: 1, premium: 0, iv: state.iv, auto: true });
+        if (state.chain) setLegExp(l, chainExp());
         state.legs.push(l); marketize(l); state.label = "opt.saved.custom"; legsHtml(); refresh();
         const lg = $("oLegs"); if (lg && lg.scrollIntoView) lg.scrollIntoView({ block: "nearest", behavior: "smooth" });
         return;
       }
+      const ce = e.target.closest("[data-chainexp]");
+      if (ce) { state.chainExp = ce.dataset.chainexp; chainHtml(); return; }
       const u = e.target.closest("[data-use]");
-      if (u) { const r = optResults[+u.dataset.use]; if (r) { state.legs = r.legs.map(l => stamp({ ...l, auto: false, mkt: true })); state.label = "opt.s." + r.kind; legsHtml(); refresh(); } return; }
+      if (u) { const r = optResults[+u.dataset.use]; if (r) { state.legs = r.legs.map(l => { const x = stamp({ ...l, auto: false, mkt: true }); if (r.expiry && l.type !== "stock") setLegExp(x, r.expiry); return x; }); state.label = "opt.s." + r.kind; legsHtml(); refresh(); } return; }
       const ld = e.target.closest("[data-load]");
       if (ld) { loadSaved(readSaved()[+ld.dataset.load]); return; }
       const un = e.target.closest("[data-unsave]");
@@ -589,14 +619,15 @@
   function refresh() {
     if (!$("oStats")) return;
     const legs = effectiveLegs();
-    const hz = O.horizonDays(legs, state.days);
-    const mixed = O.isMixed(legs, state.days);
-    state.elapsed = Math.min(state.elapsed, hz);
+    const ds = O.expiryDays(legs, state.days);         // each distinct expiry, soonest first
+    const hz = ds[0], last = ds[ds.length - 1];
+    const mixed = ds.length > 1;
+    state.elapsed = Math.min(state.elapsed, last);
     const ivShift = state.ivShift / 100;
 
-    const el = $("oElapsed"); el.max = hz; el.value = state.elapsed;
+    const el = $("oElapsed"); el.max = last; el.value = state.elapsed;
     $("oDateLbl").textContent =
-      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= hz ? (mixed ? t("opt.atFirst") : t("opt.dateExpiry")) : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
+      (state.elapsed === 0 ? t("opt.dateToday") : state.elapsed >= last ? (mixed ? t("opt.atLast") : t("opt.dateExpiry")) : t("opt.inDays", { n: state.elapsed })) + " · " + dateIn(state.elapsed);
     $("oIvLbl").textContent = (state.ivShift > 0 ? "+" : "") + state.ivShift + " " + (I.lang === "vi" ? "điểm" : "pts");
     $("oRangeLbl").textContent = "±" + state.rangePct + "%";
     $("oExpLbl").textContent = mixed ? t("opt.atFirst") : t("opt.atExpiry");
@@ -604,9 +635,10 @@
 
     const a = O.analyze(legs, { spot: state.spot, days: hz, r: state.r, q: state.q, iv: state.iv });
     stats(a);
-    chart(legs, a, hz, ivShift);
+    $("oLegendX").innerHTML = ds.slice(1, 4).map((d, i) => `<i class="opt-key opt-key--x${i + 1}"></i>${t("opt.onExpiry", { date: dateIn(d) })}`).join("");
+    chart(legs, a, hz, ivShift, ds);
     greeks(legs, ivShift);
-    heat(legs, a, hz, ivShift);
+    heat(legs, a, last, ivShift);
   }
 
   function stats(a) {
@@ -632,7 +664,7 @@
 
   let view = null;                    // geometry of the last chart, for the pointer handler
 
-  function chart(legs, a, hz, ivShift) {
+  function chart(legs, a, hz, ivShift, ds) {
     const svg = $("oChart");
     const W = 820, H = 380, pl = 66, pr = 18, pt = 14, pb = 34;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -650,10 +682,12 @@
     strikes.forEach(k => { if (k > xmin && k < xmax) xs.push(k); });
     xs.sort((p, q) => p - q);
     const exp = xs.map(x => [x, at(x, hz, 0)]);
-    const showNow = state.elapsed < hz;
+    const showNow = state.elapsed !== hz;
     const now = showNow ? xs.map(x => [x, at(x, state.elapsed, ivShift)]) : [];
-    let ymin = Math.min(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
-    let ymax = Math.max(0, ...exp.map(p => p[1]), ...now.map(p => p[1]));
+    const later = ds.slice(1, 4);                      // a curve for each later expiry
+    const laterPts = later.map(d => xs.map(x => [x, at(x, d, 0)]));
+    let ymin = Math.min(0, ...exp.map(p => p[1]), ...now.map(p => p[1]), ...laterPts.flat().map(p => p[1]));
+    let ymax = Math.max(0, ...exp.map(p => p[1]), ...now.map(p => p[1]), ...laterPts.flat().map(p => p[1]));
     const pad = (ymax - ymin || 1) * 0.08; ymin -= pad; ymax += pad;
 
     const X = (x) => pl + (x - xmin) / (xmax - xmin) * (W - pl - pr);
@@ -676,11 +710,12 @@
       <line class="opt-spot" x1="${X(state.spot)}" x2="${X(state.spot)}" y1="${pt}" y2="${H - pb}"/>
       <text class="opt-spot-l" x="${X(state.spot) + 5}" y="${pt + 11}">${t("opt.now")} ${state.spot}</text>
       <path class="opt-line opt-line--exp" d="${path(exp)}"/>
+      ${laterPts.map((pts, i) => `<path class="opt-line opt-line--x${i + 1}" d="${path(pts)}"/>`).join("")}
       ${showNow ? `<path class="opt-line opt-line--now" d="${path(now)}"/>` : ""}
       ${a.breakevens.filter(b => b > xmin && b < xmax).map(b => `<circle class="opt-be" cx="${X(b)}" cy="${y0}" r="4.5"/><text class="opt-be-l" x="${X(b)}" y="${y0 - 9}" text-anchor="middle">${b.toFixed(2)}</text>`).join("")}
       <line class="opt-guide" id="oGuide" y1="${pt}" y2="${H - pb}" x1="0" x2="0"/>
       <rect id="oHit" x="${pl}" y="${pt}" width="${W - pl - pr}" height="${H - pt - pb}" fill="transparent"/>`;
-    view = { W, H, pl, pr, xmin, xmax, legs, hz, ivShift, at };
+    view = { W, H, pl, pr, xmin, xmax, legs, hz, ivShift, at, later };
 
     const hit = $("oHit");
     hit.addEventListener("pointermove", hover);
@@ -694,12 +729,13 @@
     const S = view.xmin + (px - view.pl) / (view.W - view.pl - view.pr) * (view.xmax - view.xmin);
     if (!(S >= view.xmin && S <= view.xmax)) return;
     const exp = view.at(S, view.hz, 0);
-    const showNow = state.elapsed < view.hz;
+    const showNow = state.elapsed !== view.hz;
     const nowV = showNow ? view.at(S, state.elapsed, view.ivShift) : exp;
     const g = $("oGuide"); g.style.display = "block"; g.setAttribute("x1", px); g.setAttribute("x2", px);
     const tip = $("oTip"); tip.hidden = false;
     tip.innerHTML = `<b>${t("opt.hoverPrice")} $${S.toFixed(2)}</b>
-      <span>${t("opt.hoverExpiry")}: <em class="${exp >= 0 ? "pos" : "neg"}">${sgn(exp)}${usd(exp)}</em></span>
+      <span>${t(view.later.length ? "opt.atFirst" : "opt.hoverExpiry")}: <em class="${exp >= 0 ? "pos" : "neg"}">${sgn(exp)}${usd(exp)}</em></span>
+      ${view.later.map(d => { const v = view.at(S, d, 0); return `<span>${t("opt.onExpiry", { date: dateIn(d) })}: <em class="${v >= 0 ? "pos" : "neg"}">${sgn(v)}${usd(v)}</em></span>`; }).join("")}
       ${showNow ? `<span>${t("opt.hoverDate")}: <em class="${nowV >= 0 ? "pos" : "neg"}">${sgn(nowV)}${usd(nowV)}</em></span>` : ""}`;
     const wrap = $("oChartWrap").getBoundingClientRect();
     const left = e.clientX - wrap.left + 14, flip = left > wrap.width - 190;

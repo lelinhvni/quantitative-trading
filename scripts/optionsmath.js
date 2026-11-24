@@ -346,7 +346,23 @@
     // a fourth item marks a leg on the later expiry
     call_calendar:    (a, w, o) => [["call", -1, a], ["call", 1, a, true]],
     put_calendar:     (a, w, o) => [["put", -1, a], ["put", 1, a, true]],
+    // diagonals: the long leg is later and nearer the money than the short one
+    call_diagonal:    (a, w, o) => [["call", -1, a + o], ["call", 1, a, true]],
+    put_diagonal:     (a, w, o) => [["put", -1, a - o], ["put", 1, a, true]],
+    double_calendar:  (a, w, o) => [["put", -1, a - o], ["put", 1, a - o, true], ["call", -1, a + o], ["call", 1, a + o, true]],
   };
+
+  /* A template is multi-expiry when any of its legs is marked as the later one. */
+  function isMultiExpiry(name) {
+    const make = TEMPLATES[name];
+    return !!make && make(100, 5, 5).some((x) => x[3]);
+  }
+
+  /* The distinct days-to-expiry of a position's option legs, soonest first. */
+  function expiryDays(legs, fallback) {
+    const d = [...new Set(legs.filter((l) => l.type !== "stock").map((l) => legDte(l, fallback)).filter(isFinite))].sort((a, b) => a - b);
+    return d.length ? d : [isFinite(fallback) ? fallback : 0];
+  }
 
   /* Legs for a template, priced by the model at the given volatility. */
   function buildTemplate(name, spot, width, iv, days, r, q, offset, farDays) {
@@ -516,11 +532,42 @@
     return out.sort((a, b) => b.ret - a.ret).slice(0, limit);
   }
 
+  /* The same search over every listed expiry at once. The target is the price
+     at each trade's own expiry, so a longer expiry is judged on a later date.
+     Ranking everything together would only ever show the shortest expiries
+     (the same move pays more on a cheaper, nearer option), so each expiry
+     contributes its best trades in turn, then the list is ordered by return. */
+  function optimizeAll(chain, spot, target, opts) {
+    opts = opts || {};
+    if (!chain || !Array.isArray(chain.expiries)) return [];
+    const limit = opts.limit || 15, per = opts.perExpiry || 3;
+    const lists = chain.expiries.map((e) => optimize(chain.chain[e.date], spot, target, { limit: per, band: opts.band })
+      .map((r) => Object.assign({ expiry: e.date, days: e.days }, r)));
+    const out = [];
+    for (let rank = 0; rank < per && out.length < limit; rank += 1) {
+      for (const l of lists) if (l[rank] && out.length < limit) out.push(l[rank]);
+    }
+    return out.sort((a, b) => b.ret - a.ret);
+  }
+
+  /* One row per expiry: the at-the-money volatility, the at-the-money
+     straddle's price and what it implies the price may move by expiry. */
+  function termStructure(chain, spot) {
+    if (!chain || !Array.isArray(chain.expiries)) return [];
+    return chain.expiries.map((e) => {
+      const d = chain.chain[e.date], k = d.strikes.length ? nearestStrike(d.strikes, spot) : null;
+      const c = k != null && d.call[k], p = k != null && d.put[k];
+      const straddle = c && p && c.mid > 0 && p.mid > 0 ? Math.round((c.mid + p.mid) * 100) / 100 : null;
+      return { date: e.date, days: e.days, iv: atmIv(d, spot), strike: k, straddle, move: straddle ? straddle / spot : null };
+    });
+  }
+
   global.JSSOptions = {
     cdf, pdf, price, greeks, impliedVol,
     plAtExpiry, plAtTime, positionGreeks, netCash, analyze,
     plAt, positionGreeksAt, horizonDays, isMixed, riskBasis, optimizeModel,
     parseOcc, daysTo, parseCboeChain, nearestStrike, atmIv, optimize,
+    isMultiExpiry, expiryDays, optimizeAll, termStructure,
     buildTemplate, TEMPLATES, roundStrike, MULT,
   };
 })(typeof window !== "undefined" ? window : globalThis);

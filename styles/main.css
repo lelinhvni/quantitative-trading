@@ -1807,3 +1807,16 @@ button { font: inherit; cursor: pointer; }
 .opt-saved div { display: grid; min-width: 0; }
 .opt-saved b { font-size: 0.85rem; font-weight: 600; overflow-wrap: anywhere; }
 .opt-saved span { font-size: 0.72rem; color: var(--faint); }
+
+/* multi-expiry: a curve per later expiry, the chain's expiry chips, the term table */
+.opt-line--x1 { stroke: var(--gold, #d8b874); stroke-width: 2; }
+.opt-line--x2 { stroke: #f472b6; stroke-width: 2; }
+.opt-line--x3 { stroke: #fb923c; stroke-width: 2; }
+.opt-key--x1 { border-color: var(--gold, #d8b874); } .opt-key--x2 { border-color: #f472b6; } .opt-key--x3 { border-color: #fb923c; }
+.opt-chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 10px; }
+.opt-chip { flex: none; background: none; border: 1px solid var(--border-2); color: var(--muted); border-radius: 99px; padding: 5px 12px; font: inherit; font-size: 0.78rem; cursor: pointer; white-space: nowrap; }
+.opt-chip:hover { color: var(--text); border-color: var(--teal); }
+.opt-chip.is-on { background: var(--teal); border-color: var(--teal); color: #04121a; font-weight: 600; }
+.opt-term th, .opt-term td { padding: 7px 9px; text-align: right; white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.opt-term thead th:first-child, .opt-term tbody th { text-align: left; font-family: inherit; font-weight: 500; }
+.opt-optim td:nth-child(2) { text-align: left; }

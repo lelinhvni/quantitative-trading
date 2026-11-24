@@ -266,3 +266,52 @@ test("the optimizer keeps only trades that profit at the target, best first", ()
   assert.ok(down.some((r) => r.kind === "long_put" || r.kind === "bear_put_spread"));
   assert.deepEqual(O.optimize(null, 716, 735), []);
 });
+
+/* ---------- more than one expiry ---------- */
+test("diagonals and the double calendar put their long legs on the later expiry", () => {
+  for (const n of ["call_calendar", "put_calendar", "call_diagonal", "put_diagonal", "double_calendar"]) assert.ok(O.isMultiExpiry(n), n);
+  for (const n of ["iron_condor", "long_call", "long_straddle"]) assert.ok(!O.isMultiExpiry(n), n);
+  const d = O.buildTemplate("call_diagonal", 100, 5, 0.22, 30, 0.04, 0, 5, 60);
+  assert.equal(d.length, 2);
+  const shortLeg = d.find((l) => l.side < 0), longLeg = d.find((l) => l.side > 0);
+  assert.equal(shortLeg.dte, 30); assert.equal(longLeg.dte, 60);
+  assert.ok(shortLeg.strike > longLeg.strike, "short leg is further out of the money");
+  const dc = O.buildTemplate("double_calendar", 100, 5, 0.22, 30, 0.04, 0, 5, 60);
+  assert.equal(dc.length, 4);
+  assert.deepEqual(O.expiryDays(dc, 30), [30, 60]);
+  const a = O.analyze(dc, { spot: 100, days: 30, r: 0.04, q: 0, iv: 0.22 });
+  assert.ok(a.approx && -a.netCash > 0, "a debit");
+  assert.ok(isFinite(a.maxLoss) && a.maxLoss <= a.netCash + 1e-6, "bounded, and at least the debit (a deep in-the-money put on the later expiry is worth a little less than the near one under European pricing)");
+  assert.ok(a.breakevens.every(isFinite));
+});
+
+test("expiryDays lists each date once, soonest first", () => {
+  const legs = [{ type: "call", dte: 60 }, { type: "put", dte: 30 }, { type: "call", dte: 30 }, { type: "stock" }];
+  assert.deepEqual(O.expiryDays(legs, 45), [30, 60]);
+  assert.deepEqual(O.expiryDays([{ type: "stock" }], 45), [45]);
+});
+
+test("the optimizer can search every expiry and ranks them together", () => {
+  const chain = O.parseCboeChain(fixture(), NOW);
+  assert.ok(chain.expiries.length >= 2);
+  const res = O.optimizeAll(chain, 716, 735, { limit: 30, perExpiry: 3 });
+  assert.ok(res.length > 0);
+  const dates = new Set(res.map((r) => r.expiry));
+  assert.equal(dates.size, chain.expiries.length, "every expiry is represented, not only the shortest");
+  for (let i = 1; i < res.length; i += 1) assert.ok(res[i - 1].ret >= res[i].ret, "sorted across expiries");
+  for (const r of res) { assert.ok(chain.chain[r.expiry]); assert.ok(r.days > 0); assert.ok(r.pl > 0); }
+  assert.deepEqual(O.optimizeAll(null, 716, 735), []);
+});
+
+test("term structure gives one row per expiry with the at-the-money straddle", () => {
+  const chain = O.parseCboeChain(fixture(), NOW);
+  const rows = O.termStructure(chain, 716);
+  assert.equal(rows.length, chain.expiries.length);
+  for (const r of rows) {
+    near(r.iv, 0.2, 1e-12);
+    assert.ok(r.straddle > 0 && r.move > 0);
+    near(r.move, r.straddle / 716, 1e-12);
+  }
+  assert.ok(rows[1].straddle > rows[0].straddle, "a later expiry costs more");
+  assert.deepEqual(O.termStructure(null, 716), []);
+});
